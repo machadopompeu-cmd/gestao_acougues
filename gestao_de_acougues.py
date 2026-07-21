@@ -9,7 +9,7 @@ from fpdf import FPDF
 # =========================================================================
 # 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES (BOTÕES EM #A3A3A3)
 # =========================================================================
-st.set_page_config(page_title="Gestão de Desossa - Renato Frigotudo & Associados", layout="wide")
+st.set_page_config(page_title="Gestão de Açougues - Renato Frigotudo & Associados", layout="wide")
 
 st.markdown(
     """
@@ -282,7 +282,7 @@ def reset_form_states():
     st.session_state.cortes_temp = []
 
 # =========================================================================
-# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO (ENDEREÇO REMOVIDO)
+# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO
 # =========================================================================
 def exibir_cabecalho(nome_empresa_usuaria=None):
     col_logo, col_info = st.columns([1, 4])
@@ -323,7 +323,7 @@ init_form_states()
 
 if not st.session_state.logado:
     exibir_cabecalho(nome_empresa_usuaria=None)
-    st.title("🔒 Portal de Acesso - Gestão de Desossa")
+    st.title("🔒 Portal de Acesso - Gestão de Açougues")
     
     with st.form("form_login"):
         st.subheader("Login de Acesso")
@@ -374,7 +374,7 @@ else:
         st.sidebar.download_button(
             label="📥 Exportar Backup (.db)",
             data=db_bytes,
-            file_name=f"backup_desossa_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db",
+            file_name=f"backup_acougue_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db",
             mime="application/octet-stream"
         )
     except Exception as e:
@@ -443,7 +443,6 @@ else:
                     
                     if uploaded_csv is not None:
                         try:
-                            # LEITURA ROBUSTA SEM SUPOSIÇÃO DE SEPARADOR EQUIVOCADA
                             df_imported = None
                             encodings_to_try = ["latin-1", "utf-8-sig", "utf-8", "cp1252"]
                             
@@ -462,11 +461,9 @@ else:
                                 uploaded_csv.seek(0)
                                 df_imported = pd.read_csv(uploaded_csv, encoding="latin-1")
                             
-                            # Limpa os cabeçalhos
                             col_map_imp = {col: str(col).strip().lower().replace(" ", "_").replace("\ufeff", "") for col in df_imported.columns}
                             df_imported.rename(columns=col_map_imp, inplace=True)
                             
-                            # Mapeia colunas similares
                             for c_var in ["nom_corte", "corte", "nome"]:
                                 if c_var in df_imported.columns and "nome_corte" not in df_imported.columns:
                                     df_imported.rename(columns={c_var: "nome_corte"}, inplace=True)
@@ -645,8 +642,8 @@ else:
                                     cursor.execute("UPDATE tipos_desossa SET nome = ? WHERE nome = ? AND empresa_id IS NULL", (novo_nome_fmt, tipo_gerenciar_sel))
                                     cursor.execute("UPDATE cortes_padrao SET tipo_desossa = ? WHERE tipo_desossa = ? AND empresa_id IS NULL", (novo_nome_fmt, tipo_gerenciar_sel))
                                 else:
-                                    cursor.execute("UPDATE tipos_desossa SET nome = ? WHERE nome = ? AND empresa_id = ?", (novo_nome_fmt, tipo_gerenciar_sel))
-                                    cursor.execute("UPDATE cortes_padrao SET tipo_desossa = ? WHERE tipo_desossa = ? AND empresa_id = ?", (novo_nome_fmt, tipo_gerenciar_sel))
+                                    cursor.execute("UPDATE tipos_desossa SET nome = ? WHERE nome = ? AND empresa_id = ?", (novo_nome_fmt, tipo_gerenciar_sel, emp_id_ativo))
+                                    cursor.execute("UPDATE cortes_padrao SET tipo_desossa = ? WHERE tipo_desossa = ? AND empresa_id = ?", (novo_nome_fmt, tipo_gerenciar_sel, emp_id_ativo))
                                 conn.commit()
                                 conn.close()
                                 st.rerun()
@@ -758,7 +755,6 @@ else:
                 st.markdown("---")
                 st.subheader("🥩 Cortes do Lote (Digitação Manual ou Upload por Arquivo)")
                 
-                # --- UPLOAD EM MASSA DE CORTES (CSV / CFC / EXCEL) ---
                 with st.expander("📥 Importar Cortes de Arquivo (CSV / CFC / Excel)", expanded=False):
                     st.info("O arquivo para lote deve conter as colunas: **nome_corte**, **qualidade**, **peso**, **preço_de_venda** (ou preco_venda).")
                     file_cortes = st.file_uploader("Selecione o arquivo de cortes (.csv, .cfc, .xlsx)", type=["csv", "cfc", "xlsx", "xls"], key=f"file_cortes_lote_{v_form}")
@@ -824,7 +820,6 @@ else:
                         except Exception as e_file:
                             st.error(f"❌ Erro ao ler o arquivo de cortes: {e_file}")
 
-                # --- DIGITAÇÃO MANUAL DE CORTES ---
                 conn = get_connection()
                 df_rec_cortes = pd.read_sql_query(f"SELECT nome_corte FROM cortes_padrao WHERE tipo_desossa = '{tipo_animal}' AND (empresa_id IS NULL OR empresa_id = {emp_id_ativo}) ORDER BY nome_corte ASC", conn)
                 conn.close()
@@ -883,16 +878,14 @@ else:
                         reset_form_states()
                         st.rerun()
 
-        # --- TELA: HISTÓRICO & EDIÇÃO (COM FILTRO DE DATA) ---
+        # --- TELA: HISTÓRICO & EDIÇÃO ---
         elif menu == "Histórico & Edição":
             st.header("📂 Histórico & Edição de Desossas")
             tipos_empresa = get_tipos_desossa(emp_id_ativo)
             
-            # --- FILTRO DE DATA NAS CONSULTAS ---
             st.markdown("#### 📅 Filtrar por Período de Data")
             col_f1, col_f2 = st.columns(2)
             
-            # Padrão: início do mês atual até o dia de hoje
             hoje = datetime.date.today()
             inicio_mes_padrao = hoje.replace(day=1)
             
@@ -1001,7 +994,6 @@ else:
                             st.rerun()
                         st.markdown("---")
 
-                # Bloco Matemático de Apuração Geral
                 p_bruto = acao_row["peso_bruto"]
                 p_comp_kg = acao_row["preco_animal_kg"]
                 valor_total_compra = p_bruto * p_comp_kg
@@ -1029,7 +1021,6 @@ else:
                 }
                 st.table(pd.DataFrame(apuracao_data).set_index("Apuração do Lote"))
 
-                # Lógica Financeira dos Indicadores
                 total_vendas_ouro = sum(df_cortes[df_cortes["qualidade"] == "OURO"]["peso"] * df_cortes[df_cortes["qualidade"] == "OURO"]["preco_venda"])
                 total_vendas_prata = sum(df_cortes[df_cortes["qualidade"] == "PRATA"]["peso"] * df_cortes[df_cortes["qualidade"] == "PRATA"]["preco_venda"])
                 total_vendas_total = total_vendas_ouro + total_vendas_prata
@@ -1215,7 +1206,6 @@ else:
                     })
                 )
                 
-                # --- EXPORTAÇÃO DO RELATÓRIO PDF (SEM ENDEREÇO) ---
                 st.markdown("### 🖨️ Exportação de Relatórios em PDF")
                 
                 def gerar_pdf_lote():
@@ -1223,7 +1213,6 @@ else:
                     pdf.add_page()
                     pdf.set_font("Arial", size=10)
                     
-                    # 1. Cabeçalho Principal (RENATO FRIGOTUDO & ASSOCIADOS)
                     pdf.set_fill_color(30, 58, 138)
                     pdf.rect(10, 10, 277, 14, "F")
                     pdf.set_text_color(255, 255, 255)
@@ -1231,14 +1220,12 @@ else:
                     pdf.set_xy(10, 13)
                     pdf.cell(277, 8, "RENATO FRIGOTUDO & ASSOCIADOS", ln=1, align="C")
                     
-                    # 2. Nome da Empresa Usuária
                     pdf.set_text_color(15, 23, 42)
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_xy(10, 26)
                     nome_emp_pdf = f"Empresa Usuaria: {st.session_state.empresa_nome.upper()}".encode("latin1", "replace").decode("latin1")
                     pdf.cell(277, 6, nome_emp_pdf, ln=1, align="C")
                     
-                    # Linha Divisória Reajustada
                     pdf.set_draw_color(30, 58, 138)
                     pdf.set_line_width(0.8)
                     pdf.line(10, 34, 287, 34)
@@ -1248,7 +1235,6 @@ else:
                     pdf.cell(277, 6, f"LOTE #{id_selecionado} - {tipo_animal_atual} | Data: {data_br} | Taxas: Cartao {tx_cartao}% | Impostos {tx_impostos}% | Embalagens {tx_embalagens}% | Comissao {tx_comissao}%", ln=1)
                     pdf.ln(2)
 
-                    # 3. TABELA APURAÇÃO GERAL DO LOTE
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     pdf.set_font("Arial", style="B", size=8)
@@ -1282,7 +1268,6 @@ else:
 
                     pdf.ln(4)
                     
-                    # 4. Tabela de Cortes com as 15 Colunas
                     pdf.set_fill_color(234, 179, 8)
                     pdf.set_text_color(15, 23, 42)
                     pdf.set_font("Arial", style="B", size=7)
@@ -1335,7 +1320,6 @@ else:
                     pdf.cell(20, 6, f"R$ {total_custo_efetivo_total:.2f}", border=1, align="C", fill=True)
                     pdf.ln(6)
                     
-                    # 5. Quadro de Indicadores
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     pdf.set_font("Arial", style="B", size=8)
