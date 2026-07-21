@@ -282,17 +282,23 @@ def reset_form_states():
     st.session_state.cortes_temp = []
 
 # =========================================================================
-# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO (COM LOGO OFICIAL)
+# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO (COM SUPORTE AMPLIADO À LOGO)
 # =========================================================================
 def exibir_cabecalho(nome_empresa_usuaria=None):
     col_logo, col_info = st.columns([1, 4])
     with col_logo:
-        if os.path.exists("logo_renato.jpeg"):
-            st.image("logo_renato.jpeg", width=120)
-        elif os.path.exists("logo_renato.png"):
-            st.image("logo_renato.png", width=120)
+        # Verifica múltiplos nomes e formatos possíveis para a logo
+        logo_encontrada = None
+        for nome_possivel in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
+            if os.path.exists(nome_possivel):
+                logo_encontrada = nome_possivel
+                break
+                
+        if logo_encontrada:
+            st.image(logo_encontrada, width=120)
         else:
             st.markdown("### 🍖 [LOGO]")
+            
     with col_info:
         cabecalho_principal = "RENATO FRIGOTUDO & ASSOCIADOS"
         subtitulo_empresa = nome_empresa_usuaria.upper() if nome_empresa_usuaria else "PORTAL DE ACESSO"
@@ -1215,11 +1221,15 @@ else:
                     pdf.add_page()
                     pdf.set_font("Arial", size=10)
                     
-                    # Tenta incluir a logo no PDF se o arquivo existir
-                    if os.path.exists("logo_renato.jpeg"):
-                        pdf.image("logo_renato.jpeg", x=12, y=10, w=16)
-                    elif os.path.exists("logo_renato.png"):
-                        pdf.image("logo_renato.png", x=12, y=10, w=16)
+                    # Inclui a logo no PDF verificando os possíveis nomes
+                    logo_pdf = None
+                    for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
+                        if os.path.exists(lp):
+                            logo_pdf = lp
+                            break
+                            
+                    if logo_pdf:
+                        pdf.image(logo_pdf, x=12, y=10, w=16)
                         
                     pdf.set_fill_color(30, 58, 138)
                     pdf.rect(32, 10, 255, 14, "F")
