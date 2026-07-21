@@ -282,13 +282,15 @@ def reset_form_states():
     st.session_state.cortes_temp = []
 
 # =========================================================================
-# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO
+# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO (COM LOGO OFICIAL)
 # =========================================================================
 def exibir_cabecalho(nome_empresa_usuaria=None):
     col_logo, col_info = st.columns([1, 4])
     with col_logo:
-        if os.path.exists("logo_renato.png"):
-            st.image("logo_renato.png", width=110)
+        if os.path.exists("logo_renato.jpeg"):
+            st.image("logo_renato.jpeg", width=120)
+        elif os.path.exists("logo_renato.png"):
+            st.image("logo_renato.png", width=120)
         else:
             st.markdown("### 🍖 [LOGO]")
     with col_info:
@@ -1213,12 +1215,18 @@ else:
                     pdf.add_page()
                     pdf.set_font("Arial", size=10)
                     
+                    # Tenta incluir a logo no PDF se o arquivo existir
+                    if os.path.exists("logo_renato.jpeg"):
+                        pdf.image("logo_renato.jpeg", x=12, y=10, w=16)
+                    elif os.path.exists("logo_renato.png"):
+                        pdf.image("logo_renato.png", x=12, y=10, w=16)
+                        
                     pdf.set_fill_color(30, 58, 138)
-                    pdf.rect(10, 10, 277, 14, "F")
+                    pdf.rect(32, 10, 255, 14, "F")
                     pdf.set_text_color(255, 255, 255)
                     pdf.set_font("Arial", style="B", size=13)
-                    pdf.set_xy(10, 13)
-                    pdf.cell(277, 8, "RENATO FRIGOTUDO & ASSOCIADOS", ln=1, align="C")
+                    pdf.set_xy(32, 13)
+                    pdf.cell(255, 8, "RENATO FRIGOTUDO & ASSOCIADOS", ln=1, align="C")
                     
                     pdf.set_text_color(15, 23, 42)
                     pdf.set_font("Arial", style="B", size=10)
