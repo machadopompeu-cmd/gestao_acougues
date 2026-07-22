@@ -136,6 +136,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 # =========================================================================
 # MÓDULO DE CÁLCULO FINANCEIRO (SISTEMA PRICE E CONVERSÃO DE TAXAS)
 # =========================================================================
@@ -160,7 +161,6 @@ def render_modulo_financeiro():
         btn_calcular = st.form_submit_button("🚀 Calcular e Gerar Tabela Price")
 
     if btn_calcular:
-        # Lógica de equivalência de taxas e prazos
         if periodo_taxa == periodo_prazo:
             i_equivalente = taxa_informada / 100.0
             n_perodos = int(prazo_informado)
@@ -189,7 +189,6 @@ def render_modulo_financeiro():
                 i_equivalente = i_diaria
                 n_perodos = n_dias
 
-        # Cálculo da prestação fixa (Sistema Price)
         if i_equivalente > 0:
             prestacao = valor_presente * (i_equivalente * (1.0 + i_equivalente) ** n_perodos) / (((1.0 + i_equivalente) ** n_perodos) - 1.0)
         else:
@@ -197,7 +196,6 @@ def render_modulo_financeiro():
 
         st.success(f"📊 **Resultado:** Prestação Fixa Calculada = **R$ {prestacao:.2f}** (Taxa Equivalente: {i_equivalente*100:.4f}% por período)")
 
-        # Montagem da tabela linha a linha seguindo o modelo auxiliar
         tabela_amortizacao = []
         vp_atual = valor_presente
 
@@ -262,6 +260,7 @@ def render_modulo_financeiro():
         * **Total de Juros:** R$ {total_juros:,.2f}
         * **Montante Total Pago:** R$ {total_prestacao:,.2f}
         """)
+
 # =========================================================================
 # 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
 # =========================================================================
@@ -536,10 +535,10 @@ else:
 
     if st.session_state.e_admin:
         st.sidebar.markdown("### 🛠️ Menu Administrativo")
-        menu = st.sidebar.radio("Selecione a Tela:", ["Gerenciar Empresas", "Cadastrar Empresa", "Gerenciar Cadastro de Cortes", "Importar Cortes (CSV)","Cálculo Financeiro"])
+        menu = st.sidebar.radio("Selecione a Tela:", ["Gerenciar Empresas", "Cadastrar Empresa", "Gerenciar Cadastro de Cortes", "Importar Cortes (CSV)", "Cálculo Financeiro"])
     else:
         st.sidebar.markdown("### 🥩 Menu de Operações")
-        menu = st.sidebar.radio("Selecione a Tela:", ["Nova Desossa", "Histórico & Edição", "Gerenciar Cadastro de Cortes","Cálculo Financeiro"])
+        menu = st.sidebar.radio("Selecione a Tela:", ["Nova Desossa", "Histórico & Edição", "Gerenciar Cadastro de Cortes", "Cálculo Financeiro"])
 
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
@@ -850,8 +849,11 @@ else:
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px dotted #cbd5e1;'>", unsafe_allow_html=True)
 
     # =========================================================================
-    # 8. TELAS OPERACIONAIS DAS EMPRESAS PARCEIRAS
+    # 8. TELAS OPERACIONAIS DAS EMPRESAS PARCEIRAS (E CÁLCULO FINANCEIRO)
     # =========================================================================
+    elif menu == "Cálculo Financeiro":
+        render_modulo_financeiro()
+
     else:
         emp_id_ativo = st.session_state.empresa_id
         v_form = st.session_state.form_version
