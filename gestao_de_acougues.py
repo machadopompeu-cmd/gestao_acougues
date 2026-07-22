@@ -136,7 +136,132 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+# =========================================================================
+# MÓDULO DE CÁLCULO FINANCEIRO (SISTEMA PRICE E CONVERSÃO DE TAXAS)
+# =========================================================================
+def render_modulo_financeiro():
+    st.header("🧮 Módulo de Cálculo Financeiro & Amortização (Sistema Price)")
+    st.markdown("Insira abaixo os dados para o planejamento financeiro ou simulação de investimentos para o açougue.")
 
+    with st.form("form_calculo_financeiro"):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            valor_presente = st.number_input("Valor Presente / Capital (R$)", min_value=0.0, value=10000.0, step=100.0, format="%.2f")
+            
+        with col2:
+            taxa_informada = st.number_input("Taxa de Juros (%)", min_value=0.0, value=2.3, step=0.01, format="%.4f")
+            periodo_taxa = st.selectbox("Unidade da Taxa", ["Dias", "Meses", "Anos"])
+            
+        with col3:
+            prazo_informado = st.number_input("Prazo da Operação", min_value=1, value=4, step=1)
+            periodo_prazo = st.selectbox("Unidade do Prazo", ["Dias", "Meses", "Anos"])
+
+        btn_calcular = st.form_submit_button("🚀 Calcular e Gerar Tabela Price")
+
+    if btn_calcular:
+        # Lógica de equivalência de taxas e prazos
+        if periodo_taxa == periodo_prazo:
+            i_equivalente = taxa_informada / 100.0
+            n_perodos = int(prazo_informado)
+        else:
+            if periodo_taxa == "Anos":
+                i_diaria = ((1.0 + (taxa_informada / 100.0)) ** (1.0 / 360.0)) - 1.0
+            elif periodo_taxa == "Meses":
+                i_diaria = ((1.0 + (taxa_informada / 100.0)) ** (1.0 / 30.0)) - 1.0
+            else:
+                i_diaria = taxa_informada / 100.0
+
+            if periodo_prazo == "Anos":
+                n_dias = int(prazo_informado * 360)
+            elif periodo_prazo == "Meses":
+                n_dias = int(prazo_informado * 30)
+            else:
+                n_dias = int(prazo_informado)
+
+            if periodo_prazo == "Anos":
+                i_equivalente = ((1.0 + i_diaria) ** 360.0) - 1.0
+                n_perodos = int(prazo_informado)
+            elif periodo_prazo == "Meses":
+                i_equivalente = ((1.0 + i_diaria) ** 30.0) - 1.0
+                n_perodos = int(prazo_informado)
+            else:
+                i_equivalente = i_diaria
+                n_perodos = n_dias
+
+        # Cálculo da prestação fixa (Sistema Price)
+        if i_equivalente > 0:
+            prestacao = valor_presente * (i_equivalente * (1.0 + i_equivalente) ** n_perodos) / (((1.0 + i_equivalente) ** n_perodos) - 1.0)
+        else:
+            prestacao = valor_presente / n_perodos
+
+        st.success(f"📊 **Resultado:** Prestação Fixa Calculada = **R$ {prestacao:.2f}** (Taxa Equivalente: {i_equivalente*100:.4f}% por período)")
+
+        # Montagem da tabela linha a linha seguindo o modelo auxiliar
+        tabela_amortizacao = []
+        vp_atual = valor_presente
+
+        for t in range(0, n_perodos + 1):
+            if t == 0:
+                tabela_amortizacao.append({
+                    "t": 0,
+                    "VALOR PRESENTE": vp_atual,
+                    "Amortização (At)": 0.0,
+                    "Juros (Jt)": 0.0,
+                    "Prestação": 0.0,
+                    "AUXILIAR FRC": 0.0,
+                    "n": n_perodos,
+                    "i": i_equivalente
+                })
+            else:
+                juros_t = vp_atual * i_equivalente
+                amortizacao_t = prestacao - juros_t
+                vp_atual -= amortizacao_t
+                if vp_atual < 0.01:
+                    vp_atual = 0.00
+                
+                n_restante = n_perodos - t + 1
+                if i_equivalente > 0:
+                    aux_frc = (i_equivalente * (1.0 + i_equivalente) ** n_restante) / (((1.0 + i_equivalente) ** n_restante) - 1.0)
+                else:
+                    aux_frc = 1.0 / n_restante if n_restante > 0 else 0.0
+
+                tabela_amortizacao.append({
+                    "t": t,
+                    "VALOR PRESENTE": vp_atual,
+                    "Amortização (At)": amortizacao_t,
+                    "Juros (Jt)": juros_t,
+                    "Prestação": prestacao,
+                    "AUXILIAR FRC": aux_frc,
+                    "n": n_restante,
+                    "i": i_equivalente
+                })
+
+        df_price = pd.DataFrame(tabela_amortizacao)
+
+        st.markdown("### 📋 Tabela de Amortização - Sistema Price")
+        st.dataframe(
+            df_price.style.format({
+                "VALOR PRESENTE": "R$ {:,.2f}",
+                "Amortização (At)": "R$ {:,.2f}",
+                "Juros (Jt)": "R$ {:,.2f}",
+                "Prestação": "R$ {:,.2f}",
+                "AUXILIAR FRC": "{:.6f}",
+                "n": "{:d}",
+                "i": "{:.4f}"
+            }),
+            use_container_width=True
+        )
+
+        total_amortizacao = df_price["Amortização (At)"].sum()
+        total_juros = df_price["Juros (Jt)"].sum()
+        total_prestacao = df_price["Prestação"].sum()
+
+        st.markdown(f"""
+        * **Total Amortizado:** R$ {total_amortizacao:,.2f}
+        * **Total de Juros:** R$ {total_juros:,.2f}
+        * **Montante Total Pago:** R$ {total_prestacao:,.2f}
+        """)
 # =========================================================================
 # 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
 # =========================================================================
