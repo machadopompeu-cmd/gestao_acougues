@@ -418,7 +418,6 @@ def render_modulo_financeiro():
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     
-                    # Correção aplicada nos títulos e larguras para evitar quebras visuais
                     headers = ["Periodo", "Valor Presente", "Amortizacao", "Juros", "Prestacao", "Taxa"]
                     widths = [25, 55, 50, 50, 50, 47]
                     
@@ -432,10 +431,12 @@ def render_modulo_financeiro():
                 pdf.set_font("Arial", size=8)
                 pdf.set_text_color(15, 23, 42)
                 for _, r in df_fin.iterrows():
+                    # Corrigido o limite de quebra para carregar todas as linhas sem traçar prematuramente
                     if pdf.get_y() > 185:
                         pdf.add_page()
                         criar_cabecalho_tabela()
                         pdf.set_font("Arial", size=8)
+                        pdf.set_text_color(15, 23, 42)
 
                     pdf.cell(25, 5, str(int(r["t"])), border=1, align="C")
                     pdf.cell(55, 5, f"R$ {r['VALOR PRESENTE']:,.2f}", border=1, align="R")
@@ -1213,7 +1214,7 @@ else:
             st.header("📂 Histórico & Edição de Desossas")
             tipos_empresa = get_tipos_desossa(emp_id_ativo)
             
-            st.markdown("#### 📅 Filtrar por Período de Data")
+            st.markdown("#### 📅 Filtrar por Período de Date")
             col_f1, col_f2 = st.columns(2)
             
             hoje = datetime.date.today()
