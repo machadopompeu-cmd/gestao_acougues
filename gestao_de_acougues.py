@@ -16,14 +16,11 @@ st.set_page_config(page_title="Gestão de Açougues - Renato Frigotudo & Associa
 st.markdown(
     """
     <style>
-    /* Fundo geral da aplicação */
     .stApp {
         background-color: #F8FAFC;
         font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
         color: #0F172A; 
     }
-    
-    /* Inputs, seletores e caixas de texto */
     div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input, div[data-testid="stSelectbox"] select {
         border: 1px solid #94A3B8 !important;
         border-radius: 8px !important;
@@ -36,15 +33,11 @@ st.markdown(
         border-color: #A3A3A3 !important;
         box-shadow: 0 0 0 2px rgba(163, 163, 163, 0.3) !important;
     }
-    
-    /* Labels e títulos dos campos */
     label {
         color: #334155 !important;
         font-weight: 700 !important;
         font-size: 14px !important;
     }
-    
-    /* ESTILIZAÇÃO DE TODOS OS BOTÕES NA COR #A3A3A3 */
     div.stButton > button,
     div.stDownloadButton > button {
         background-color: #A3A3A3 !important;
@@ -62,8 +55,6 @@ st.markdown(
         color: #0F172A !important;
         border-color: #525252 !important;
     }
-    
-    /* Botões dentro de formulários */
     form button,
     div.stFormSubmitButton > button {
         background-color: #A3A3A3 !important;
@@ -77,14 +68,10 @@ st.markdown(
         background-color: #8C8C8C !important;
         color: #0F172A !important;
     }
-    
-    /* Títulos */
     h1, h2, h3, h4 {
         color: #0F172A !important; 
         font-weight: 800 !important;
     }
-    
-    /* SIDEBAR (MENU LATERAL) */
     section[data-testid="stSidebar"] {
         background-color: #0F172A !important;
         border-right: 2px solid #1E293B;
@@ -97,8 +84,6 @@ st.markdown(
         color: #FFFFFF !important;
         font-weight: 600 !important;
     }
-    
-    /* Botões na Barra Lateral */
     section[data-testid="stSidebar"] div.stButton > button,
     section[data-testid="stSidebar"] div.stDownloadButton > button,
     section[data-testid="stSidebar"] a {
@@ -113,8 +98,6 @@ st.markdown(
         background-color: #8C8C8C !important;
         color: #0F172A !important;
     }
-    
-    /* Caixa de Dropzone/Upload no Menu Lateral */
     section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] {
         background-color: #1E293B !important;
         border: 2px dashed #A3A3A3 !important;
@@ -124,8 +107,6 @@ st.markdown(
         color: #FFFFFF !important;
         font-weight: 600 !important;
     }
-
-    /* CORREÇÃO VISUAL PARA O BOTÃO DE UPLOAD */
     section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] button,
     section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] button *,
     section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] a,
@@ -153,7 +134,8 @@ def render_modulo_financeiro():
             "Calcular Capital / Valor Presente (PV)",
             "Calcular Taxa de Juros (i)",
             "Calcular Prazo da Operação (n)"
-        ]
+        ],
+        key="select_tipo_calculo_financeiro"
     )
 
     with st.form("form_calculo_financeiro_flexivel"):
@@ -161,15 +143,15 @@ def render_modulo_financeiro():
         
         with col1:
             if tipo_calculo != "Calcular Capital / Valor Presente (PV)":
-                valor_presente_input = st.number_input("Valor Presente / Capital (R$)", min_value=0.0, value=10000.0, step=100.0, format="%.2f")
+                valor_presente_input = st.number_input("Valor Presente / Capital (R$)", min_value=0.0, value=10000.0, step=100.0, format="%.2f", key="input_vp_fin")
             else:
                 valor_presente_input = 0.0
                 st.info("📌 **Capital (PV):** Será calculado.")
 
         with col2:
             if tipo_calculo != "Calcular Taxa de Juros (i)":
-                taxa_informada = st.number_input("Taxa de Juros (%)", min_value=0.0, value=2.3, step=0.01, format="%.4f")
-                periodo_taxa = st.selectbox("Unidade da Taxa", ["Dias", "Meses", "Anos"])
+                taxa_informada = st.number_input("Taxa de Juros (%)", min_value=0.0, value=2.3, step=0.01, format="%.4f", key="input_taxa_fin")
+                periodo_taxa = st.selectbox("Unidade da Taxa", ["Dias", "Meses", "Anos"], key="sel_periodo_taxa_fin")
             else:
                 taxa_informada = 0.0
                 periodo_taxa = "Meses"
@@ -177,8 +159,8 @@ def render_modulo_financeiro():
 
         with col3:
             if tipo_calculo != "Calcular Prazo da Operação (n)":
-                prazo_informado = st.number_input("Prazo da Operação", min_value=1, value=12, step=1)
-                periodo_prazo = st.selectbox("Unidade do Prazo", ["Dias", "Meses", "Anos"])
+                prazo_informado = st.number_input("Prazo da Operação", min_value=1, value=12, step=1, key="input_prazo_fin")
+                periodo_prazo = st.selectbox("Unidade do Prazo", ["Dias", "Meses", "Anos"], key="sel_periodo_prazo_fin")
             else:
                 prazo_informado = 0
                 periodo_prazo = "Meses"
@@ -186,7 +168,7 @@ def render_modulo_financeiro():
 
         if tipo_calculo != "Calcular Prestação (PMT)":
             st.markdown("---")
-            prestacao_informada = st.number_input("Valor da Prestação / Parcela (R$)", min_value=0.0, value=950.0, step=10.0, format="%.2f")
+            prestacao_informada = st.number_input("Valor da Prestação / Parcela (R$)", min_value=0.0, value=950.0, step=10.0, format="%.2f", key="input_pmt_fin")
         else:
             prestacao_informada = 0.0
 
@@ -322,7 +304,8 @@ def render_modulo_financeiro():
                     "n": "{:d}",
                     "i": "{:.4f}"
                 }),
-                use_container_width=True
+                use_container_width=True,
+                key="df_tabela_price_estavel"
             )
 
             total_amortizacao = df_price["Amortização (At)"].sum()
@@ -350,7 +333,8 @@ def render_modulo_financeiro():
                     label="📥 Baixar Planilha em Excel (.xlsx)",
                     data=output_excel,
                     file_name=f"tabela_price_{datetime.date.today().strftime('%Y%m%d')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="btn_dl_excel_fin"
                 )
 
             with col_exp2:
@@ -400,7 +384,8 @@ def render_modulo_financeiro():
                     label="📄 Baixar Relatório em PDF (.pdf)",
                     data=pdf_bytes_fin,
                     file_name=f"relatorio_financeiro_{datetime.date.today().strftime('%Y%m%d')}.pdf",
-                    mime="application/pdf"
+                    mime="application/pdf",
+                    key="btn_dl_pdf_fin"
                 )
 
         except Exception as e:
@@ -556,7 +541,6 @@ def reset_form_states():
 def exibir_cabecalho(nome_empresa_usuaria=None):
     col_logo, col_info = st.columns([1, 4])
     with col_logo:
-        # Verifica múltiplos nomes e formatos possíveis para a logo
         logo_encontrada = None
         for nome_possivel in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
             if os.path.exists(nome_possivel):
@@ -640,7 +624,6 @@ if not st.session_state.logado:
                     st.error("Usuário ou senha incorretos.")
 
 else:
-    # --- BARRA LATERAL ---
     st.sidebar.markdown(f"**🏢 Empresa Usuária:**\n`{st.session_state.empresa_nome.upper()}`")
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 💾 Backup do Sistema")
@@ -652,14 +635,15 @@ else:
             label="📥 Exportar Backup (.db)",
             data=db_bytes,
             file_name=f"backup_acougue_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db",
-            mime="application/octet-stream"
+            mime="application/octet-stream",
+            key="btn_bkp_db"
         )
     except Exception as e:
         st.sidebar.error("Erro ao gerar backup.")
         
     backup_upload = st.sidebar.file_uploader("📤 Restaurar Backup (.db)", type=["db"], key="file_uploader_backup")
     if backup_upload is not None:
-        if st.sidebar.button("⚠️ Confirmar Restauração"):
+        if st.sidebar.button("⚠️ Confirmar Restauração", key="btn_conf_restaurar"):
             try:
                 with open("desossa_db.db", "wb") as f:
                     f.write(backup_upload.getbuffer())
@@ -670,7 +654,7 @@ else:
                 
     st.sidebar.markdown("---")
     
-    if st.sidebar.button("🚪 Sair do Sistema"):
+    if st.sidebar.button("🚪 Sair do Sistema", key="btn_sair_sistema"):
         st.session_state.logado = False
         st.session_state.empresa_id = None
         st.session_state.empresa_nome = ""
@@ -680,10 +664,10 @@ else:
 
     if st.session_state.e_admin:
         st.sidebar.markdown("### 🛠️ Menu Administrativo")
-        menu = st.sidebar.radio("Selecione a Tela:", ["Gerenciar Empresas", "Cadastrar Empresa", "Gerenciar Cadastro de Cortes", "Importar Cortes (CSV)", "Cálculo Financeiro"])
+        menu = st.sidebar.radio("Selecione a Tela:", ["Gerenciar Empresas", "Cadastrar Empresa", "Gerenciar Cadastro de Cortes", "Importar Cortes (CSV)", "Cálculo Financeiro"], key="menu_admin")
     else:
         st.sidebar.markdown("### 🥩 Menu de Operações")
-        menu = st.sidebar.radio("Selecione a Tela:", ["Nova Desossa", "Histórico & Edição", "Gerenciar Cadastro de Cortes", "Cálculo Financeiro"])
+        menu = st.sidebar.radio("Selecione a Tela:", ["Nova Desossa", "Histórico & Edição", "Gerenciar Cadastro de Cortes", "Cálculo Financeiro"], key="menu_operacional")
 
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
@@ -705,7 +689,7 @@ else:
                 emp_options = {row['nome']: row['id'] for _, row in df_empresas_list.iterrows()}
                 emp_options["Cortes Globais (Sistema)"] = None
                 
-                selected_emp_name = st.selectbox("1. Selecione a Empresa de Destino", list(emp_options.keys()))
+                selected_emp_name = st.selectbox("1. Selecione a Empresa de Destino", list(emp_options.keys()), key="sel_emp_csv")
                 target_emp_id = emp_options[selected_emp_name]
                 
                 tipos_empresa_destino = get_tipos_desossa(target_emp_id if target_emp_id is not None else 0)
@@ -713,7 +697,7 @@ else:
                 if not tipos_empresa_destino:
                     st.warning("⚠️ Esta empresa não possui tipos de desossa cadastrados. Crie pelo menos um tipo antes de importar.")
                 else:
-                    selected_tipo_desossa = st.selectbox("2. Selecione o Tipo de Desossa", tipos_empresa_destino)
+                    selected_tipo_desossa = st.selectbox("2. Selecione o Tipo de Desossa", tipos_empresa_destino, key="sel_tipo_csv")
                     
                     st.markdown("### 📄 Instruções do arquivo CSV")
                     uploaded_csv = st.file_uploader("3. Selecione o arquivo CSV para Importar", type=["csv"], key=f"csv_uploader_{st.session_state.uploader_key}")
@@ -751,9 +735,9 @@ else:
                             else:
                                 df_imported['nome_corte'] = df_imported['nome_corte'].dropna().astype(str).str.strip().str.upper()
                                 df_imported = df_imported[df_imported['nome_corte'] != ""]
-                                st.dataframe(df_imported)
+                                st.dataframe(df_imported, key="df_preview_csv")
                                 
-                                if st.button("🚀 Confirmar e Importar para o Banco de Dados"):
+                                if st.button("🚀 Confirmar e Importar para o Banco de Dados", key="btn_conf_import_csv"):
                                     conn = get_connection()
                                     cursor = conn.cursor()
                                     sucessos = 0
@@ -892,9 +876,9 @@ else:
                 tipo_gerenciar_sel = st.selectbox("Selecione o Tipo", lista_tipos_gerenciáveis, key="tipo_ger_sel")
                 col_btn_alt, col_btn_exc = st.columns(2)
                 with col_btn_alt:
-                    alterar_tipo_chk = st.checkbox("✏️ Alterar Nome")
+                    alterar_tipo_chk = st.checkbox("✏️ Alterar Nome", key="chk_alt_tipo")
                 with col_btn_exc:
-                    if st.button("🗑️ Excluir Tipo"):
+                    if st.button("🗑️ Excluir Tipo", key="btn_exc_tipo"):
                         conn = get_connection()
                         cursor = conn.cursor()
                         if st.session_state.e_admin:
@@ -994,16 +978,18 @@ else:
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px dotted #cbd5e1;'>", unsafe_allow_html=True)
 
     # =========================================================================
-    # 8. TELAS OPERACIONAIS DAS EMPRESAS PARCEIRAS (E CÁLCULO FINANCEIRO)
+    # 8. MÓDULO DE CÁLCULO FINANCEIRO
     # =========================================================================
     elif menu == "Cálculo Financeiro":
         render_modulo_financeiro()
 
+    # =========================================================================
+    # 9. TELAS OPERACIONAIS DAS EMPRESAS PARCEIRAS
+    # =========================================================================
     else:
         emp_id_ativo = st.session_state.empresa_id
         v_form = st.session_state.form_version
         
-        # --- TELA: NOVA DESOSSA ---
         if menu == "Nova Desossa":
             st.header("📋 Lançar Nova Ação de Desossa")
             tipos_empresa = get_tipos_desossa(emp_id_ativo)
@@ -1109,11 +1095,11 @@ else:
                 with st.form(f"adicionar_corte_{v_form}"):
                     col_c1, col_c2, col_c3, col_c4 = st.columns(4)
                     if lista_cortes_disponiveis:
-                        nome_corte = col_c1.selectbox("Corte Cadastrado", lista_cortes_disponiveis)
+                        nome_corte = col_c1.selectbox("Corte Cadastrado", lista_cortes_disponiveis, key=f"sel_corte_cad_{v_form}")
                     else:
                         nome_corte = col_c1.text_input("Nome do Corte Manual", key=f"input_corte_nome_manual_{v_form}")
                         
-                    qualidade = col_c2.selectbox("Qualidade", ["OURO", "PRATA"])
+                    qualidade = col_c2.selectbox("Qualidade", ["OURO", "PRATA"], key=f"sel_qual_corte_{v_form}")
                     peso_corte = col_c3.number_input("Peso do Corte (KG)", min_value=0.0, step=0.001, format="%.3f", key=f"input_corte_peso_{v_form}")
                     preco_venda = col_c4.number_input("Preço de Venda (R$/KG)", min_value=0.0, step=0.01, key=f"input_corte_preco_{v_form}")
                     
@@ -1158,7 +1144,6 @@ else:
                         reset_form_states()
                         st.rerun()
 
-        # --- TELA: HISTÓRICO & EDIÇÃO ---
         elif menu == "Histórico & Edição":
             st.header("📂 Histórico & Edição de Desossas")
             tipos_empresa = get_tipos_desossa(emp_id_ativo)
@@ -1200,7 +1185,7 @@ else:
                 label_inicial = [k for k, v in opcoes_map.items() if v == st.session_state.lote_selecionado_id]
                 idx_default_sel = opcoes_lista.index(label_inicial[0]) if label_inicial else 0
                 
-                selecionado = st.selectbox("Selecione um lote para visualizar, editar ou exportar:", opcoes_lista, index=idx_default_sel)
+                selecionado = st.selectbox("Selecione um lote para visualizar, editar ou exportar:", opcoes_lista, index=idx_default_sel, key="sel_lote_historico")
                 id_selecionado = opcoes_map[selecionado]
                 st.session_state.lote_selecionado_id = id_selecionado
                 
@@ -1218,23 +1203,23 @@ else:
                     col_ed1, col_ed2, col_ed3 = st.columns(3)
                     with col_ed1:
                         st.markdown("**Dados Operacionais**")
-                        ed_data = st.date_input("Editar Data", datetime.datetime.strptime(acao_row["data_acao"], "%Y-%m-%d").date())
-                        ed_tipo = st.selectbox("Editar Tipo", tipos_empresa, index=tipos_empresa.index(acao_row["tipo_animal"]) if acao_row["tipo_animal"] in tipos_empresa else 0)
-                        ed_p_bruto = st.number_input("Editar Peso Bruto (KG)", value=float(acao_row["peso_bruto"]), step=0.001, format="%.3f")
-                        ed_preco_animal = st.number_input("Editar Preço (R$/KG)", value=float(acao_row["preco_animal_kg"]), step=0.01)
+                        ed_data = st.date_input("Editar Data", datetime.datetime.strptime(acao_row["data_acao"], "%Y-%m-%d").date(), key=f"ed_data_{id_selecionado}")
+                        ed_tipo = st.selectbox("Editar Tipo", tipos_empresa, index=tipos_empresa.index(acao_row["tipo_animal"]) if acao_row["tipo_animal"] in tipos_empresa else 0, key=f"ed_tipo_{id_selecionado}")
+                        ed_p_bruto = st.number_input("Editar Peso Bruto (KG)", value=float(acao_row["peso_bruto"]), step=0.001, format="%.3f", key=f"ed_pb_{id_selecionado}")
+                        ed_preco_animal = st.number_input("Editar Preço (R$/KG)", value=float(acao_row["preco_animal_kg"]), step=0.01, key=f"ed_pa_{id_selecionado}")
                     with col_ed2:
                         st.markdown("**Pesos de Perdas**")
-                        ed_ossos = st.number_input("Editar Ossos/Muxiba (KG)", value=float(acao_row["ossos_muxiba"]), step=0.001, format="%.3f")
-                        ed_quebra = st.number_input("Editar Quebra Não Identificada (KG)", value=float(acao_row["quebra_nao_identificada"]), step=0.001, format="%.3f")
-                        ed_exsudato = st.number_input("Editar Exsudato/Escorrimento (KG)", value=float(acao_row["exsudato_escorrimento"]), step=0.001, format="%.3f")
+                        ed_ossos = st.number_input("Editar Ossos/Muxiba (KG)", value=float(acao_row["ossos_muxiba"]), step=0.001, format="%.3f", key=f"ed_oss_{id_selecionado}")
+                        ed_quebra = st.number_input("Editar Quebra Não Identificada (KG)", value=float(acao_row["quebra_nao_identificada"]), step=0.001, format="%.3f", key=f"ed_q_{id_selecionado}")
+                        ed_exsudato = st.number_input("Editar Exsudato/Escorrimento (KG)", value=float(acao_row["exsudato_escorrimento"]), step=0.001, format="%.3f", key=f"ed_exs_{id_selecionado}")
                     with col_ed3:
                         st.markdown("**Percentuais de Custos Variáveis**")
-                        ed_p_cartao = st.number_input("Editar Taxa Cartão (%)", value=float(tx_cartao), step=0.01)
-                        ed_p_impostos = st.number_input("Editar Impostos (%)", value=float(tx_impostos), step=0.01)
-                        ed_p_embalagens = st.number_input("Editar Embalagens (%)", value=float(tx_embalagens), step=0.01)
-                        ed_p_comissao = st.number_input("Editar Comissão (%)", value=float(tx_comissao), step=0.01)
+                        ed_p_cartao = st.number_input("Editar Taxa Cartão (%)", value=float(tx_cartao), step=0.01, key=f"ed_pc_{id_selecionado}")
+                        ed_p_impostos = st.number_input("Editar Impostos (%)", value=float(tx_impostos), step=0.01, key=f"ed_pi_{id_selecionado}")
+                        ed_p_embalagens = st.number_input("Editar Embalagens (%)", value=float(tx_embalagens), step=0.01, key=f"ed_pe_{id_selecionado}")
+                        ed_p_comissao = st.number_input("Editar Comissão (%)", value=float(tx_comissao), step=0.01, key=f"ed_pcom_{id_selecionado}")
                         
-                    if st.button("💾 CONFIRMAR ATUALIZAÇÃO DO LOTE"):
+                    if st.button("💾 CONFIRMAR ATUALIZAÇÃO DO LOTE", key=f"btn_conf_up_{id_selecionado}"):
                         conn = get_connection()
                         cursor = conn.cursor()
                         cursor.execute("""
@@ -1483,7 +1468,8 @@ else:
                         "COMISSÃO": lambda x: f"R$ {x:.2f}" if pd.notnull(x) else "-",
                         "CUSTO EFETIVO/KG": lambda x: f"R$ {x:.2f}" if pd.notnull(x) else "-",
                         "CUSTO EFETIVO TOTAL": "R$ {:.2f}"
-                    })
+                    }),
+                    key=f"df_detalhes_lote_{id_selecionado}"
                 )
                 
                 st.markdown("### 🖨️ Exportação de Relatórios em PDF")
@@ -1493,7 +1479,6 @@ else:
                     pdf.add_page()
                     pdf.set_font("Arial", size=10)
                     
-                    # Inclui a logo no PDF verificando os possíveis nomes
                     logo_pdf = None
                     for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
                         if os.path.exists(lp):
@@ -1652,7 +1637,8 @@ else:
                     label="📄 Descarregar Relatório Completo (15 Colunas) em PDF",
                     data=pdf_bytes,
                     file_name=f"relatorio_lote_{id_selecionado}.pdf",
-                    mime="application/pdf"
+                    mime="application/pdf",
+                    key=f"btn_dl_pdf_lote_{id_selecionado}"
                 )
                 
                 if st.button("🗑️ Excluir esta Ação de Desossa Completa", key=f"del_{id_selecionado}"):
