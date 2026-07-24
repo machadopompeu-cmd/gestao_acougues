@@ -121,7 +121,7 @@ st.markdown(
 )
 
 # =========================================================================
-# FUNÇÃO PADRÃO DE CABEÇALHO PARA RELATÓRIOS PDF
+# FUNÇÃO PADRÃO DE CABEÇALHO PARA RELATÓRIOS PDF (DIMENSIONADA)
 # =========================================================================
 def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
     logo_pdf = None
@@ -131,25 +131,25 @@ def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
             break
             
     if logo_pdf:
-        pdf.image(logo_pdf, x=12, y=10, w=16)
+        pdf.image(logo_pdf, x=10, y=8, w=18)
 
     pdf.set_fill_color(30, 58, 138)
-    pdf.rect(32, 10, 255, 14, "F")
+    pdf.rect(30, 8, 170, 12, "F")
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", style="B", size=11)
-    pdf.set_xy(32, 13)
-    pdf.cell(255, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {titulo_relatorio.upper()}", ln=1, align="C")
+    pdf.set_font("Arial", style="B", size=10)
+    pdf.set_xy(30, 10)
+    pdf.cell(170, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {titulo_relatorio.upper()}", ln=1, align="C")
     
     pdf.set_text_color(15, 23, 42)
-    pdf.set_font("Arial", style="B", size=9)
-    pdf.set_xy(10, 26)
+    pdf.set_font("Arial", style="B", size=8.5)
+    pdf.set_xy(10, 22)
     txt_empresa = f"Empresa Usuária: {nome_empresa_usuaria}"
-    pdf.cell(277, 6, txt_empresa.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
+    pdf.cell(190, 5, txt_empresa.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
     
     pdf.set_draw_color(30, 58, 138)
-    pdf.set_line_width(0.8)
-    pdf.line(10, 33, 287, 33)
-    pdf.set_xy(10, 36)
+    pdf.set_line_width(0.6)
+    pdf.line(10, 28, 200, 28)
+    pdf.set_xy(10, 31)
 
 # =========================================================================
 # MÓDULO DE CÁLCULO FINANCEIRO (SISTEMA PRICE & SISTEMA SAC)
@@ -463,7 +463,7 @@ def render_modulo_ficha_tecnica():
     st.markdown("""
         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 25px;">
             <h2 style="margin: 0; color: white !important;">📋 Módulo de Ficha Técnica & Precificação</h2>
-            <p style="margin: 5px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos alimentícios e não alimentícios em formato de tabela, e apure custos de produção.</p>
+            <p style="margin: 5px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos em tabelas e apure custos de produção em tempo real.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -478,12 +478,18 @@ def render_modulo_ficha_tecnica():
             col1, col2 = st.columns(2)
             with col1:
                 nome_produto = st.text_input("Nome do Produto / Prato", value="")
-                rendimento_kg = st.number_input("Rendimento Total (KG)", min_value=0.0, value=0.0, step=0.1, format="%.3f")
-                rendimento_assada_kg = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=0.0, step=0.01, format="%.3f")
-                peso_unidade_kg = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=0.0, step=0.001, format="%.3f")
+                rendimento_kg_novo = st.number_input("Rendimento Total (KG)", min_value=0.0, value=0.0, step=0.1, format="%.3f", key="novo_rend_total")
+                rendimento_assada_kg_novo = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=0.0, step=0.01, format="%.3f", key="novo_rend_assado")
             with col2:
+                peso_unidade_kg = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=0.0, step=0.001, format="%.3f")
                 qtd_por_pacote = st.number_input("Quantidade por Pacote", min_value=1.0, value=1.0, step=1.0)
-                perda_pct = st.number_input("Perda %", min_value=0.0, max_value=1.0, value=0.0, step=0.0001, format="%.4f")
+            
+            # Cálculo automático da perda % para o cadastro novo
+            perda_calculada_nova = (rendimento_kg_novo - rendimento_assada_kg_novo) / rendimento_kg_novo if rendimento_kg_novo > 0 else 0.0
+            if perda_calculada_nova < 0:
+                perda_calculada_nova = 0.0
+
+            st.markdown(f"**Perda % Calculada (Indicador):** `{perda_calculada_nova*100:.2f}%` ({perda_calculada_nova:.4f})")
             
             st.markdown("<br>", unsafe_allow_html=True)
             btn_salvar_ficha = st.form_submit_button("💾 Salvar Ficha Técnica e Continuar")
@@ -498,7 +504,7 @@ def render_modulo_ficha_tecnica():
                         cursor.execute("""
                             INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, perda_pct, data_criacao)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (emp_id_ativo, nome_produto.strip().upper(), rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, perda_pct, str(datetime.date.today())))
+                        """, (emp_id_ativo, nome_produto.strip().upper(), rendimento_kg_novo, rendimento_assada_kg_novo, peso_unidade_kg, qtd_por_pacote, perda_calculada_nova, str(datetime.date.today())))
                         conn.commit()
                         conn.close()
                         st.success("🎉 Ficha técnica criada com sucesso! Agora você pode gerenciar seus insumos no menu de consulta.")
@@ -562,7 +568,7 @@ def render_modulo_ficha_tecnica():
                     pdf.cell(63, 5, f"Rend. Assada: {ficha_row['rendimento_assada_kg']:.3f} KG", border=1)
                     pdf.cell(64, 5, f"Peso Unidade: {ficha_row['peso_unidade_kg']:.3f} KG", border=1, ln=1)
                     pdf.cell(95, 5, f"Qtd por Pacote: {ficha_row['qtd_por_pacote']}", border=1)
-                    pdf.cell(95, 5, f"Perda %: {ficha_row['perda_pct']*100:.2f}%", border=1, ln=1)
+                    pdf.cell(95, 5, f"Perda % (Indicador): {ficha_row['perda_pct']*100:.2f}%", border=1, ln=1)
                     pdf.ln(4)
 
                     # Indicadores Financeiros
@@ -660,12 +666,18 @@ def render_modulo_ficha_tecnica():
                     ed_col1, ed_col2 = st.columns(2)
                     with ed_col1:
                         edit_nome_prod = st.text_input("Nome do Produto / Prato", value=ficha_row['produto'])
-                        edit_rend_kg = st.number_input("Rendimento Total (KG)", min_value=0.0, value=float(ficha_row['rendimento_kg']), step=0.1, format="%.3f")
-                        edit_rend_ass = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=float(ficha_row['rendimento_assada_kg']), step=0.01, format="%.3f")
+                        edit_rend_kg = st.number_input("Rendimento Total (KG)", min_value=0.0, value=float(ficha_row['rendimento_kg']), step=0.1, format="%.3f", key="edit_rend_t")
+                        edit_rend_ass = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=float(ficha_row['rendimento_assada_kg']), step=0.01, format="%.3f", key="edit_rend_a")
                     with ed_col2:
                         edit_peso_un = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=float(ficha_row['peso_unidade_kg']), step=0.001, format="%.3f")
                         edit_qtd_pct = st.number_input("Quantidade por Pacote", min_value=1.0, value=float(ficha_row['qtd_por_pacote']), step=1.0)
-                        edit_perda = st.number_input("Perda %", min_value=0.0, max_value=1.0, value=float(ficha_row['perda_pct']), step=0.0001, format="%.4f")
+                    
+                    # Cálculo automático da perda % no painel de edição
+                    perda_calculada_edit = (edit_rend_kg - edit_rend_ass) / edit_rend_kg if edit_rend_kg > 0 else 0.0
+                    if perda_calculada_edit < 0:
+                        perda_calculada_edit = 0.0
+
+                    st.markdown(f"**📉 Perda % (Indicador Automático):** `{perda_calculada_edit*100:.2f}%` ({perda_calculada_edit:.4f})")
                     
                     if st.form_submit_button("💾 Salvar Alterações dos Parâmetros"):
                         conn = get_connection()
@@ -674,10 +686,10 @@ def render_modulo_ficha_tecnica():
                             UPDATE fichas_tecnicas 
                             SET produto = ?, rendimento_kg = ?, rendimento_assada_kg = ?, peso_unidade_kg = ?, qtd_por_pacote = ?, perda_pct = ?
                             WHERE id = ?
-                        """, (edit_nome_prod.strip().upper(), edit_rend_kg, edit_rend_ass, edit_peso_un, edit_qtd_pct, edit_perda, ficha_id_ativo))
+                        """, (edit_nome_prod.strip().upper(), edit_rend_kg, edit_rend_ass, edit_peso_un, edit_qtd_pct, perda_calculada_edit, ficha_id_ativo))
                         conn.commit()
                         conn.close()
-                        st.success("Parâmetros atualizados com sucesso!")
+                        st.success("Parâmetros e Perda % atualizados com sucesso!")
                         st.rerun()
 
             with st.expander("🗑️ Excluir esta Ficha Técnica Inteira", expanded=False):
@@ -729,7 +741,6 @@ def render_modulo_ficha_tecnica():
             else:
                 st.markdown("#### 📋 Tabela de Insumos Alimentícios Cadastrados")
                 
-                # Exibição em formato de tabela resumida
                 df_insumos_view = df_insumos[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto']].copy()
                 df_insumos_view.columns = ['ID', 'Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)']
                 st.dataframe(
@@ -744,7 +755,7 @@ def render_modulo_ficha_tecnica():
                 st.markdown("#### ✏️ Alterar ou Excluir Insumos Alimentícios por Seleção")
                 opcoes_insumos = {f"ID: {r['id']} - {r['produto_insumo']} ({r['qtd_bruta']} {r['unidade']})": r['id'] for _, r in df_insumos.iterrows()}
                 sel_ins_gerenciar = st.selectbox("Selecione o Insumo Alimentício para Editar/Excluir", list(opcoes_insumos.keys()), key="sel_gerenciar_ins_ali")
-                id_ins_gerenciar = opcoes_fichas[ficha_selecionada_label] if not opcoes_insumos else opcoes_insumos[sel_ins_gerenciar]
+                id_ins_gerenciar = opcoes_insumos[sel_ins_gerenciar]
                 
                 row_ins_sel = df_insumos[df_insumos['id'] == id_ins_gerenciar].iloc[0]
                 
@@ -761,8 +772,7 @@ def render_modulo_ficha_tecnica():
                     
                     alt_preco = ac5.number_input("Preço Bruto", min_value=0.0, value=float(row_ins_sel['preco_bruto']), step=0.1, format="%.2f", key=f"tab_alt_pc_{id_ins_gerenciar}")
                     
-                    col_b1, col_b2 = st.columns(2)
-                    btn_salvar_alt = col_b1.form_submit_button("💾 Salvar Alterações do Insumo")
+                    btn_salvar_alt = st.form_submit_button("💾 Salvar Alterações do Insumo")
                     
                     if btn_salvar_alt:
                         conn = get_connection()
