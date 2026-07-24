@@ -255,7 +255,7 @@ def render_modulo_financeiro():
                 for t in range(0, n_perodos + 1):
                     if t == 0:
                         tabela_amortizacao.append({
-                            "t": 0, "VALOR PRESENTE": vp_atual, "Amortização (At)": 0.0, "Juros (Jt)": 0.0, "Prestação": 0.0, "AUXILIAR FRC": 0.0, "n": n_perodos, "i": i_equivalente
+                            "t": 0, "VALOR PRESENTE": vp_atual, "Amortização": 0.0, "Juros": 0.0, "Prestação": 0.0, "Taxa (%)": 0.0
                         })
                     else:
                         juros_t = vp_atual * i_equivalente
@@ -263,11 +263,9 @@ def render_modulo_financeiro():
                         vp_atual -= amortizacao_t
                         if vp_atual < 0.01:
                             vp_atual = 0.00
-                        n_restante = n_perodos - t + 1
-                        aux_frc = (i_equivalente * (1.0 + i_equivalente) ** n_restante) / (((1.0 + i_equivalente) ** n_restante) - 1.0) if i_equivalente > 0 else (1.0 / n_restante if n_restante > 0 else 0.0)
 
                         tabela_amortizacao.append({
-                            "t": t, "VALOR PRESENTE": vp_atual, "Amortização (At)": amortizacao_t, "Juros (Jt)": juros_t, "Prestação": prestacao, "AUXILIAR FRC": aux_frc, "n": n_restante, "i": i_equivalente
+                            "t": t, "VALOR PRESENTE": vp_atual, "Amortização": amortizacao_t, "Juros": juros_t, "Prestação": prestacao, "Taxa (%)": i_equivalente * 100.0
                         })
                 df_fin = pd.DataFrame(tabela_amortizacao)
                 nome_sistema = "Sistema Price"
@@ -288,7 +286,7 @@ def render_modulo_financeiro():
                 for t in range(0, n_perodos + 1):
                     if t == 0:
                         tabela_amortizacao.append({
-                            "t": 0, "VALOR PRESENTE": vp_atual, "Amortização (At)": 0.0, "Juros (Jt)": 0.0, "Prestação": 0.0, "AUXILIAR FRC": 0.0, "n": n_perodos, "i": i_equivalente
+                            "t": 0, "VALOR PRESENTE": vp_atual, "Amortização": 0.0, "Juros": 0.0, "Prestação": 0.0, "Taxa (%)": 0.0
                         })
                     else:
                         juros_t = vp_atual * i_equivalente
@@ -298,7 +296,7 @@ def render_modulo_financeiro():
                         if vp_atual < 0.01:
                             vp_atual = 0.00
                         tabela_amortizacao.append({
-                            "t": t, "VALOR PRESENTE": vp_atual, "Amortização (At)": amortizacao_t, "Juros (Jt)": juros_t, "Prestação": prestacao_t, "AUXILIAR FRC": 0.0, "n": n_perodos - t + 1, "i": i_equivalente
+                            "t": t, "VALOR PRESENTE": vp_atual, "Amortização": amortizacao_t, "Juros": juros_t, "Prestação": prestacao_t, "Taxa (%)": i_equivalente * 100.0
                         })
                 df_fin = pd.DataFrame(tabela_amortizacao)
                 nome_sistema = "Sistema SAC"
@@ -314,19 +312,17 @@ def render_modulo_financeiro():
             st.dataframe(
                 df_fin.style.format({
                     "VALOR PRESENTE": "R$ {:,.2f}",
-                    "Amortização (At)": "R$ {:,.2f}",
-                    "Juros (Jt)": "R$ {:,.2f}",
+                    "Amortização": "R$ {:,.2f}",
+                    "Juros": "R$ {:,.2f}",
                     "Prestação": "R$ {:,.2f}",
-                    "AUXILIAR FRC": "{:.6f}",
-                    "n": "{:d}",
-                    "i": "{:.4f}"
+                    "Taxa (%)": "{:.4f}%"
                 }),
                 use_container_width=True,
                 key="df_tabela_amortizacao_estavel"
             )
 
-            total_amortizacao = df_fin["Amortização (At)"].sum()
-            total_juros = df_fin["Juros (Jt)"].sum()
+            total_amortizacao = df_fin["Amortização"].sum()
+            total_juros = df_fin["Juros"].sum()
             total_prestacao = df_fin["Prestação"].sum()
 
             st.markdown(f"""
@@ -359,28 +355,42 @@ def render_modulo_financeiro():
                     pdf = FPDF(orientation='L', unit='mm', format='A4')
                     
                     def criar_cabecalho_pagina():
+                        logo_pdf = None
+                        for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
+                            if os.path.exists(lp):
+                                logo_pdf = lp
+                                break
+                                
+                        if logo_pdf:
+                            pdf.image(logo_pdf, x=12, y=10, w=16)
+
                         pdf.set_fill_color(30, 58, 138)
-                        pdf.rect(10, 10, 277, 14, "F")
+                        pdf.rect(32, 10, 255, 14, "F")
                         pdf.set_text_color(255, 255, 255)
                         pdf.set_font("Arial", style="B", size=12)
-                        pdf.set_xy(10, 13)
-                        pdf.cell(277, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {nome_sistema.upper()}", ln=1, align="C")
+                        pdf.set_xy(32, 13)
+                        pdf.cell(255, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {nome_sistema.upper()}", ln=1, align="C")
                         
                         pdf.set_text_color(15, 23, 42)
                         pdf.set_font("Arial", style="B", size=9)
-                        pdf.set_xy(10, 28)
-                        pdf.cell(277, 6, f"Capital: R$ {valor_presente:,.2f} | Prazo: {n_perodos} periodos | Taxa: {i_equivalente*100:.4f}% p.p.", ln=1)
-                        pdf.ln(4)
-
+                        pdf.set_xy(10, 27)
+                        txt_info = f"Capital: R$ {valor_presente:,.2f} | Prazo: {n_perodos} periodos | Taxa: {i_equivalente*100:.4f}% p.p."
+                        pdf.cell(277, 6, txt_info.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
+                        
+                        pdf.set_draw_color(30, 58, 138)
+                        pdf.set_line_width(0.8)
+                        pdf.line(10, 34, 287, 34)
+                        
+                        pdf.set_xy(10, 37)
                         pdf.set_fill_color(30, 58, 138)
                         pdf.set_text_color(255, 255, 255)
-                        pdf.set_font("Arial", style="B", size=8)
+                        pdf.set_font("Arial", style="B", size=8.5)
                         
-                        headers = ["Periodo (t)", "Valor Presente (R$)", "Amortizacao (At)", "Juros (Jt)", "Prestacao (R$)", "Taxa (i)"]
+                        headers = ["Periodo (t)", "Valor Presente (R$)", "Amortizacao (R$)", "Juros (R$)", "Prestacao (R$)", "Taxa (%)"]
                         widths = [25, 55, 50, 50, 50, 47]
                         
                         for text_h, w_h in zip(headers, widths):
-                            pdf.cell(w_h, 6, text_h, border=1, align="C", fill=True)
+                            pdf.cell(w_h, 6, text_h.encode("latin1", "replace").decode("latin1"), border=1, align="C", fill=True)
                         pdf.ln()
 
                     pdf.add_page()
@@ -388,7 +398,6 @@ def render_modulo_financeiro():
 
                     pdf.set_font("Arial", size=8)
                     for _, r in df_fin.iterrows():
-                        # Verificar se chegou próximo ao final da página para adicionar nova página com cabeçalho
                         if pdf.get_y() > 185:
                             pdf.add_page()
                             criar_cabecalho_pagina()
@@ -396,10 +405,10 @@ def render_modulo_financeiro():
 
                         pdf.cell(25, 5, str(int(r["t"])), border=1, align="C")
                         pdf.cell(55, 5, f"R$ {r['VALOR PRESENTE']:,.2f}", border=1, align="R")
-                        pdf.cell(50, 5, f"R$ {r['Amortização (At)']:,.2f}", border=1, align="R")
-                        pdf.cell(50, 5, f"R$ {r['Juros (Jt)']:,.2f}", border=1, align="R")
+                        pdf.cell(50, 5, f"R$ {r['Amortização']:,.2f}", border=1, align="R")
+                        pdf.cell(50, 5, f"R$ {r['Juros']:,.2f}", border=1, align="R")
                         pdf.cell(50, 5, f"R$ {r['Prestação']:,.2f}", border=1, align="R")
-                        pdf.cell(47, 5, f"{r['i']*100:.4f}%", border=1, align="C")
+                        pdf.cell(47, 5, f"{r['Taxa (%)']:.4f}%", border=1, align="C")
                         pdf.ln()
 
                     return pdf.output(dest="S").encode("latin1")
