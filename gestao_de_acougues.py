@@ -431,7 +431,6 @@ def render_modulo_financeiro():
                 pdf.set_font("Arial", size=8)
                 pdf.set_text_color(15, 23, 42)
                 for _, r in df_fin.iterrows():
-                    # Corrigido o limite de quebra para carregar todas as linhas sem traçar prematuramente
                     if pdf.get_y() > 185:
                         pdf.add_page()
                         criar_cabecalho_tabela()
@@ -456,6 +455,157 @@ def render_modulo_financeiro():
                 mime="application/pdf",
                 key="btn_dl_pdf_fin"
             )
+
+# =========================================================================
+# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO
+# =========================================================================
+def render_modulo_ficha_tecnica():
+    st.header("📋 Módulo de Ficha Técnica & Precificação")
+    st.markdown("Gerencie as fichas técnicas, insumos e custos de produção.")
+
+    emp_id_ativo = st.session_state.empresa_id
+
+    aba_ficha = st.selectbox("Selecione a Ação", ["Consultar / Editar Fichas Existentes", "Cadastrar Nova Ficha Técnica"], key="sel_aba_ficha")
+
+    if aba_ficha == "Cadastrar Nova Ficha Técnica":
+        st.subheader("➕ Criar Nova Ficha Técnica")
+        
+        with st.form("form_nova_ficha_tecnica"):
+            col1, col2 = st.columns(2)
+            with col1:
+                nome_produto = st.text_input("Nome do Produto / Prato", value="COSTELA ASSADA")
+                rendimento_kg = st.number_input("Rendimento Total (KG)", min_value=0.0, value=21.9, step=0.1, format="%.3f")
+                rendimento_assada_kg = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=14.226, step=0.01, format="%.3f")
+                peso_unidade_kg = st.number_input("Peso da Unidade (KG)", min_value=0.001, value=0.118, step=0.001, format="%.3f")
+            with col2:
+                qtd_por_pacote = st.number_input("Quantidade por Pacote", min_value=1.0, value=4.0, step=1.0)
+                perda_pct = st.number_input("Perda %", min_value=0.0, max_value=1.0, value=0.3504, step=0.0001, format="%.4f")
+            
+            btn_salvar_ficha = st.form_submit_button("💾 Salvar Ficha Técnica e Continuar")
+            
+            if btn_salvar_ficha:
+                if not nome_produto.strip():
+                    st.error("Informe o nome do produto!")
+                else:
+                    try:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, perda_pct, data_criacao)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (emp_id_ativo, nome_produto.strip().upper(), rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, perda_pct, str(datetime.date.today())))
+                        conn.commit()
+                        conn.close()
+                        st.success("🎉 Ficha técnica criada com sucesso! Agora você pode gerenciar seus insumos no menu de consulta.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar ficha técnica: {e}")
+
+    else:
+        st.subheader("🔍 Consultar, Editar e Gerenciar Insumos")
+        
+        conn = get_connection()
+        df_fichas = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE empresa_id = ? OR empresa_id IS NULL ORDER BY id DESC", conn, params=(emp_id_ativo,))
+        conn.close()
+
+        if df_fichas.empty:
+            st.warning("⚠️ Nenhuma ficha técnica cadastrada. Selecione 'Cadastrar Nova Ficha Técnica' acima.")
+        else:
+            opcoes_fichas = {f"ID: {row['id']} - {row['produto']} (Criada em: {row['data_criacao']})": row['id'] for _, row in df_fichas.iterrows()}
+            ficha_selecionada_label = st.selectbox("Selecione a Ficha Técnica", list(opcoes_fichas.keys()), key="sel_ficha_cadastrada")
+            ficha_id_ativo = opcoes_fichas[ficha_selecionada_label]
+
+            ficha_row = df_fichas[df_fichas['id'] == ficha_id_ativo].iloc[0]
+
+            with st.expander("🗑️ Excluir esta Ficha Técnica Inteira", expanded=False):
+                confirmar_exclusao_ficha = st.checkbox("Confirmar exclusão da ficha e todos os seus insumos", key=f"chk_exc_ficha_{ficha_id_ativo}")
+                if st.button("🗑️ Excluir Ficha Permanentemente", key=f"btn_exc_ficha_{ficha_id_ativo}"):
+                    if confirmar_exclusao_ficha:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM insumos_ficha WHERE ficha_id = ?", (ficha_id_ativo,))
+                        cursor.execute("DELETE FROM fichas_tecnicas WHERE id = ?", (ficha_id_ativo,))
+                        conn.commit()
+                        conn.close()
+                        st.success("🗑️ Ficha técnica excluída com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error("Marque a caixa de confirmação para prosseguir.")
+
+            conn = get_connection()
+            df_insumos = pd.read_sql_query("SELECT * FROM insumos_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
+            conn.close()
+
+            custo_total = (df_insumos['qtd_bruta'] * df_insumos['preco_bruto']).sum() if not df_insumos.empty else 0.0
+            custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
+            custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
+            
+            unidades_produzidas = ficha_row['rendimento_assada_kg'] / ficha_row['peso_unidade_kg'] if ficha_row['peso_unidade_kg'] > 0 else 0.0
+            pacotes = unidades_produzidas / ficha_row['qtd_por_pacote'] if ficha_row['qtd_por_pacote'] > 0 else 0.0
+            
+            custo_unidade = custo_total / unidades_produzidas if unidades_produzidas > 0 else 0.0
+            custo_pacote = custo_unidade * ficha_row['qtd_por_pacote']
+
+            st.markdown("---")
+            st.markdown("### 📊 Indicadores e Custos da Ficha")
+            
+            ind_data = {
+                "Métrica / Indicador": ["Custo Total", "Custo/Kg Crua", "Custo/kg Total Depois de Assada", "Unidades Produzidas", "Pacotes", "Custo da Unidade", "Custo do Pacote"],
+                "Valor": [
+                    f"R$ {custo_total:.2f}",
+                    f"R$ {custo_kg_crua:.2f}",
+                    f"R$ {custo_kg_assada:.2f}",
+                    f"{unidades_produzidas:.2f}",
+                    f"{pacotes:.2f}",
+                    f"R$ {custo_unidade:.2f}",
+                    f"R$ {custo_pacote:.2f}"
+                ]
+            }
+            st.table(pd.DataFrame(ind_data).set_index("Métrica / Indicador"))
+
+            st.markdown("### ➕ Adicionar Novo Insumo")
+            with st.form(f"form_add_insumo_{ficha_id_ativo}"):
+                c1, c2, c3, c4, c5 = st.columns(5)
+                codigo_ins = c1.text_input("Código", value="")
+                produto_ins = c2.text_input("Produto / Insumo", value="")
+                qtd_bruta_ins = c3.number_input("Qtd Bruta", min_value=0.0, value=1.0, step=0.1, format="%.3f")
+                unidade_ins = c4.selectbox("Unidade", ["KG", "UN", "L", "G"], key="sel_unidade_insumo")
+                preco_bruto_ins = c5.number_input("Preço Bruto (R$)", min_value=0.0, value=10.0, step=0.1, format="%.2f")
+                
+                btn_add_ins = st.form_submit_button("➕ Adicionar Insumo")
+                if btn_add_ins:
+                    if not produto_ins.strip():
+                        st.error("Informe o nome do produto/insumo!")
+                    else:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT INTO insumos_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
+                            VALUES (?, ?, ?, ?, ?, ?, 1.0)
+                        """, (ficha_id_ativo, codigo_ins.strip().upper(), produto_ins.strip().upper(), qtd_bruta_ins, unidade_ins, preco_bruto_ins))
+                        conn.commit()
+                        conn.close()
+                        st.success("Insumo adicionado com sucesso!")
+                        st.rerun()
+
+            st.markdown("### 📋 Tabela de Insumos Cadastrados")
+            if df_insumos.empty:
+                st.info("Nenhum insumo cadastrado nesta ficha ainda.")
+            else:
+                for _, row_ins in df_insumos.iterrows():
+                    ins_id = row_ins['id']
+                    c_id_col, c_prod_col, c_qtd_col, c_preco_col, c_btn_del = st.columns([1, 3, 2, 2, 1])
+                    c_id_col.write(f"`{row_ins['codigo'] if row_ins['codigo'] else '-'}`")
+                    c_prod_col.write(f"**{row_ins['produto_insumo']}**")
+                    c_qtd_col.write(f"{row_ins['qtd_bruta']} {row_ins['unidade']}")
+                    c_preco_col.write(f"R$ {row_ins['preco_bruto']:.2f}")
+                    
+                    if c_btn_del.button("🗑️", key=f"del_ins_{ins_id}"):
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM insumos_ficha WHERE id = ?", (ins_id,))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
 
 # =========================================================================
 # 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
@@ -514,6 +664,35 @@ def init_db():
             p_embalagens REAL DEFAULT 0.0,
             p_comissao REAL DEFAULT 0.0,
             FOREIGN KEY(empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS fichas_tecnicas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa_id INTEGER,
+            produto TEXT NOT NULL,
+            rendimento_kg REAL DEFAULT 0.0,
+            rendimento_assada_kg REAL DEFAULT 0.0,
+            peso_unidade_kg REAL DEFAULT 0.0,
+            qtd_por_pacote REAL DEFAULT 4.0,
+            perda_pct REAL DEFAULT 0.0,
+            data_criacao TEXT,
+            FOREIGN KEY(empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insumos_ficha (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ficha_id INTEGER,
+            codigo TEXT,
+            produto_insumo TEXT NOT NULL,
+            qtd_bruta REAL DEFAULT 0.0,
+            unidade TEXT,
+            preco_bruto REAL DEFAULT 0.0,
+            rendimento REAL DEFAULT 1.0,
+            FOREIGN KEY(ficha_id) REFERENCES fichas_tecnicas(id) ON DELETE CASCADE
         )
     """)
     
@@ -730,17 +909,17 @@ else:
 
     if st.session_state.e_admin:
         st.sidebar.markdown("### 🛠️ Menu Administrativo")
-        menu = st.sidebar.radio("Selecione a Tela:", ["Gerenciar Empresas", "Cadastrar Empresa", "Gerenciar Cadastro de Cortes", "Importar Cortes (CSV)", "Cálculo Financeiro"], key="menu_admin")
+        menu = st.sidebar.radio("Selecione a Tela:", ["Gerenciar Empresas", "Cadastrar Empresa", "Gerenciar Cadastro de Cortes", "Importar Cortes (CSV)", "Cálculo Financeiro", "Ficha Técnica"], key="menu_admin")
     else:
         st.sidebar.markdown("### 🥩 Menu de Operações")
-        menu = st.sidebar.radio("Selecione a Tela:", ["Nova Desossa", "Histórico & Edição", "Gerenciar Cadastro de Cortes", "Cálculo Financeiro"], key="menu_operacional")
+        menu = st.sidebar.radio("Selecione a Tela:", ["Nova Desossa", "Histórico & Edição", "Gerenciar Cadastro de Cortes", "Cálculo Financeiro", "Ficha Técnica"], key="menu_operacional")
 
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
     # =========================================================================
     # 6. TELAS EXCLUSIVAS DO ADMINISTRADOR
     # =========================================================================
-    if st.session_state.e_admin and menu != "Gerenciar Cadastro de Cortes" and menu != "Cálculo Financeiro":
+    if st.session_state.e_admin and menu not in ["Gerenciar Cadastro de Cortes", "Cálculo Financeiro", "Ficha Técnica"]:
         
         if menu == "Importar Cortes (CSV)":
             st.header("📥 Importação Massiva de Cortes (CSV)")
@@ -1050,7 +1229,13 @@ else:
         render_modulo_financeiro()
 
     # =========================================================================
-    # 9. TELAS OPERACIONAIS DAS EMPRESAS PARCEIRAS
+    # 9. MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO
+    # =========================================================================
+    elif menu == "Ficha Técnica":
+        render_modulo_ficha_tecnica()
+
+    # =========================================================================
+    # 10. TELAS OPERACIONAIS DAS EMPRESAS PARCEIRAS
     # =========================================================================
     else:
         emp_id_ativo = st.session_state.empresa_id
@@ -1361,7 +1546,7 @@ else:
                 st.subheader("📊 Apuração Geral do Lote")
                 apuracao_data = {
                     "Apuração do Lote": ["PESO BRUTO/KG", "OSSOS/MUXIBA", "QUEBRA NÃO IDENTIF", "ESCORRIMENTO", "Peso Final", "TOTAL DE QUEBRA"],
-                    "Peso (KG)": [f"{p_bruto:.3f}", f"{ossos_val:.3f}", f"{quebra_val:.3f}", f"{exsudato_val:.3f}", f"{peso_final:.3f}", f"{total_quebra:.3f}"],
+                    "Peso (KG)": [f"{p_bruto:.3f}", f"{ossos_val:.3f}", f"{quebra_val:.3f}", f"{exsudato_val:.3f}", f"{peso_final:.3f}" , f"{total_quebra:.3f}"],
                     "R$": [f"R$ {valor_total_compra:.2f}", "-", "-", "-", f"R$ {valor_total_compra:.2f}", "-"],
                     "Porcentagem": ["100,00%", f"{porc_ossos:.2f}%", f"{porc_quebra:.2f}%", f"{porc_exsudato:.2f}%", f"{porc_final:.2f}%", f"{porc_total_quebra:.2f}%"]
                 }
