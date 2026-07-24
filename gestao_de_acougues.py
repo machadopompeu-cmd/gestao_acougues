@@ -274,7 +274,6 @@ def render_modulo_financeiro():
 
             else: # Sistema SAC
                 if tipo_calculo == "Calcular Capital / Valor Presente (PV)":
-                    # No SAC, se PMT é a primeira prestação informada: PMT1 = (PV / n) + (PV * i) = PV * (1/n + i)
                     prestacao = prestacao_informada
                     n_perodos = int(prazo_informado)
                     valor_presente = prestacao / ((1.0 / n_perodos) + i_equivalente)
@@ -358,35 +357,43 @@ def render_modulo_financeiro():
             with col_exp2:
                 def gerar_pdf_financeiro():
                     pdf = FPDF(orientation='L', unit='mm', format='A4')
-                    pdf.add_page()
-                    pdf.set_font("Arial", size=10)
                     
-                    pdf.set_fill_color(30, 58, 138)
-                    pdf.rect(10, 10, 277, 14, "F")
-                    pdf.set_text_color(255, 255, 255)
-                    pdf.set_font("Arial", style="B", size=12)
-                    pdf.set_xy(10, 13)
-                    pdf.cell(277, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {nome_sistema.upper()}", ln=1, align="C")
-                    
-                    pdf.set_text_color(15, 23, 42)
-                    pdf.set_font("Arial", style="B", size=9)
-                    pdf.set_xy(10, 28)
-                    pdf.cell(277, 6, f"Capital: R$ {valor_presente:,.2f} | Prazo: {n_perodos} periodos | Taxa: {i_equivalente*100:.4f}% p.p.", ln=1)
-                    pdf.ln(4)
+                    def criar_cabecalho_pagina():
+                        pdf.set_fill_color(30, 58, 138)
+                        pdf.rect(10, 10, 277, 14, "F")
+                        pdf.set_text_color(255, 255, 255)
+                        pdf.set_font("Arial", style="B", size=12)
+                        pdf.set_xy(10, 13)
+                        pdf.cell(277, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {nome_sistema.upper()}", ln=1, align="C")
+                        
+                        pdf.set_text_color(15, 23, 42)
+                        pdf.set_font("Arial", style="B", size=9)
+                        pdf.set_xy(10, 28)
+                        pdf.cell(277, 6, f"Capital: R$ {valor_presente:,.2f} | Prazo: {n_perodos} periodos | Taxa: {i_equivalente*100:.4f}% p.p.", ln=1)
+                        pdf.ln(4)
 
-                    pdf.set_fill_color(30, 58, 138)
-                    pdf.set_text_color(255, 255, 255)
-                    pdf.set_font("Arial", style="B", size=8)
-                    
-                    headers = ["Periodo (t)", "Valor Presente (R$)", "Amortizacao (At)", "Juros (Jt)", "Prestacao (R$)", "Taxa (i)"]
-                    widths = [25, 55, 50, 50, 50, 47]
-                    
-                    for text_h, w_h in zip(headers, widths):
-                        pdf.cell(w_h, 6, text_h, border=1, align="C", fill=True)
-                    pdf.ln()
+                        pdf.set_fill_color(30, 58, 138)
+                        pdf.set_text_color(255, 255, 255)
+                        pdf.set_font("Arial", style="B", size=8)
+                        
+                        headers = ["Periodo (t)", "Valor Presente (R$)", "Amortizacao (At)", "Juros (Jt)", "Prestacao (R$)", "Taxa (i)"]
+                        widths = [25, 55, 50, 50, 50, 47]
+                        
+                        for text_h, w_h in zip(headers, widths):
+                            pdf.cell(w_h, 6, text_h, border=1, align="C", fill=True)
+                        pdf.ln()
+
+                    pdf.add_page()
+                    criar_cabecalho_pagina()
 
                     pdf.set_font("Arial", size=8)
                     for _, r in df_fin.iterrows():
+                        # Verificar se chegou próximo ao final da página para adicionar nova página com cabeçalho
+                        if pdf.get_y() > 185:
+                            pdf.add_page()
+                            criar_cabecalho_pagina()
+                            pdf.set_font("Arial", size=8)
+
                         pdf.cell(25, 5, str(int(r["t"])), border=1, align="C")
                         pdf.cell(55, 5, f"R$ {r['VALOR PRESENTE']:,.2f}", border=1, align="R")
                         pdf.cell(50, 5, f"R$ {r['Amortização (At)']:,.2f}", border=1, align="R")
@@ -1489,182 +1496,3 @@ else:
                     }),
                     key=f"df_detalhes_lote_{id_selecionado}"
                 )
-                
-                st.markdown("### 🖨️ Exportação de Relatórios em PDF")
-                
-                def gerar_pdf_lote():
-                    pdf = FPDF(orientation='L', unit='mm', format='A4')
-                    pdf.add_page()
-                    pdf.set_font("Arial", size=10)
-                    
-                    logo_pdf = None
-                    for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
-                        if os.path.exists(lp):
-                            logo_pdf = lp
-                            break
-                            
-                    if logo_pdf:
-                        pdf.image(logo_pdf, x=12, y=10, w=16)
-                        
-                    pdf.set_fill_color(30, 58, 138)
-                    pdf.rect(32, 10, 255, 14, "F")
-                    pdf.set_text_color(255, 255, 255)
-                    pdf.set_font("Arial", style="B", size=13)
-                    pdf.set_xy(32, 13)
-                    pdf.cell(255, 8, "RENATO FRIGOTUDO & ASSOCIADOS", ln=1, align="C")
-                    
-                    pdf.set_text_color(15, 23, 42)
-                    pdf.set_font("Arial", style="B", size=10)
-                    pdf.set_xy(10, 26)
-                    nome_emp_pdf = f"Empresa Usuaria: {st.session_state.empresa_nome.upper()}".encode("latin1", "replace").decode("latin1")
-                    pdf.cell(277, 6, nome_emp_pdf, ln=1, align="C")
-                    
-                    pdf.set_draw_color(30, 58, 138)
-                    pdf.set_line_width(0.8)
-                    pdf.line(10, 34, 287, 34)
-                    
-                    pdf.set_xy(10, 37)
-                    pdf.set_font("Arial", style="B", size=9)
-                    txt_cab_lote = f"LOTE #{id_selecionado} - {tipo_animal_atual} | Data: {data_br} | Taxas: Cartao {tx_cartao}% | Impostos {tx_impostos}% | Emb. {tx_embalagens}% | Com. {tx_comissao}%"
-                    pdf.cell(277, 6, txt_cab_lote.encode("latin1", "replace").decode("latin1"), ln=1)
-                    pdf.ln(2)
-
-                    pdf.set_fill_color(30, 58, 138)
-                    pdf.set_text_color(255, 255, 255)
-                    pdf.set_font("Arial", style="B", size=8)
-                    pdf.cell(277, 5, " APURACAO GERAL DO LOTE", border=1, ln=1, fill=True)
-                    
-                    pdf.set_fill_color(241, 245, 249)
-                    pdf.set_text_color(15, 23, 42)
-                    pdf.set_font("Arial", style="B", size=7.5)
-                    pdf.cell(117, 4.5, "Apuracao do Lote", border=1, fill=True)
-                    pdf.cell(50, 4.5, "Peso (KG)", border=1, align="C", fill=True)
-                    pdf.cell(60, 4.5, "R$", border=1, align="C", fill=True)
-                    pdf.cell(50, 4.5, "Porcentagem", border=1, align="C", fill=True)
-                    pdf.ln()
-
-                    pdf.set_font("Arial", size=7)
-                    rows_apuracao_pdf = [
-                        ("PESO BRUTO/KG", f"{p_bruto:.3f}", f"R$ {valor_total_compra:.2f}", "100.00%"),
-                        ("OSSOS/MUXIBA", f"{ossos_val:.3f}", "-", f"{porc_ossos:.2f}%"),
-                        ("QUEBRA NAO IDENTIF", f"{quebra_val:.3f}", "-", f"{porc_quebra:.2f}%"),
-                        ("ESCORRIMENTO", f"{exsudato_val:.3f}", "-", f"{porc_exsudato:.2f}%"),
-                        ("Peso Final", f"{peso_final:.3f}", f"R$ {valor_total_compra:.2f}", f"{porc_final:.2f}%"),
-                        ("TOTAL DE QUEBRA", f"{total_quebra:.3f}", "-", f"{porc_total_quebra:.2f}%")
-                    ]
-
-                    for rotulo, p_kg, v_rs, pct_val in rows_apuracao_pdf:
-                        pdf.cell(117, 4.5, rotulo.encode("latin1", "replace").decode("latin1"), border=1)
-                        pdf.cell(50, 4.5, p_kg, border=1, align="C")
-                        pdf.cell(60, 4.5, v_rs, border=1, align="C")
-                        pdf.cell(50, 4.5, pct_val, border=1, align="C")
-                        pdf.ln()
-
-                    pdf.ln(4)
-                    
-                    pdf.set_fill_color(234, 179, 8)
-                    pdf.set_text_color(15, 23, 42)
-                    pdf.set_font("Arial", style="B", size=7)
-                    
-                    headers_excel = [
-                        "Corte/Codigo", "Qual.", "Peso/KG", "P.Custo/KG", "P./Custo", "P.Venda/KG", 
-                        "Total Vendas", "Lucro Bruto", "% Cortes", "Cartao", "Impostos", "Embal.", 
-                        "Comissao", "C.Efet/KG", "C.Efet Total"
-                    ]
-                    widths_excel = [28, 12, 16, 21, 19, 21, 23, 19, 16, 17, 15, 15, 15, 20, 20]
-                    
-                    for text_h, w_h in zip(headers_excel, widths_excel):
-                        pdf.cell(w_h, 6, text_h.encode("latin1", "replace").decode("latin1"), border=1, align="C", fill=True)
-                    pdf.ln()
-                    
-                    pdf.set_font("Arial", size=6.5)
-                    for _, r in df_final.iterrows():
-                        pdf.cell(28, 5, str(r["Corte/Código"])[:18].encode("latin1", "replace").decode("latin1"), border=1)
-                        pdf.cell(12, 5, str(r["Qualidade"]).encode("latin1", "replace").decode("latin1"), border=1, align="C")
-                        pdf.cell(16, 5, f"{r['Peso /KG']:.3f}", border=1, align="C")
-                        pdf.cell(21, 5, f"R$ {r['PREÇO CUSTO/KG']:.2f}", border=1, align="C")
-                        pdf.cell(19, 5, f"R$ {r['PREÇO/CUSTO']:.2f}", border=1, align="C")
-                        pdf.cell(21, 5, f"R$ {r['PREÇO VENDA/KG']:.2f}", border=1, align="C")
-                        pdf.cell(23, 5, f"R$ {r['VALOR TOTAL DE VENDAS']:.2f}", border=1, align="C")
-                        pdf.cell(19, 5, f"R$ {r['LUCRO BRUTO']:.2f}", border=1, align="C")
-                        pdf.cell(16, 5, f"{r['PERCENTUAL/CORTES']*100:.1f}%", border=1, align="C")
-                        pdf.cell(17, 5, f"R$ {r['TAXAS DE CARTÃO']:.2f}", border=1, align="C")
-                        pdf.cell(15, 5, f"R$ {r['IMPOSTOS']:.2f}", border=1, align="C")
-                        pdf.cell(15, 5, f"R$ {r['EMBALAGENS']:.2f}", border=1, align="C")
-                        pdf.cell(15, 5, f"R$ {r['COMISSÃO']:.2f}", border=1, align="C")
-                        pdf.cell(20, 5, f"R$ {r['CUSTO EFETIVO/KG']:.2f}", border=1, align="C")
-                        pdf.cell(20, 5, f"R$ {r['CUSTO EFETIVO TOTAL']:.2f}", border=1, align="C")
-                        pdf.ln()
-                        
-                    pdf.set_font("Arial", style="B", size=7)
-                    pdf.cell(28, 6, "TOTAL SOMA", border=1, fill=True)
-                    pdf.cell(12, 6, "", border=1, fill=True)
-                    pdf.cell(16, 6, f"{total_peso:.3f}", border=1, align="C", fill=True)
-                    pdf.cell(21, 6, "-", border=1, align="C", fill=True)
-                    pdf.cell(19, 6, f"R$ {total_preco_custo:.2f}", border=1, align="C", fill=True)
-                    pdf.cell(21, 6, "-", border=1, align="C", fill=True)
-                    pdf.cell(23, 6, f"R$ {total_faturamento:.2f}", border=1, align="C", fill=True)
-                    pdf.cell(19, 6, f"R$ {total_lucro_bruto:.2f}", border=1, align="C", fill=True)
-                    pdf.cell(16, 6, f"{total_pct_cortes*100:.1f}%", border=1, align="C", fill=True)
-                    pdf.cell(17, 6, "-", border=1, align="C", fill=True)
-                    pdf.cell(15, 6, "-", border=1, align="C", fill=True)
-                    pdf.cell(15, 6, "-", border=1, align="C", fill=True)
-                    pdf.cell(15, 6, "-", border=1, align="C", fill=True)
-                    pdf.cell(20, 6, "-", border=1, align="C", fill=True)
-                    pdf.cell(20, 6, f"R$ {total_custo_efetivo_total:.2f}", border=1, align="C", fill=True)
-                    pdf.ln(6)
-                    
-                    pdf.set_fill_color(30, 58, 138)
-                    pdf.set_text_color(255, 255, 255)
-                    pdf.set_font("Arial", style="B", size=8)
-                    pdf.cell(277, 5, " QUADRO DE INDICADORES DO LOTE", border=1, ln=1, fill=True)
-                    
-                    pdf.set_fill_color(241, 245, 249)
-                    pdf.set_text_color(15, 23, 42)
-                    pdf.cell(117, 5, "INDICADORES", border=1, fill=True)
-                    pdf.cell(40, 5, "OURO", border=1, align="C", fill=True)
-                    pdf.cell(40, 5, "PRATA", border=1, align="C", fill=True)
-                    pdf.cell(40, 5, "TOTAL", border=1, align="C", fill=True)
-                    pdf.ln()
-                    
-                    pdf.set_font("Arial", size=7.5)
-                    rows_indicadores = [
-                        ("PRECO TOTAL / Compra Sem Custos Variaveis", f"R$ {compra_ouro:.2f}", f"R$ {compra_prata:.2f}", f"R$ {valor_total_compra:.2f}"),
-                        ("PRECO TOTAL / Venda", f"R$ {total_vendas_ouro:.2f}", f"R$ {total_vendas_prata:.2f}", f"R$ {total_vendas_total:.2f}"),
-                        ("Peso Desossado (KG)", f"{peso_desossado_ouro:.3f}", f"{peso_desossado_prata:.3f}", f"{peso_desossado_total:.3f}"),
-                        ("COEFICIENTE", f"{coeficiente:.6f}", f"{coeficiente:.6f}", f"{coeficiente:.6f}"),
-                        ("Custo Efetivo Total", f"R$ {custo_efetivo_total_ouro:.2f}", f"R$ {custo_efetivo_total_prata:.2f}", f"R$ {custo_efetivo_total_geral:.2f}"),
-                        ("Margem de Contribuicao R$", f"R$ {margem_r_ouro:.2f}", f"R$ {margem_r_prata:.2f}", f"R$ {margem_r_total:.2f}"),
-                        ("Margem de Contribuicao %", f"{margem_p_ouro*100:.2f}%", f"{margem_p_prata*100:.2f}%", f"{st_margem_p_total*100:.2f}%"),
-                        ("Markup", f"{markup_ouro*100:.2f}%", f"{markup_prata*100:.2f}%", f"{markup_total*100:.2f}%"),
-                        ("Preco medio de Compra/KG SEM-Custo Variavel", f"R$ {p_medio_compra_ouro:.2f}", f"R$ {p_medio_compra_prata:.2f}", f"R$ {p_medio_compra_total:.2f}"),
-                        ("Preco medio de Compra/KG COM-Custo Variavel", f"R$ {p_medio_compra_com_ouro:.2f}", f"R$ {p_medio_compra_com_prata:.2f}", f"R$ {p_medio_compra_com_total:.2f}"),
-                        ("Preco medio de Venda/KG", f"R$ {p_medio_venda_ouro:.2f}", f"R$ {p_medio_venda_prata:.2f}", f"R$ {p_medio_venda_total:.2f}")
-                    ]
-                    
-                    for label_ind, v_ouro, v_prata, v_tot in rows_indicadores:
-                        pdf.cell(117, 4.5, label_ind.encode("latin1", "replace").decode("latin1"), border=1)
-                        pdf.cell(40, 4.5, v_ouro, border=1, align="C")
-                        pdf.cell(40, 4.5, v_prata, border=1, align="C")
-                        pdf.cell(40, 4.5, v_tot, border=1, align="C")
-                        pdf.ln()
-                        
-                    return pdf.output(dest="S").encode("latin1")
-                
-                pdf_bytes = gerar_pdf_lote()
-                st.download_button(
-                    label="📄 Descarregar Relatório Completo (15 Colunas) em PDF",
-                    data=pdf_bytes,
-                    file_name=f"relatorio_lote_{id_selecionado}.pdf",
-                    mime="application/pdf",
-                    key=f"btn_dl_pdf_lote_{id_selecionado}"
-                )
-                
-                if st.button("🗑️ Excluir esta Ação de Desossa Completa", key=f"del_{id_selecionado}"):
-                    conn = get_connection()
-                    cursor = conn.cursor()
-                    cursor.execute(f"DELETE FROM acoes WHERE id = {id_selecionado} AND empresa_id = {emp_id_ativo}")
-                    conn.commit()
-                    conn.close()
-                    st.success("Lote excluído!")
-                    st.rerun()
