@@ -460,15 +460,19 @@ def render_modulo_financeiro():
 # MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO (ALIMENTÍCIOS E NÃO ALIMENTÍCIOS)
 # =========================================================================
 def render_modulo_ficha_tecnica():
-    st.header("📋 Módulo de Ficha Técnica & Precificação")
-    st.markdown("Gerencie as fichas técnicas, insumos alimentícios, insumos não alimentícios e custos de produção.")
+    st.markdown("""
+        <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 25px;">
+            <h2 style="margin: 0; color: white !important;">📋 Módulo de Ficha Técnica & Precificação</h2>
+            <p style="margin: 5px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos alimentícios/não alimentícios e apure custos de produção em tempo real.</p>
+        </div>
+    """, unsafe_allow_html=True)
 
     emp_id_ativo = st.session_state.empresa_id
 
     aba_ficha = st.selectbox("Selecione a Ação", ["Consultar / Editar Fichas Existentes", "Cadastrar Nova Ficha Técnica"], key="sel_aba_ficha")
 
     if aba_ficha == "Cadastrar Nova Ficha Técnica":
-        st.subheader("➕ Criar Nova Ficha Técnica")
+        st.markdown("### ➕ Criar Nova Ficha Técnica")
         
         with st.form("form_nova_ficha_tecnica"):
             col1, col2 = st.columns(2)
@@ -481,6 +485,7 @@ def render_modulo_ficha_tecnica():
                 qtd_por_pacote = st.number_input("Quantidade por Pacote", min_value=1.0, value=1.0, step=1.0)
                 perda_pct = st.number_input("Perda %", min_value=0.0, max_value=1.0, value=0.0, step=0.0001, format="%.4f")
             
+            st.markdown("<br>", unsafe_allow_html=True)
             btn_salvar_ficha = st.form_submit_button("💾 Salvar Ficha Técnica e Continuar")
             
             if btn_salvar_ficha:
@@ -501,8 +506,6 @@ def render_modulo_ficha_tecnica():
                         st.error(f"Erro ao salvar ficha técnica: {e}")
 
     else:
-        st.subheader("🔍 Consultar, Editar e Gerenciar Insumos")
-        
         conn = get_connection()
         df_fichas = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE empresa_id = ? OR empresa_id IS NULL ORDER BY id DESC", conn, params=(emp_id_ativo,))
         conn.close()
@@ -511,19 +514,158 @@ def render_modulo_ficha_tecnica():
             st.warning("⚠️ Nenhuma ficha técnica cadastrada. Selecione 'Cadastrar Nova Ficha Técnica' acima.")
         else:
             opcoes_fichas = {f"ID: {row['id']} - {row['produto']} (Criada em: {row['data_criacao']})": row['id'] for _, row in df_fichas.iterrows()}
-            ficha_selecionada_label = st.selectbox("Selecione a Ficha Técnica", list(opcoes_fichas.keys()), key="sel_ficha_cadastrada")
+            
+            col_sel_f, col_btn_fpdf = st.columns([3, 1])
+            with col_sel_f:
+                ficha_selecionada_label = st.selectbox("Selecione a Ficha Técnica", list(opcoes_fichas.keys()), key="sel_ficha_cadastrada")
+            
             ficha_id_ativo = opcoes_fichas[ficha_selecionada_label]
-
             ficha_row = df_fichas[df_fichas['id'] == ficha_id_ativo].iloc[0]
+
+            conn = get_connection()
+            df_insumos = pd.read_sql_query("SELECT * FROM insumos_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
+            df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
+            conn.close()
+
+            custo_alimenticios = (df_insumos['qtd_bruta'] * df_insumos['preco_bruto']).sum() if not df_insumos.empty else 0.0
+            custo_nao_alimenticios = (df_nao_ali['qtd_bruta'] * df_nao_ali['preco_bruto']).sum() if not df_nao_ali.empty else 0.0
+            custo_total = custo_alimenticios + custo_nao_alimenticios
+
+            custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
+            custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
+            
+            unidades_produzidas = ficha_row['rendimento_assada_kg'] / ficha_row['peso_unidade_kg'] if ficha_row['peso_unidade_kg'] > 0 else 0.0
+            pacotes = unidades_produzidas / ficha_row['qtd_por_pacote'] if ficha_row['qtd_por_pacote'] > 0 else 0.0
+            
+            custo_unidade = custo_total / unidades_produzidas if unidades_produzidas > 0 else 0.0
+            custo_pacote = custo_unidade * ficha_row['qtd_por_pacote']
+
+            with col_btn_fpdf:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                def gerar_pdf_ficha_tecnica():
+                    pdf = FPDF(orientation='P', unit='mm', format='A4')
+                    
+                    def montar_cabecalho_ficha():
+                        criar_cabecalho_pdf_padrao(pdf, f"Ficha Tecnica - {ficha_row['produto']}", st.session_state.empresa_nome)
+
+                    pdf.add_page()
+                    montar_cabecalho_ficha()
+
+                    # Parâmetros Gerais
+                    pdf.set_font("Arial", style="B", size=10)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(190, 6, "1. PARAMETROS DE RENDIMENTO", ln=1, fill=True)
+                    pdf.set_font("Arial", size=9)
+                    pdf.cell(95, 5, f"Produto: {ficha_row['produto']}", border=1)
+                    pdf.cell(95, 5, f"Data de Criacao: {ficha_row['data_criacao']}", border=1, ln=1)
+                    pdf.cell(63, 5, f"Rendimento Total: {ficha_row['rendimento_kg']:.3f} KG", border=1)
+                    pdf.cell(63, 5, f"Rend. Assada: {ficha_row['rendimento_assada_kg']:.3f} KG", border=1)
+                    pdf.cell(64, 5, f"Peso Unidade: {ficha_row['peso_unidade_kg']:.3f} KG", border=1, ln=1)
+                    pdf.cell(95, 5, f"Qtd por Pacote: {ficha_row['qtd_por_pacote']}", border=1)
+                    pdf.cell(95, 5, f"Perda %: {ficha_row['perda_pct']*100:.2f}%", border=1, ln=1)
+                    pdf.ln(4)
+
+                    # Indicadores Financeiros
+                    pdf.set_font("Arial", style="B", size=10)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(190, 6, "2. INDICADORES E CUSTOS CONSOLIDADOS", ln=1, fill=True)
+                    pdf.set_font("Arial", size=9)
+                    pdf.cell(95, 5, f"Custo Insumos Alimenticios: R$ {custo_alimenticios:.2f}", border=1)
+                    pdf.cell(95, 5, f"Custo Insumos Nao Alimenticios: R$ {custo_nao_alimenticios:.2f}", border=1, ln=1)
+                    pdf.cell(95, 5, f"Custo Total de Producao: R$ {custo_total:.2f}", border=1)
+                    pdf.cell(95, 5, f"Custo por KG (Crua): R$ {custo_kg_crua:.2f}", border=1, ln=1)
+                    pdf.cell(95, 5, f"Custo por KG (Assada): R$ {custo_kg_assada:.2f}", border=1)
+                    pdf.cell(95, 5, f"Custo por Unidade: R$ {custo_unidade:.2f}", border=1, ln=1)
+                    pdf.cell(95, 5, f"Custo por Pacote: R$ {custo_pacote:.2f}", border=1)
+                    pdf.cell(95, 5, f"Unidades Produzidas: {unidades_produzidas:.2f}", border=1, ln=1)
+                    pdf.ln(4)
+
+                    # Insumos Alimentícios
+                    pdf.set_font("Arial", style="B", size=10)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(190, 6, "3. INSUMOS ALIMENTICIOS", ln=1, fill=True)
+                    pdf.set_font("Arial", style="B", size=8.5)
+                    pdf.set_fill_color(30, 58, 138)
+                    pdf.set_text_color(255, 255, 255)
+                    pdf.cell(25, 5, "Codigo", border=1, align="C", fill=True)
+                    pdf.cell(85, 5, "Produto / Insumo", border=1, align="L", fill=True)
+                    pdf.cell(25, 5, "Qtd Bruta", border=1, align="C", fill=True)
+                    pdf.cell(20, 5, "Un.", border=1, align="C", fill=True)
+                    pdf.cell(35, 5, "Preco Bruto", border=1, align="R", fill=True)
+                    pdf.ln()
+
+                    pdf.set_font("Arial", size=8.5)
+                    pdf.set_text_color(15, 23, 42)
+                    if df_insumos.empty:
+                        pdf.cell(190, 5, "Nenhum insumo alimenticio cadastrado.", border=1, align="C", ln=1)
+                    else:
+                        for _, ri in df_insumos.iterrows():
+                            pdf.cell(25, 5, str(ri['codigo'] or ""), border=1, align="C")
+                            pdf.cell(85, 5, str(ri['produto_insumo'])[:45].encode("latin1", "replace").decode("latin1"), border=1)
+                            pdf.cell(25, 5, f"{ri['qtd_bruta']:.3f}", border=1, align="R")
+                            pdf.cell(20, 5, str(ri['unidade']), border=1, align="C")
+                            pdf.cell(35, 5, f"R$ {ri['preco_bruto']:.2f}", border=1, align="R")
+                            pdf.ln()
+                    pdf.ln(4)
+
+                    # Insumos Não Alimentícios
+                    pdf.set_font("Arial", style="B", size=10)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(190, 6, "4. INSUMOS NAO ALIMENTICIOS (EMBALAGENS, GAS, ETC.)", ln=1, fill=True)
+                    pdf.set_font("Arial", style="B", size=8.5)
+                    pdf.set_fill_color(30, 58, 138)
+                    pdf.set_text_color(255, 255, 255)
+                    pdf.cell(25, 5, "Codigo", border=1, align="C", fill=True)
+                    pdf.cell(85, 5, "Produto / Insumo", border=1, align="L", fill=True)
+                    pdf.cell(25, 5, "Qtd Bruta", border=1, align="C", fill=True)
+                    pdf.cell(20, 5, "Un.", border=1, align="C", fill=True)
+                    pdf.cell(35, 5, "Preco Bruto", border=1, align="R", fill=True)
+                    pdf.ln()
+
+                    pdf.set_font("Arial", size=8.5)
+                    pdf.set_text_color(15, 23, 42)
+                    if df_nao_ali.empty:
+                        pdf.cell(190, 5, "Nenhum insumo nao alimenticio cadastrado.", border=1, align="C", ln=1)
+                    else:
+                        for _, rna in df_nao_ali.iterrows():
+                            pdf.cell(25, 5, str(rna['codigo'] or ""), border=1, align="C")
+                            pdf.cell(85, 5, str(rna['produto_insumo'])[:45].encode("latin1", "replace").decode("latin1"), border=1)
+                            pdf.cell(25, 5, f"{rna['qtd_bruta']:.3f}", border=1, align="R")
+                            pdf.cell(20, 5, str(rna['unidade']), border=1, align="C")
+                            pdf.cell(35, 5, f"R$ {rna['preco_bruto']:.2f}", border=1, align="R")
+                            pdf.ln()
+
+                    return pdf.output(dest="S").encode("latin1")
+
+                pdf_bytes_ficha = gerar_pdf_ficha_tecnica()
+                st.download_button(
+                    label="📄 Baixar PDF da Ficha",
+                    data=pdf_bytes_ficha,
+                    file_name=f"ficha_tecnica_{ficha_row['produto'].lower().replace(' ', '_')}_{datetime.date.today().strftime('%Y%m%d')}.pdf",
+                    mime="application/pdf",
+                    key="btn_dl_pdf_ficha_tecnica"
+                )
+
+            # Painel de Cards com Indicadores Principais
+            st.markdown("### 📊 Indicadores e Custos Consolidados")
+            
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Custo Total", f"R$ {custo_total:.2f}")
+            m2.metric("Custo / Kg (Assada)", f"R$ {custo_kg_assada:.2f}")
+            m3.metric("Custo da Unidade", f"R$ {custo_unidade:.2f}")
+            m4.metric("Custo do Pacote", f"R$ {custo_pacote:.2f}")
 
             with st.expander("✏️ Editar Parâmetros de Rendimento desta Ficha", expanded=False):
                 with st.form(f"form_edit_parametros_ficha_{ficha_id_ativo}"):
-                    edit_nome_prod = st.text_input("Nome do Produto / Prato", value=ficha_row['produto'])
-                    edit_rend_kg = st.number_input("Rendimento Total (KG)", min_value=0.0, value=float(ficha_row['rendimento_kg']), step=0.1, format="%.3f")
-                    edit_rend_ass = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=float(ficha_row['rendimento_assada_kg']), step=0.01, format="%.3f")
-                    edit_peso_un = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=float(ficha_row['peso_unidade_kg']), step=0.001, format="%.3f")
-                    edit_qtd_pct = st.number_input("Quantidade por Pacote", min_value=1.0, value=float(ficha_row['qtd_por_pacote']), step=1.0)
-                    edit_perda = st.number_input("Perda %", min_value=0.0, max_value=1.0, value=float(ficha_row['perda_pct']), step=0.0001, format="%.4f")
+                    ed_col1, ed_col2 = st.columns(2)
+                    with ed_col1:
+                        edit_nome_prod = st.text_input("Nome do Produto / Prato", value=ficha_row['produto'])
+                        edit_rend_kg = st.number_input("Rendimento Total (KG)", min_value=0.0, value=float(ficha_row['rendimento_kg']), step=0.1, format="%.3f")
+                        edit_rend_ass = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=float(ficha_row['rendimento_assada_kg']), step=0.01, format="%.3f")
+                    with ed_col2:
+                        edit_peso_un = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=float(ficha_row['peso_unidade_kg']), step=0.001, format="%.3f")
+                        edit_qtd_pct = st.number_input("Quantidade por Pacote", min_value=1.0, value=float(ficha_row['qtd_por_pacote']), step=1.0)
+                        edit_perda = st.number_input("Perda %", min_value=0.0, max_value=1.0, value=float(ficha_row['perda_pct']), step=0.0001, format="%.4f")
                     
                     if st.form_submit_button("💾 Salvar Alterações dos Parâmetros"):
                         conn = get_connection()
@@ -553,43 +695,6 @@ def render_modulo_ficha_tecnica():
                         st.rerun()
                     else:
                         st.error("Marque a caixa de confirmação para prosseguir.")
-
-            conn = get_connection()
-            df_insumos = pd.read_sql_query("SELECT * FROM insumos_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
-            df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
-            conn.close()
-
-            custo_alimenticios = (df_insumos['qtd_bruta'] * df_insumos['preco_bruto']).sum() if not df_insumos.empty else 0.0
-            custo_nao_alimenticios = (df_nao_ali['qtd_bruta'] * df_nao_ali['preco_bruto']).sum() if not df_nao_ali.empty else 0.0
-            custo_total = custo_alimenticios + custo_nao_alimenticios
-
-            custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
-            custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
-            
-            unidades_produzidas = ficha_row['rendimento_assada_kg'] / ficha_row['peso_unidade_kg'] if ficha_row['peso_unidade_kg'] > 0 else 0.0
-            pacotes = unidades_produzidas / ficha_row['qtd_por_pacote'] if ficha_row['qtd_por_pacote'] > 0 else 0.0
-            
-            custo_unidade = custo_total / unidades_produzidas if unidades_produzidas > 0 else 0.0
-            custo_pacote = custo_unidade * ficha_row['qtd_por_pacote']
-
-            st.markdown("---")
-            st.markdown("### 📊 Indicadores e Custos da Ficha")
-            
-            ind_data = {
-                "Métrica / Indicador": ["Custo Insumos Alimentícios", "Custo Insumos Não Alimentícios", "Custo Total", "Custo/Kg Crua", "Custo/kg Total Depois de Assada", "Unidades Produzidas", "Pacotes", "Custo da Unidade", "Custo do Pacote"],
-                "Valor": [
-                    f"R$ {custo_alimenticios:.2f}",
-                    f"R$ {custo_nao_alimenticios:.2f}",
-                    f"R$ {custo_total:.2f}",
-                    f"R$ {custo_kg_crua:.2f}",
-                    f"R$ {custo_kg_assada:.2f}",
-                    f"{unidades_produzidas:.2f}",
-                    f"{pacotes:.2f}",
-                    f"R$ {custo_unidade:.2f}",
-                    f"R$ {custo_pacote:.2f}"
-                ]
-            }
-            st.table(pd.DataFrame(ind_data).set_index("Métrica / Indicador"))
 
             st.markdown("---")
             st.markdown("### 🥩 Insumos Alimentícios")
