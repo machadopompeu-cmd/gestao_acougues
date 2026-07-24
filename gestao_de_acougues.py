@@ -121,16 +121,22 @@ st.markdown(
 )
 
 # =========================================================================
-# MÓDULO DE CÁLCULO FINANCEIRO FLEXÍVEL (SISTEMA PRICE)
+# MÓDULO DE CÁLCULO FINANCEIRO (SISTEMA PRICE & SISTEMA SAC)
 # =========================================================================
 def render_modulo_financeiro():
-    st.header("🧮 Módulo de Cálculo Financeiro & Amortização (Sistema Price)")
-    st.markdown("Selecione abaixo o que deseja calcular e insira as variáveis correspondentes.")
+    st.header("🧮 Módulo de Cálculo Financeiro & Amortização (Price & SAC)")
+    st.markdown("Selecione o sistema de amortização e insira as variáveis correspondentes.")
+
+    sistema_amortizacao = st.selectbox(
+        "Sistema de Amortização",
+        ["Sistema Price (Prestações Fixas)", "Sistema SAC (Amortização Constante)"],
+        key="select_sistema_amortizacao"
+    )
 
     tipo_calculo = st.selectbox(
         "O que você deseja calcular?",
         [
-            "Calcular Prestação (PMT)",
+            "Calcular Prestação / Primeira Parcela",
             "Calcular Capital / Valor Presente (PV)",
             "Calcular Taxa de Juros (i)",
             "Calcular Prazo da Operação (n)"
@@ -166,13 +172,13 @@ def render_modulo_financeiro():
                 periodo_prazo = "Meses"
                 st.info("📌 **Prazo:** Será calculado.")
 
-        if tipo_calculo != "Calcular Prestação (PMT)":
+        if tipo_calculo != "Calcular Prestação / Primeira Parcela":
             st.markdown("---")
             prestacao_informada = st.number_input("Valor da Prestação / Parcela (R$)", min_value=0.0, value=950.0, step=10.0, format="%.2f", key="input_pmt_fin")
         else:
             prestacao_informada = 0.0
 
-        btn_calcular = st.form_submit_button("🚀 Calcular e Gerar Tabela Price")
+        btn_calcular = st.form_submit_button("🚀 Calcular e Gerar Tabela de Amortização")
 
     if btn_calcular:
         def obter_taxa_equivalente(t_inf, p_t, p_p, p_val):
@@ -202,100 +208,112 @@ def render_modulo_financeiro():
                 return i_eq, n_dias
 
         try:
-            if tipo_calculo == "Calcular Prestação (PMT)":
-                i_equivalente, n_perodos = obter_taxa_equivalente(taxa_informada, periodo_taxa, periodo_prazo, prazo_informado)
-                valor_presente = valor_presente_input
-                if i_equivalente > 0:
-                    prestacao = valor_presente * (i_equivalente * (1.0 + i_equivalente) ** n_perodos) / (((1.0 + i_equivalente) ** n_perodos) - 1.0)
-                else:
-                    prestacao = valor_presente / n_perodos
+            i_equivalente, n_perodos = obter_taxa_equivalente(taxa_informada, periodo_taxa, periodo_prazo, prazo_informado if prazo_informado > 0 else 12)
+            
+            if "Price" in sistema_amortizacao:
+                if tipo_calculo == "Calcular Prestação / Primeira Parcela":
+                    valor_presente = valor_presente_input
+                    if i_equivalente > 0:
+                        prestacao = valor_presente * (i_equivalente * (1.0 + i_equivalente) ** n_perodos) / (((1.0 + i_equivalente) ** n_perodos) - 1.0)
+                    else:
+                        prestacao = valor_presente / n_perodos
 
-            elif tipo_calculo == "Calcular Capital / Valor Presente (PV)":
-                i_equivalente, n_perodos = obter_taxa_equivalente(taxa_informada, periodo_taxa, periodo_prazo, prazo_informado)
-                prestacao = prestacao_informada
-                if i_equivalente > 0:
-                    valor_presente = prestacao * ((1.0 + i_equivalente)**n_perodos - 1.0) / (i_equivalente * (1.0 + i_equivalente)**n_perodos)
-                else:
-                    valor_presente = prestacao * n_perodos
+                elif tipo_calculo == "Calcular Capital / Valor Presente (PV)":
+                    prestacao = prestacao_informada
+                    if i_equivalente > 0:
+                        valor_presente = prestacao * ((1.0 + i_equivalente)**n_perodos - 1.0) / (i_equivalente * (1.0 + i_equivalente)**n_perodos)
+                    else:
+                        valor_presente = prestacao * n_perodos
 
-            elif tipo_calculo == "Calcular Taxa de Juros (i)":
-                n_perodos = int(prazo_informado)
-                valor_presente = valor_presente_input
-                prestacao = prestacao_informada
-                
-                def f_taxa(i_val):
-                    if i_val <= 0:
-                        return valor_presente * n_perodos - prestacao * n_perodos
-                    return valor_presente * i_val * (1.0 + i_val)**n_perodos - prestacao * ((1.0 + i_val)**n_perodos - 1.0)
-                
-                i_equivalente = brentq(f_taxa, 0.0000001, 5.0)
+                elif tipo_calculo == "Calcular Taxa de Juros (i)":
+                    n_perodos = int(prazo_informado)
+                    valor_presente = valor_presente_input
+                    prestacao = prestacao_informada
+                    
+                    def f_taxa(i_val):
+                        if i_val <= 0:
+                            return valor_presente * n_perodos - prestacao * n_perodos
+                        return valor_presente * i_val * (1.0 + i_val)**n_perodos - prestacao * ((1.0 + i_val)**n_perodos - 1.0)
+                    
+                    i_equivalente = brentq(f_taxa, 0.0000001, 5.0)
 
-            elif tipo_calculo == "Calcular Prazo da Operação (n)":
-                i_equivalente, _ = obter_taxa_equivalente(taxa_informada, periodo_taxa, periodo_prazo, 1)
-                valor_presente = valor_presente_input
-                prestacao = prestacao_informada
-                
-                if i_equivalente == 0:
-                    n_perodos = int(round(valor_presente / prestacao))
+                elif tipo_calculo == "Calcular Prazo da Operação (n)":
+                    valor_presente = valor_presente_input
+                    prestacao = prestacao_informada
+                    if i_equivalente == 0:
+                        n_perodos = int(round(valor_presente / prestacao))
+                    else:
+                        if prestacao <= valor_presente * i_equivalente:
+                            raise ValueError("A prestação informada não cobre os juros do período!")
+                        num = np.log(prestacao / (prestacao - valor_presente * i_equivalente))
+                        den = np.log(1.0 + i_equivalente)
+                        n_perodos = int(round(num / den))
+
+                tabela_amortizacao = []
+                vp_atual = valor_presente
+
+                for t in range(0, n_perodos + 1):
+                    if t == 0:
+                        tabela_amortizacao.append({
+                            "t": 0, "VALOR PRESENTE": vp_atual, "Amortização (At)": 0.0, "Juros (Jt)": 0.0, "Prestação": 0.0, "AUXILIAR FRC": 0.0, "n": n_perodos, "i": i_equivalente
+                        })
+                    else:
+                        juros_t = vp_atual * i_equivalente
+                        amortizacao_t = prestacao - juros_t
+                        vp_atual -= amortizacao_t
+                        if vp_atual < 0.01:
+                            vp_atual = 0.00
+                        n_restante = n_perodos - t + 1
+                        aux_frc = (i_equivalente * (1.0 + i_equivalente) ** n_restante) / (((1.0 + i_equivalente) ** n_restante) - 1.0) if i_equivalente > 0 else (1.0 / n_restante if n_restante > 0 else 0.0)
+
+                        tabela_amortizacao.append({
+                            "t": t, "VALOR PRESENTE": vp_atual, "Amortização (At)": amortizacao_t, "Juros (Jt)": juros_t, "Prestação": prestacao, "AUXILIAR FRC": aux_frc, "n": n_restante, "i": i_equivalente
+                        })
+                df_fin = pd.DataFrame(tabela_amortizacao)
+                nome_sistema = "Sistema Price"
+
+            else: # Sistema SAC
+                if tipo_calculo == "Calcular Capital / Valor Presente (PV)":
+                    # No SAC, se PMT é a primeira prestação informada: PMT1 = (PV / n) + (PV * i) = PV * (1/n + i)
+                    prestacao = prestacao_informada
+                    n_perodos = int(prazo_informado)
+                    valor_presente = prestacao / ((1.0 / n_perodos) + i_equivalente)
                 else:
-                    if prestacao <= valor_presente * i_equivalente:
-                        raise ValueError("A prestação informada não cobre os juros do período!")
-                    num = np.log(prestacao / (prestacao - valor_presente * i_equivalente))
-                    den = np.log(1.0 + i_equivalente)
-                    n_perodos = int(round(num / den))
+                    valor_presente = valor_presente_input
+                    n_perodos = int(prazo_informado)
+
+                amortizacao_constante = valor_presente / n_perodos if n_perodos > 0 else 0.0
+                tabela_amortizacao = []
+                vp_atual = valor_presente
+
+                for t in range(0, n_perodos + 1):
+                    if t == 0:
+                        tabela_amortizacao.append({
+                            "t": 0, "VALOR PRESENTE": vp_atual, "Amortização (At)": 0.0, "Juros (Jt)": 0.0, "Prestação": 0.0, "AUXILIAR FRC": 0.0, "n": n_perodos, "i": i_equivalente
+                        })
+                    else:
+                        juros_t = vp_atual * i_equivalente
+                        amortizacao_t = amortizacao_constante
+                        prestacao_t = amortizacao_t + juros_t
+                        vp_atual -= amortizacao_t
+                        if vp_atual < 0.01:
+                            vp_atual = 0.00
+                        tabela_amortizacao.append({
+                            "t": t, "VALOR PRESENTE": vp_atual, "Amortização (At)": amortizacao_t, "Juros (Jt)": juros_t, "Prestação": prestacao_t, "AUXILIAR FRC": 0.0, "n": n_perodos - t + 1, "i": i_equivalente
+                        })
+                df_fin = pd.DataFrame(tabela_amortizacao)
+                nome_sistema = "Sistema SAC"
 
             st.success(f"""
-            📊 **Resultados Calculados:**
+            📊 **Resultados Calculados ({nome_sistema}):**
             * **Capital (PV):** R$ {valor_presente:,.2f}
-            * **Prestação Fixa (PMT):** R$ {prestacao:,.2f}
             * **Taxa Equivalente:** {i_equivalente*100:.4f}% por período
             * **Prazo Total:** {n_perodos} períodos
             """)
 
-            tabela_amortizacao = []
-            vp_atual = valor_presente
-
-            for t in range(0, n_perodos + 1):
-                if t == 0:
-                    tabela_amortizacao.append({
-                        "t": 0,
-                        "VALOR PRESENTE": vp_atual,
-                        "Amortização (At)": 0.0,
-                        "Juros (Jt)": 0.0,
-                        "Prestação": 0.0,
-                        "AUXILIAR FRC": 0.0,
-                        "n": n_perodos,
-                        "i": i_equivalente
-                    })
-                else:
-                    juros_t = vp_atual * i_equivalente
-                    amortizacao_t = prestacao - juros_t
-                    vp_atual -= amortizacao_t
-                    if vp_atual < 0.01:
-                        vp_atual = 0.00
-                    
-                    n_restante = n_perodos - t + 1
-                    if i_equivalente > 0:
-                        aux_frc = (i_equivalente * (1.0 + i_equivalente) ** n_restante) / (((1.0 + i_equivalente) ** n_restante) - 1.0)
-                    else:
-                        aux_frc = 1.0 / n_restante if n_restante > 0 else 0.0
-
-                    tabela_amortizacao.append({
-                        "t": t,
-                        "VALOR PRESENTE": vp_atual,
-                        "Amortização (At)": amortizacao_t,
-                        "Juros (Jt)": juros_t,
-                        "Prestação": prestacao,
-                        "AUXILIAR FRC": aux_frc,
-                        "n": n_restante,
-                        "i": i_equivalente
-                    })
-
-            df_price = pd.DataFrame(tabela_amortizacao)
-
-            st.markdown("### 📋 Tabela de Amortização - Sistema Price")
+            st.markdown(f"### 📋 Tabela de Amortização - {nome_sistema}")
             st.dataframe(
-                df_price.style.format({
+                df_fin.style.format({
                     "VALOR PRESENTE": "R$ {:,.2f}",
                     "Amortização (At)": "R$ {:,.2f}",
                     "Juros (Jt)": "R$ {:,.2f}",
@@ -305,12 +323,12 @@ def render_modulo_financeiro():
                     "i": "{:.4f}"
                 }),
                 use_container_width=True,
-                key="df_tabela_price_estavel"
+                key="df_tabela_amortizacao_estavel"
             )
 
-            total_amortizacao = df_price["Amortização (At)"].sum()
-            total_juros = df_price["Juros (Jt)"].sum()
-            total_prestacao = df_price["Prestação"].sum()
+            total_amortizacao = df_fin["Amortização (At)"].sum()
+            total_juros = df_fin["Juros (Jt)"].sum()
+            total_prestacao = df_fin["Prestação"].sum()
 
             st.markdown(f"""
             * **Total Amortizado:** R$ {total_amortizacao:,.2f}
@@ -326,13 +344,13 @@ def render_modulo_financeiro():
             with col_exp1:
                 output_excel = io.BytesIO()
                 with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
-                    df_price.to_excel(writer, sheet_name='Tabela Price', index=False)
+                    df_fin.to_excel(writer, sheet_name=nome_sistema, index=False)
                 output_excel.seek(0)
                 
                 st.download_button(
                     label="📥 Baixar Planilha em Excel (.xlsx)",
                     data=output_excel,
-                    file_name=f"tabela_price_{datetime.date.today().strftime('%Y%m%d')}.xlsx",
+                    file_name=f"tabela_{nome_sistema.lower().replace(' ', '_')}_{datetime.date.today().strftime('%Y%m%d')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key="btn_dl_excel_fin"
                 )
@@ -346,21 +364,21 @@ def render_modulo_financeiro():
                     pdf.set_fill_color(30, 58, 138)
                     pdf.rect(10, 10, 277, 14, "F")
                     pdf.set_text_color(255, 255, 255)
-                    pdf.set_font("Arial", style="B", size=13)
+                    pdf.set_font("Arial", style="B", size=12)
                     pdf.set_xy(10, 13)
-                    pdf.cell(277, 8, "RENATO FRIGOTUDO & ASSOCIADOS - RELATÓRIO FINANCEIRO", ln=1, align="C")
+                    pdf.cell(277, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {nome_sistema.upper()}", ln=1, align="C")
                     
                     pdf.set_text_color(15, 23, 42)
                     pdf.set_font("Arial", style="B", size=9)
                     pdf.set_xy(10, 28)
-                    pdf.cell(277, 6, f"Sistema Price | Capital: R$ {valor_presente:,.2f} | Prestação: R$ {prestacao:,.2f} | Prazo: {n_perodos} períodos", ln=1)
+                    pdf.cell(277, 6, f"Capital: R$ {valor_presente:,.2f} | Prazo: {n_perodos} periodos | Taxa: {i_equivalente*100:.4f}% p.p.", ln=1)
                     pdf.ln(4)
 
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     pdf.set_font("Arial", style="B", size=8)
                     
-                    headers = ["Período (t)", "Valor Presente (R$)", "Amortização (At)", "Juros (Jt)", "Prestação (R$)", "Taxa (i)"]
+                    headers = ["Periodo (t)", "Valor Presente (R$)", "Amortizacao (At)", "Juros (Jt)", "Prestacao (R$)", "Taxa (i)"]
                     widths = [25, 55, 50, 50, 50, 47]
                     
                     for text_h, w_h in zip(headers, widths):
@@ -368,7 +386,7 @@ def render_modulo_financeiro():
                     pdf.ln()
 
                     pdf.set_font("Arial", size=8)
-                    for _, r in df_price.iterrows():
+                    for _, r in df_fin.iterrows():
                         pdf.cell(25, 5, str(int(r["t"])), border=1, align="C")
                         pdf.cell(55, 5, f"R$ {r['VALOR PRESENTE']:,.2f}", border=1, align="R")
                         pdf.cell(50, 5, f"R$ {r['Amortização (At)']:,.2f}", border=1, align="R")
@@ -536,7 +554,7 @@ def reset_form_states():
     st.session_state.cortes_temp = []
 
 # =========================================================================
-# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO (COM SUPORTE AMPLIADO À LOGO)
+# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO
 # =========================================================================
 def exibir_cabecalho(nome_empresa_usuaria=None):
     col_logo, col_info = st.columns([1, 4])
@@ -1507,7 +1525,8 @@ else:
                     
                     pdf.set_xy(10, 37)
                     pdf.set_font("Arial", style="B", size=9)
-                    pdf.cell(277, 6, f"LOTE #{id_selecionado} - {tipo_animal_atual} | Data: {data_br} | Taxas: Cartao {tx_cartao}% | Impostos {tx_impostos}% | Embalagens {tx_embalagens}% | Comissao {tx_comissao}%", ln=1)
+                    txt_cab_lote = f"LOTE #{id_selecionado} - {tipo_animal_atual} | Data: {data_br} | Taxas: Cartao {tx_cartao}% | Impostos {tx_impostos}% | Emb. {tx_embalagens}% | Com. {tx_comissao}%"
+                    pdf.cell(277, 6, txt_cab_lote.encode("latin1", "replace").decode("latin1"), ln=1)
                     pdf.ln(2)
 
                     pdf.set_fill_color(30, 58, 138)
@@ -1535,7 +1554,7 @@ else:
                     ]
 
                     for rotulo, p_kg, v_rs, pct_val in rows_apuracao_pdf:
-                        pdf.cell(117, 4.5, rotulo, border=1)
+                        pdf.cell(117, 4.5, rotulo.encode("latin1", "replace").decode("latin1"), border=1)
                         pdf.cell(50, 4.5, p_kg, border=1, align="C")
                         pdf.cell(60, 4.5, v_rs, border=1, align="C")
                         pdf.cell(50, 4.5, pct_val, border=1, align="C")
@@ -1555,13 +1574,13 @@ else:
                     widths_excel = [28, 12, 16, 21, 19, 21, 23, 19, 16, 17, 15, 15, 15, 20, 20]
                     
                     for text_h, w_h in zip(headers_excel, widths_excel):
-                        pdf.cell(w_h, 6, text_h, border=1, align="C", fill=True)
+                        pdf.cell(w_h, 6, text_h.encode("latin1", "replace").decode("latin1"), border=1, align="C", fill=True)
                     pdf.ln()
                     
                     pdf.set_font("Arial", size=6.5)
                     for _, r in df_final.iterrows():
-                        pdf.cell(28, 5, str(r["Corte/Código"])[:18], border=1)
-                        pdf.cell(12, 5, str(r["Qualidade"]), border=1, align="C")
+                        pdf.cell(28, 5, str(r["Corte/Código"])[:18].encode("latin1", "replace").decode("latin1"), border=1)
+                        pdf.cell(12, 5, str(r["Qualidade"]).encode("latin1", "replace").decode("latin1"), border=1, align="C")
                         pdf.cell(16, 5, f"{r['Peso /KG']:.3f}", border=1, align="C")
                         pdf.cell(21, 5, f"R$ {r['PREÇO CUSTO/KG']:.2f}", border=1, align="C")
                         pdf.cell(19, 5, f"R$ {r['PREÇO/CUSTO']:.2f}", border=1, align="C")
@@ -1624,7 +1643,7 @@ else:
                     ]
                     
                     for label_ind, v_ouro, v_prata, v_tot in rows_indicadores:
-                        pdf.cell(117, 4.5, label_ind, border=1)
+                        pdf.cell(117, 4.5, label_ind.encode("latin1", "replace").decode("latin1"), border=1)
                         pdf.cell(40, 4.5, v_ouro, border=1, align="C")
                         pdf.cell(40, 4.5, v_prata, border=1, align="C")
                         pdf.cell(40, 4.5, v_tot, border=1, align="C")
