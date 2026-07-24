@@ -418,7 +418,8 @@ def render_modulo_financeiro():
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     
-                    headers = ["Periodo (t)", "Valor Presente (R$)", "Amortizacao (R$)", "Juros (R$)", "Prestacao (R$)", "Taxa (%)"]
+                    # Correção aplicada nos títulos e larguras para evitar quebras visuais
+                    headers = ["Periodo", "Valor Presente", "Amortizacao", "Juros", "Prestacao", "Taxa"]
                     widths = [25, 55, 50, 50, 50, 47]
                     
                     for text_h, w_h in zip(headers, widths):
@@ -429,6 +430,7 @@ def render_modulo_financeiro():
                 criar_cabecalho_tabela()
 
                 pdf.set_font("Arial", size=8)
+                pdf.set_text_color(15, 23, 42)
                 for _, r in df_fin.iterrows():
                     if pdf.get_y() > 185:
                         pdf.add_page()
@@ -1252,7 +1254,6 @@ else:
                 id_selecionado = opcoes_map[selecionado]
                 st.session_state.lote_selecionado_id = id_selecionado
                 
-                # NOVO: Seção para excluir a desossa atual com confirmação
                 with st.expander("🗑️ EXCLUIR ESTA DESOSSA", expanded=False):
                     st.warning("⚠️ Atenção: A exclusão deste lote é irreversível e removerá todos os cortes associados.")
                     confirmar_exclusao = st.checkbox("Confirmar exclusão deste lote", key=f"chk_exc_lote_{id_selecionado}")
@@ -1565,12 +1566,10 @@ else:
                     pdf.add_page()
                     montar_cabecalho_desossa()
 
-                    # Informações Gerais do Lote
                     pdf.set_font("Arial", style="B", size=9)
                     pdf.cell(277, 5, f"Data da Acao: {acao_row['data_acao']} | Peso Bruto: {p_bruto:.3f} KG | Preço Animal: R$ {p_comp_kg:.2f}/KG", ln=1)
                     pdf.ln(3)
 
-                    # 1. QUADRO: Apuração Geral do Lote
                     pdf.set_font("Arial", style="B", size=9)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(277, 6, "QUADRO DE APURACAO GERAL DO LOTE", ln=1, fill=True)
@@ -1590,7 +1589,6 @@ else:
                         pdf.ln()
                     pdf.ln(3)
 
-                    # 2. QUADRO: Indicadores (Taxas Aplicadas)
                     if pdf.get_y() > 160:
                         pdf.add_page()
                         montar_cabecalho_desossa()
@@ -1614,7 +1612,6 @@ else:
                         pdf.ln()
                     pdf.ln(3)
 
-                    # 3. QUADRO: Tabela Analítica de Cortes Detalhada
                     if pdf.get_y() > 150:
                         pdf.add_page()
                         montar_cabecalho_desossa()
