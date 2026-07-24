@@ -1,4 +1,7 @@
 streamlit
 pandas
+sqlite3
 fpdf
-openpyxl
+numpy
+scipy
+xlsxwriter
