@@ -532,13 +532,11 @@ def render_modulo_ficha_tecnica():
                     else:
                         st.error("Marque a caixa de confirmação para prosseguir.")
 
-            # Buscar insumos alimentícios e não alimentícios
             conn = get_connection()
             df_insumos = pd.read_sql_query("SELECT * FROM insumos_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             conn.close()
 
-            # Cálculos de custos
             custo_alimenticios = (df_insumos['qtd_bruta'] * df_insumos['preco_bruto']).sum() if not df_insumos.empty else 0.0
             custo_nao_alimenticios = (df_nao_ali['qtd_bruta'] * df_nao_ali['preco_bruto']).sum() if not df_nao_ali.empty else 0.0
             custo_total = custo_alimenticios + custo_nao_alimenticios
@@ -571,9 +569,6 @@ def render_modulo_ficha_tecnica():
             }
             st.table(pd.DataFrame(ind_data).set_index("Métrica / Indicador"))
 
-            # ==========================================
-            # SEÇÃO: INSUMOS ALIMENTÍCIOS
-            # ==========================================
             st.markdown("---")
             st.markdown("### 🥩 Insumos Alimentícios")
             
@@ -622,8 +617,7 @@ def render_modulo_ficha_tecnica():
                             
                             alt_preco = ac5.number_input("Preço Bruto", min_value=0.0, value=float(row_ins['preco_bruto']), step=0.1, format="%.2f", key=f"alt_pc_{ins_id}")
                             
-                            col_b_alt, col_b_exc = st.columns(2)
-                            btn_salvar_alt = col_b_alt.form_submit_button("💾 Salvar Alterações")
+                            btn_salvar_alt = st.form_submit_button("💾 Salvar Alterações")
                             
                             if btn_salvar_alt:
                                 conn = get_connection()
@@ -647,9 +641,6 @@ def render_modulo_ficha_tecnica():
                             st.success("Insumo excluído!")
                             st.rerun()
 
-            # ==========================================
-            # SEÇÃO: INSUMOS NÃO ALIMENTÍCIOS
-            # ==========================================
             st.markdown("---")
             st.markdown("### 📦 Insumos Não Alimentícios (Embalagens, Gás, etc.)")
             
@@ -1979,9 +1970,3 @@ else:
                     mime="application/pdf",
                     key=f"btn_dl_pdf_desossa_{id_selecionado}"
                 )
-
-    # =========================================================================
-    # 10. MÓDULO DE CÁLCULO FINANCEIRO
-    # =========================================================================
-    elif menu == "Cálculo Financeiro":
-        render_modulo_financeiro()
