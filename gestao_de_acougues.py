@@ -457,11 +457,11 @@ def render_modulo_financeiro():
             )
 
 # =========================================================================
-# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO
+# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO (ALIMENTÍCIOS E NÃO ALIMENTÍCIOS)
 # =========================================================================
 def render_modulo_ficha_tecnica():
     st.header("📋 Módulo de Ficha Técnica & Precificação")
-    st.markdown("Gerencie as fichas técnicas, insumos e custos de produção.")
+    st.markdown("Gerencie as fichas técnicas, insumos alimentícios, insumos não alimentícios e custos de produção.")
 
     emp_id_ativo = st.session_state.empresa_id
 
@@ -523,6 +523,7 @@ def render_modulo_ficha_tecnica():
                         conn = get_connection()
                         cursor = conn.cursor()
                         cursor.execute("DELETE FROM insumos_ficha WHERE ficha_id = ?", (ficha_id_ativo,))
+                        cursor.execute("DELETE FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", (ficha_id_ativo,))
                         cursor.execute("DELETE FROM fichas_tecnicas WHERE id = ?", (ficha_id_ativo,))
                         conn.commit()
                         conn.close()
@@ -531,11 +532,17 @@ def render_modulo_ficha_tecnica():
                     else:
                         st.error("Marque a caixa de confirmação para prosseguir.")
 
+            # Buscar insumos alimentícios e não alimentícios
             conn = get_connection()
             df_insumos = pd.read_sql_query("SELECT * FROM insumos_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
+            df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             conn.close()
 
-            custo_total = (df_insumos['qtd_bruta'] * df_insumos['preco_bruto']).sum() if not df_insumos.empty else 0.0
+            # Cálculos de custos
+            custo_alimenticios = (df_insumos['qtd_bruta'] * df_insumos['preco_bruto']).sum() if not df_insumos.empty else 0.0
+            custo_nao_alimenticios = (df_nao_ali['qtd_bruta'] * df_nao_ali['preco_bruto']).sum() if not df_nao_ali.empty else 0.0
+            custo_total = custo_alimenticios + custo_nao_alimenticios
+
             custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
             custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
             
@@ -549,8 +556,10 @@ def render_modulo_ficha_tecnica():
             st.markdown("### 📊 Indicadores e Custos da Ficha")
             
             ind_data = {
-                "Métrica / Indicador": ["Custo Total", "Custo/Kg Crua", "Custo/kg Total Depois de Assada", "Unidades Produzidas", "Pacotes", "Custo da Unidade", "Custo do Pacote"],
+                "Métrica / Indicador": ["Custo Insumos Alimentícios", "Custo Insumos Não Alimentícios", "Custo Total", "Custo/Kg Crua", "Custo/kg Total Depois de Assada", "Unidades Produzidas", "Pacotes", "Custo da Unidade", "Custo do Pacote"],
                 "Valor": [
+                    f"R$ {custo_alimenticios:.2f}",
+                    f"R$ {custo_nao_alimenticios:.2f}",
                     f"R$ {custo_total:.2f}",
                     f"R$ {custo_kg_crua:.2f}",
                     f"R$ {custo_kg_assada:.2f}",
@@ -562,16 +571,22 @@ def render_modulo_ficha_tecnica():
             }
             st.table(pd.DataFrame(ind_data).set_index("Métrica / Indicador"))
 
-            st.markdown("### ➕ Adicionar Novo Insumo")
+            # ==========================================
+            # SEÇÃO: INSUMOS ALIMENTÍCIOS
+            # ==========================================
+            st.markdown("---")
+            st.markdown("### 🥩 Insumos Alimentícios")
+            
             with st.form(f"form_add_insumo_{ficha_id_ativo}"):
+                st.markdown("**Adicionar Novo Insumo Alimentício**")
                 c1, c2, c3, c4, c5 = st.columns(5)
-                codigo_ins = c1.text_input("Código", value="")
-                produto_ins = c2.text_input("Produto / Insumo", value="")
-                qtd_bruta_ins = c3.number_input("Qtd Bruta", min_value=0.0, value=1.0, step=0.1, format="%.3f")
-                unidade_ins = c4.selectbox("Unidade", ["KG", "UN", "L", "G"], key="sel_unidade_insumo")
-                preco_bruto_ins = c5.number_input("Preço Bruto (R$)", min_value=0.0, value=10.0, step=0.1, format="%.2f")
+                codigo_ins = c1.text_input("Código", value="", key=f"cod_ali_{ficha_id_ativo}")
+                produto_ins = c2.text_input("Produto / Insumo", value="", key=f"prod_ali_{ficha_id_ativo}")
+                qtd_bruta_ins = c3.number_input("Qtd Bruta", min_value=0.0, value=1.0, step=0.1, format="%.3f", key=f"qtd_ali_{ficha_id_ativo}")
+                unidade_ins = c4.selectbox("Unidade", ["KG", "UN", "L", "G"], key=f"un_ali_{ficha_id_ativo}")
+                preco_bruto_ins = c5.number_input("Preço Bruto (R$)", min_value=0.0, value=10.0, step=0.1, format="%.2f", key=f"pc_ali_{ficha_id_ativo}")
                 
-                btn_add_ins = st.form_submit_button("➕ Adicionar Insumo")
+                btn_add_ins = st.form_submit_button("➕ Adicionar Insumo Alimentício")
                 if btn_add_ins:
                     if not produto_ins.strip():
                         st.error("Informe o nome do produto/insumo!")
@@ -584,28 +599,128 @@ def render_modulo_ficha_tecnica():
                         """, (ficha_id_ativo, codigo_ins.strip().upper(), produto_ins.strip().upper(), qtd_bruta_ins, unidade_ins, preco_bruto_ins))
                         conn.commit()
                         conn.close()
-                        st.success("Insumo adicionado com sucesso!")
+                        st.success("Insumo alimentício adicionado com sucesso!")
                         st.rerun()
 
-            st.markdown("### 📋 Tabela de Insumos Cadastrados")
             if df_insumos.empty:
-                st.info("Nenhum insumo cadastrado nesta ficha ainda.")
+                st.info("Nenhum insumo alimentício cadastrado nesta ficha ainda.")
             else:
+                st.markdown("#### 📋 Alterar ou Excluir Insumos Alimentícios")
                 for _, row_ins in df_insumos.iterrows():
                     ins_id = row_ins['id']
-                    c_id_col, c_prod_col, c_qtd_col, c_preco_col, c_btn_del = st.columns([1, 3, 2, 2, 1])
-                    c_id_col.write(f"`{row_ins['codigo'] if row_ins['codigo'] else '-'}`")
-                    c_prod_col.write(f"**{row_ins['produto_insumo']}**")
-                    c_qtd_col.write(f"{row_ins['qtd_bruta']} {row_ins['unidade']}")
-                    c_preco_col.write(f"R$ {row_ins['preco_bruto']:.2f}")
-                    
-                    if c_btn_del.button("🗑️", key=f"del_ins_{ins_id}"):
+                    with st.expander(f"🔸 {row_ins['produto_insumo']} ({row_ins['qtd_bruta']} {row_ins['unidade']} - R$ {row_ins['preco_bruto']:.2f})", expanded=False):
+                        with st.form(f"form_alt_ins_{ins_id}"):
+                            ac1, ac2, ac3, ac4, ac5 = st.columns(5)
+                            alt_cod = ac1.text_input("Código", value=str(row_ins['codigo']) if row_ins['codigo'] else "", key=f"alt_cod_{ins_id}")
+                            alt_prod = ac2.text_input("Produto", value=str(row_ins['produto_insumo']), key=f"alt_prod_{ins_id}")
+                            alt_qtd = ac3.number_input("Qtd Bruta", min_value=0.0, value=float(row_ins['qtd_bruta']), step=0.1, format="%.3f", key=f"alt_qtd_{ins_id}")
+                            
+                            unidades_disponiveis = ["KG", "UN", "L", "G"]
+                            un_atual = str(row_ins['unidade']).upper()
+                            idx_un = unidades_disponiveis.index(un_atual) if un_atual in unidades_disponiveis else 0
+                            alt_un = ac4.selectbox("Unidade", unidades_disponiveis, index=idx_un, key=f"alt_un_{ins_id}")
+                            
+                            alt_preco = ac5.number_input("Preço Bruto", min_value=0.0, value=float(row_ins['preco_bruto']), step=0.1, format="%.2f", key=f"alt_pc_{ins_id}")
+                            
+                            col_b_alt, col_b_exc = st.columns(2)
+                            btn_salvar_alt = col_b_alt.form_submit_button("💾 Salvar Alterações")
+                            
+                            if btn_salvar_alt:
+                                conn = get_connection()
+                                cursor = conn.cursor()
+                                cursor.execute("""
+                                    UPDATE insumos_ficha 
+                                    SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?
+                                    WHERE id = ?
+                                """, (alt_cod.strip().upper(), alt_prod.strip().upper(), alt_qtd, alt_un, alt_preco, ins_id))
+                                conn.commit()
+                                conn.close()
+                                st.success("Insumo atualizado com sucesso!")
+                                st.rerun()
+
+                        if st.button("🗑️ Excluir Insumo Alimentício", key=f"del_ins_{ins_id}"):
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM insumos_ficha WHERE id = ?", (ins_id,))
+                            conn.commit()
+                            conn.close()
+                            st.success("Insumo excluído!")
+                            st.rerun()
+
+            # ==========================================
+            # SEÇÃO: INSUMOS NÃO ALIMENTÍCIOS
+            # ==========================================
+            st.markdown("---")
+            st.markdown("### 📦 Insumos Não Alimentícios (Embalagens, Gás, etc.)")
+            
+            with st.form(f"form_add_nao_ali_{ficha_id_ativo}"):
+                st.markdown("**Adicionar Novo Insumo Não Alimentício**")
+                nc1, nc2, nc3, nc4, nc5 = st.columns(5)
+                n_codigo_ins = nc1.text_input("Código", value="", key=f"cod_nao_{ficha_id_ativo}")
+                n_produto_ins = nc2.text_input("Produto / Insumo", value="", key=f"prod_nao_{ficha_id_ativo}")
+                n_qtd_bruta_ins = nc3.number_input("Qtd Bruta", min_value=0.0, value=1.0, step=0.1, format="%.3f", key=f"qtd_nao_{ficha_id_ativo}")
+                n_unidade_ins = nc4.selectbox("Unidade", ["UNID", "UN", "KG", "L", "PCT"], key=f"un_nao_{ficha_id_ativo}")
+                n_preco_bruto_ins = nc5.number_input("Preço Bruto (R$)", min_value=0.0, value=50.0, step=1.0, format="%.2f", key=f"pc_nao_{ficha_id_ativo}")
+                
+                btn_add_nao = st.form_submit_button("➕ Adicionar Insumo Não Alimentício")
+                if btn_add_nao:
+                    if not n_produto_ins.strip():
+                        st.error("Informe o nome do produto/insumo não alimentício!")
+                    else:
                         conn = get_connection()
                         cursor = conn.cursor()
-                        cursor.execute("DELETE FROM insumos_ficha WHERE id = ?", (ins_id,))
+                        cursor.execute("""
+                            INSERT INTO insumos_nao_alimenticios_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
+                            VALUES (?, ?, ?, ?, ?, ?, 1.0)
+                        """, (ficha_id_ativo, n_codigo_ins.strip().upper(), n_produto_ins.strip().upper(), n_qtd_bruta_ins, n_unidade_ins, n_preco_bruto_ins))
                         conn.commit()
                         conn.close()
+                        st.success("Insumo não alimentício adicionado com sucesso!")
                         st.rerun()
+
+            if df_nao_ali.empty:
+                st.info("Nenhum insumo não alimentício cadastrado nesta ficha ainda.")
+            else:
+                st.markdown("#### 📋 Alterar ou Excluir Insumos Não Alimentícios")
+                for _, row_nao in df_nao_ali.iterrows():
+                    nao_id = row_nao['id']
+                    with st.expander(f"📦 {row_nao['produto_insumo']} ({row_nao['qtd_bruta']} {row_nao['unidade']} - R$ {row_nao['preco_bruto']:.2f})", expanded=False):
+                        with st.form(f"form_alt_nao_{nao_id}"):
+                            nac1, nac2, nac3, nac4, nac5 = st.columns(5)
+                            alt_n_cod = nac1.text_input("Código", value=str(row_nao['codigo']) if row_nao['codigo'] else "", key=f"alt_n_cod_{nao_id}")
+                            alt_n_prod = nac2.text_input("Produto", value=str(row_nao['produto_insumo']), key=f"alt_n_prod_{nao_id}")
+                            alt_n_qtd = nac3.number_input("Qtd Bruta", min_value=0.0, value=float(row_nao['qtd_bruta']), step=0.1, format="%.3f", key=f"alt_n_qtd_{nao_id}")
+                            
+                            un_nao_disponiveis = ["UNID", "UN", "KG", "L", "PCT"]
+                            un_n_atual = str(row_nao['unidade']).upper()
+                            idx_un_n = un_nao_disponiveis.index(un_n_atual) if un_n_atual in un_nao_disponiveis else 0
+                            alt_n_un = nac4.selectbox("Unidade", un_nao_disponiveis, index=idx_un_n, key=f"alt_n_un_{nao_id}")
+                            
+                            alt_n_preco = nac5.number_input("Preço Bruto", min_value=0.0, value=float(row_nao['preco_bruto']), step=1.0, format="%.2f", key=f"alt_n_pc_{nao_id}")
+                            
+                            btn_salvar_alt_n = st.form_submit_button("💾 Salvar Alterações (Não Alimentício)")
+                            
+                            if btn_salvar_alt_n:
+                                conn = get_connection()
+                                cursor = conn.cursor()
+                                cursor.execute("""
+                                    UPDATE insumos_nao_alimenticios_ficha 
+                                    SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?
+                                    WHERE id = ?
+                                """, (alt_n_cod.strip().upper(), alt_n_prod.strip().upper(), alt_n_qtd, alt_n_un, alt_n_preco, nao_id))
+                                conn.commit()
+                                conn.close()
+                                st.success("Insumo não alimentício atualizado com sucesso!")
+                                st.rerun()
+
+                        if st.button("🗑️ Excluir Insumo Não Alimentício", key=f"del_nao_{nao_id}"):
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM insumos_nao_alimenticios_ficha WHERE id = ?", (nao_id,))
+                            conn.commit()
+                            conn.close()
+                            st.success("Insumo excluído!")
+                            st.rerun()
 
 # =========================================================================
 # 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
@@ -684,6 +799,20 @@ def init_db():
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS insumos_ficha (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ficha_id INTEGER,
+            codigo TEXT,
+            produto_insumo TEXT NOT NULL,
+            qtd_bruta REAL DEFAULT 0.0,
+            unidade TEXT,
+            preco_bruto REAL DEFAULT 0.0,
+            rendimento REAL DEFAULT 1.0,
+            FOREIGN KEY(ficha_id) REFERENCES fichas_tecnicas(id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insumos_nao_alimenticios_ficha (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ficha_id INTEGER,
             codigo TEXT,
@@ -1546,7 +1675,7 @@ else:
                 st.subheader("📊 Apuração Geral do Lote")
                 apuracao_data = {
                     "Apuração do Lote": ["PESO BRUTO/KG", "OSSOS/MUXIBA", "QUEBRA NÃO IDENTIF", "ESCORRIMENTO", "Peso Final", "TOTAL DE QUEBRA"],
-                    "Peso (KG)": [f"{p_bruto:.3f}", f"{ossos_val:.3f}", f"{quebra_val:.3f}", f"{exsudato_val:.3f}", f"{peso_final:.3f}" , f"{total_quebra:.3f}"],
+                    "Peso (KG)": [f"{p_bruto:.3f}", f"{ossos_val:.3f}", f"{quebra_val:.3f}", f"{exsudato_val:.3f}", f"{peso_final:.3f}", f"{total_quebra:.3f}"],
                     "R$": [f"R$ {valor_total_compra:.2f}", "-", "-", "-", f"R$ {valor_total_compra:.2f}", "-"],
                     "Porcentagem": ["100,00%", f"{porc_ossos:.2f}%", f"{porc_quebra:.2f}%", f"{porc_exsudato:.2f}%", f"{porc_final:.2f}%", f"{porc_total_quebra:.2f}%"]
                 }
@@ -1850,3 +1979,9 @@ else:
                     mime="application/pdf",
                     key=f"btn_dl_pdf_desossa_{id_selecionado}"
                 )
+
+    # =========================================================================
+    # 10. MÓDULO DE CÁLCULO FINANCEIRO
+    # =========================================================================
+    elif menu == "Cálculo Financeiro":
+        render_modulo_financeiro()
