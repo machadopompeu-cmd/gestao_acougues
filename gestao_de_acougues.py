@@ -1335,7 +1335,8 @@ else:
                     "R$": [f"R$ {valor_total_compra:.2f}", "-", "-", "-", f"R$ {valor_total_compra:.2f}", "-"],
                     "Porcentagem": ["100,00%", f"{porc_ossos:.2f}%", f"{porc_quebra:.2f}%", f"{porc_exsudato:.2f}%", f"{porc_final:.2f}%", f"{porc_total_quebra:.2f}%"]
                 }
-                st.table(pd.DataFrame(apuracao_data).set_index("Apuração do Lote"))
+                df_apuracao_tabela = pd.DataFrame(apuracao_data).set_index("Apuração do Lote")
+                st.table(df_apuracao_tabela)
 
                 total_vendas_ouro = sum(df_cortes[df_cortes["qualidade"] == "OURO"]["peso"] * df_cortes[df_cortes["qualidade"] == "OURO"]["preco_venda"])
                 total_vendas_prata = sum(df_cortes[df_cortes["qualidade"] == "PRATA"]["peso"] * df_cortes[df_cortes["qualidade"] == "PRATA"]["preco_venda"])
@@ -1429,7 +1430,8 @@ else:
                         f"R$ {p_medio_compra_com_total:.2f}", f"R$ {p_medio_venda_total:.2f}"
                     ]
                 }
-                st.table(pd.DataFrame(indicadores_data).set_index("INDICADORES"))
+                df_indicadores_tabela = pd.DataFrame(indicadores_data).set_index("INDICADORES")
+                st.table(df_indicadores_tabela)
                 
                 st.markdown(
                     """
@@ -1535,12 +1537,64 @@ else:
                     pdf.add_page()
                     montar_cabecalho_desossa()
 
-                    # Informações Gerais
-                    pdf.set_font("Arial", style="B", size=10)
-                    pdf.cell(277, 6, f"Data da Acao: {acao_row['data_acao']} | Peso Bruto: {p_bruto:.3f} KG | Preço Animal: R$ {p_comp_kg:.2f}/KG", ln=1)
-                    pdf.ln(2)
+                    # Informações Gerais do Lote
+                    pdf.set_font("Arial", style="B", size=9)
+                    pdf.cell(277, 5, f"Data da Acao: {acao_row['data_acao']} | Peso Bruto: {p_bruto:.3f} KG | Preço Animal: R$ {p_comp_kg:.2f}/KG", ln=1)
+                    pdf.ln(3)
 
-                    # Tabela de Cortes Detalhada
+                    # 1. QUADRO: Apuração Geral do Lote
+                    pdf.set_font("Arial", style="B", size=9)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(277, 6, "QUADRO DE APURACAO GERAL DO LOTE", ln=1, fill=True)
+                    pdf.set_font("Arial", style="B", size=8)
+                    pdf.cell(85, 5, "Apuração do Lote", border=1, align="C", fill=True)
+                    pdf.cell(65, 5, "Peso (KG)", border=1, align="C", fill=True)
+                    pdf.cell(65, 5, "R$", border=1, align="C", fill=True)
+                    pdf.cell(62, 5, "Porcentagem", border=1, align="C", fill=True)
+                    pdf.ln()
+
+                    pdf.set_font("Arial", size=8)
+                    for ap_idx, ap_row in df_apuracao_tabela.reset_index().iterrows():
+                        pdf.cell(85, 5, str(ap_row["Apuração do Lote"]).encode("latin1", "replace").decode("latin1"), border=1)
+                        pdf.cell(65, 5, str(ap_row["Peso (KG)"]), border=1, align="R")
+                        pdf.cell(65, 5, str(ap_row["R$"]), border=1, align="R")
+                        pdf.cell(62, 5, str(ap_row["Porcentagem"]), border=1, align="C")
+                        pdf.ln()
+                    pdf.ln(3)
+
+                    # 2. QUADRO: Indicadores (Taxas Aplicadas)
+                    if pdf.get_y() > 160:
+                        pdf.add_page()
+                        montar_cabecalho_desossa()
+
+                    pdf.set_font("Arial", style="B", size=9)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(277, 6, f"QUADRO DE INDICADORES (Cartao {tx_cartao}% | Impostos {tx_impostos}% | Embalagens {tx_embalagens}% | Comissao {tx_comissao}%)", ln=1, fill=True)
+                    pdf.set_font("Arial", style="B", size=8)
+                    pdf.cell(107, 5, "Indicadores", border=1, align="C", fill=True)
+                    pdf.cell(56, 5, "Ouro", border=1, align="C", fill=True)
+                    pdf.cell(56, 5, "Prata", border=1, align="C", fill=True)
+                    pdf.cell(58, 5, "Total", border=1, align="C", fill=True)
+                    pdf.ln()
+
+                    pdf.set_font("Arial", size=7.5)
+                    for ind_idx, ind_row in df_indicadores_tabela.reset_index().iterrows():
+                        pdf.cell(107, 5, str(ind_row["INDICADORES"])[:60].encode("latin1", "replace").decode("latin1"), border=1)
+                        pdf.cell(56, 5, str(ind_row["OURO"]), border=1, align="R")
+                        pdf.cell(56, 5, str(ind_row["PRATA"]), border=1, align="R")
+                        pdf.cell(58, 5, str(ind_row["Total"]), border=1, align="R")
+                        pdf.ln()
+                    pdf.ln(3)
+
+                    # 3. QUADRO: Tabela Analítica de Cortes Detalhada
+                    if pdf.get_y() > 150:
+                        pdf.add_page()
+                        montar_cabecalho_desossa()
+
+                    pdf.set_font("Arial", style="B", size=9)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(277, 6, "DETALHAMENTO ANALITICO DE CORTES E CUSTOS", ln=1, fill=True)
+
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     pdf.set_font("Arial", style="B", size=8)
@@ -1554,7 +1608,7 @@ else:
 
                     pdf.set_font("Arial", size=7.5)
                     pdf.set_text_color(15, 23, 42)
-                    for _, r_det in df_final.iterrows():
+                    for _, r_det in df_com_total.iterrows():
                         if pdf.get_y() > 185:
                             pdf.add_page()
                             montar_cabecalho_desossa()
@@ -1566,13 +1620,13 @@ else:
 
                         pdf.cell(45, 5, str(r_det["Corte/Código"])[:25].encode("latin1", "replace").decode("latin1"), border=1, align="L")
                         pdf.cell(18, 5, str(r_det["Qualidade"]), border=1, align="C")
-                        pdf.cell(25, 5, f"{r_det['Peso /KG']:.3f}", border=1, align="R")
-                        pdf.cell(25, 5, f"R$ {r_det['PREÇO CUSTO/KG']:.2f}", border=1, align="R")
-                        pdf.cell(30, 5, f"R$ {r_det['PREÇO/CUSTO']:.2f}", border=1, align="R")
-                        pdf.cell(25, 5, f"R$ {r_det['PREÇO VENDA/KG']:.2f}", border=1, align="R")
-                        pdf.cell(33, 5, f"R$ {r_det['VALOR TOTAL DE VENDAS']:.2f}", border=1, align="R")
-                        pdf.cell(38, 5, f"R$ {r_det['LUCRO BRUTO']:.2f}", border=1, align="R")
-                        pdf.cell(38, 5, f"R$ {r_det['CUSTO EFETIVO TOTAL']:.2f}", border=1, align="R")
+                        pdf.cell(25, 5, f"{r_det['Peso /KG']:.3f}" if pd.notnull(r_det['Peso /KG']) else "-", border=1, align="R")
+                        pdf.cell(25, 5, f"R$ {r_det['PREÇO CUSTO/KG']:.2f}" if pd.notnull(r_det['PREÇO CUSTO/KG']) else "-", border=1, align="R")
+                        pdf.cell(30, 5, f"R$ {r_det['PREÇO/CUSTO']:.2f}" if pd.notnull(r_det['PREÇO/CUSTO']) else "-", border=1, align="R")
+                        pdf.cell(25, 5, f"R$ {r_det['PREÇO VENDA/KG']:.2f}" if pd.notnull(r_det['PREÇO VENDA/KG']) else "-", border=1, align="R")
+                        pdf.cell(33, 5, f"R$ {r_det['VALOR TOTAL DE VENDAS']:.2f}" if pd.notnull(r_det['VALOR TOTAL DE VENDAS']) else "-", border=1, align="R")
+                        pdf.cell(38, 5, f"R$ {r_det['LUCRO BRUTO']:.2f}" if pd.notnull(r_det['LUCRO BRUTO']) else "-", border=1, align="R")
+                        pdf.cell(38, 5, f"R$ {r_det['CUSTO EFETIVO TOTAL']:.2f}" if pd.notnull(r_det['CUSTO EFETIVO TOTAL']) else "-", border=1, align="R")
                         pdf.ln()
 
                     return pdf.output(dest="S").encode("latin1")
