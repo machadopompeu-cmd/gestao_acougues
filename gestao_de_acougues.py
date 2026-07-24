@@ -121,6 +121,37 @@ st.markdown(
 )
 
 # =========================================================================
+# FUNÇÃO PADRÃO DE CABEÇALHO PARA RELATÓRIOS PDF
+# =========================================================================
+def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
+    logo_pdf = None
+    for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
+        if os.path.exists(lp):
+            logo_pdf = lp
+            break
+            
+    if logo_pdf:
+        pdf.image(logo_pdf, x=12, y=10, w=16)
+
+    pdf.set_fill_color(30, 58, 138)
+    pdf.rect(32, 10, 255, 14, "F")
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", style="B", size=11)
+    pdf.set_xy(32, 13)
+    pdf.cell(255, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {titulo_relatorio.upper()}", ln=1, align="C")
+    
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_font("Arial", style="B", size=9)
+    pdf.set_xy(10, 26)
+    txt_empresa = f"Empresa Usuária: {nome_empresa_usuaria}"
+    pdf.cell(277, 6, txt_empresa.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
+    
+    pdf.set_draw_color(30, 58, 138)
+    pdf.set_line_width(0.8)
+    pdf.line(10, 33, 287, 33)
+    pdf.set_xy(10, 36)
+
+# =========================================================================
 # MÓDULO DE CÁLCULO FINANCEIRO (SISTEMA PRICE & SISTEMA SAC)
 # =========================================================================
 def render_modulo_financeiro():
@@ -301,7 +332,6 @@ def render_modulo_financeiro():
                 df_fin = pd.DataFrame(tabela_amortizacao)
                 nome_sistema = "Sistema SAC"
 
-            # Guardar os resultados na sessão para evitar perda de dados durante cliques de download
             st.session_state.df_fin = df_fin
             st.session_state.valor_presente = valor_presente
             st.session_state.n_perodos = n_perodos
@@ -311,7 +341,6 @@ def render_modulo_financeiro():
         except Exception as e:
             st.error(f"Erro ao realizar o cálculo financeiro: {e}")
 
-    # Exibir resultados armazenados na sessão (se existirem)
     if "df_fin" in st.session_state and st.session_state.df_fin is not None:
         df_fin = st.session_state.df_fin
         valor_presente = st.session_state.valor_presente
@@ -372,37 +401,11 @@ def render_modulo_financeiro():
             def gerar_pdf_financeiro():
                 pdf = FPDF(orientation='L', unit='mm', format='A4')
                 
-                def criar_cabecalho_pagina():
-                    logo_pdf = None
-                    for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
-                        if os.path.exists(lp):
-                            logo_pdf = lp
-                            break
-                            
-                    if logo_pdf:
-                        pdf.image(logo_pdf, x=12, y=10, w=16)
-
-                    pdf.set_fill_color(30, 58, 138)
-                    pdf.rect(32, 10, 255, 14, "F")
-                    pdf.set_text_color(255, 255, 255)
-                    pdf.set_font("Arial", style="B", size=12)
-                    pdf.set_xy(32, 13)
-                    pdf.cell(255, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {nome_sistema.upper()}", ln=1, align="C")
-                    
-                    pdf.set_text_color(15, 23, 42)
-                    pdf.set_font("Arial", style="B", size=9)
-                    pdf.set_xy(10, 27)
-                    txt_info = f"Capital: R$ {valor_presente:,.2f} | Prazo: {n_perodos} periodos | Taxa: {i_equivalente*100:.4f}% p.p."
-                    pdf.cell(277, 6, txt_info.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
-                    
-                    pdf.set_draw_color(30, 58, 138)
-                    pdf.set_line_width(0.8)
-                    pdf.line(10, 34, 287, 34)
-                    
-                    pdf.set_xy(10, 37)
-                    pdf.set_fill_color(30, 58, 138)
-                    pdf.set_text_color(255, 255, 255)
+                def criar_cabecalho_tabela():
+                    criar_cabecalho_pdf_padrao(pdf, nome_sistema, st.session_state.empresa_nome)
                     pdf.set_font("Arial", style="B", size=8.5)
+                    pdf.set_fill_color(30, 58, 138)
+                    pdf.set_text_color(255, 255, 255)
                     
                     headers = ["Periodo (t)", "Valor Presente (R$)", "Amortizacao (R$)", "Juros (R$)", "Prestacao (R$)", "Taxa (%)"]
                     widths = [25, 55, 50, 50, 50, 47]
@@ -412,13 +415,13 @@ def render_modulo_financeiro():
                     pdf.ln()
 
                 pdf.add_page()
-                criar_cabecalho_pagina()
+                criar_cabecalho_tabela()
 
                 pdf.set_font("Arial", size=8)
                 for _, r in df_fin.iterrows():
                     if pdf.get_y() > 185:
                         pdf.add_page()
-                        criar_cabecalho_pagina()
+                        criar_cabecalho_tabela()
                         pdf.set_font("Arial", size=8)
 
                     pdf.cell(25, 5, str(int(r["t"])), border=1, align="C")
@@ -1311,7 +1314,6 @@ else:
                 p_bruto = acao_row["peso_bruto"]
                 p_comp_kg = acao_row["preco_animal_kg"]
                 valor_total_compra = p_bruto * p_comp_kg
-                tipo_animal_atual = acao_row["tipo_animal"]
                 
                 ossos_val = acao_row["ossos_muxiba"] if acao_row["ossos_muxiba"] else 0.0
                 quebra_val = acao_row["quebra_nao_identificada"] if acao_row["quebra_nao_identificada"] else 0.0
@@ -1519,4 +1521,67 @@ else:
                         "CUSTO EFETIVO TOTAL": "R$ {:.2f}"
                     }),
                     key=f"df_detalhes_lote_{id_selecionado}"
+                )
+
+                st.markdown("---")
+                st.markdown("### 📥 Exportar Relatório Completo do Lote em PDF")
+                
+                def gerar_pdf_lote_desossa():
+                    pdf = FPDF(orientation='L', unit='mm', format='A4')
+                    
+                    def montar_cabecalho_desossa():
+                        criar_cabecalho_pdf_padrao(pdf, f"Relatorio de Desossa - {acao_row['tipo_animal']} (ID: {id_selecionado})", st.session_state.empresa_nome)
+
+                    pdf.add_page()
+                    montar_cabecalho_desossa()
+
+                    # Informações Gerais
+                    pdf.set_font("Arial", style="B", size=10)
+                    pdf.cell(277, 6, f"Data da Acao: {acao_row['data_acao']} | Peso Bruto: {p_bruto:.3f} KG | Preço Animal: R$ {p_comp_kg:.2f}/KG", ln=1)
+                    pdf.ln(2)
+
+                    # Tabela de Cortes Detalhada
+                    pdf.set_fill_color(30, 58, 138)
+                    pdf.set_text_color(255, 255, 255)
+                    pdf.set_font("Arial", style="B", size=8)
+                    
+                    headers_d = ["Corte", "Qualid.", "Peso (KG)", "P.Custo/KG", "Total Custo", "P.Venda/KG", "Total Vendas", "Lucro Bruto", "Custo Efet. Total"]
+                    widths_d = [45, 18, 25, 25, 30, 25, 33, 38, 38]
+                    
+                    for th, wh in zip(headers_d, widths_d):
+                        pdf.cell(wh, 6, th.encode("latin1", "replace").decode("latin1"), border=1, align="C", fill=True)
+                    pdf.ln()
+
+                    pdf.set_font("Arial", size=7.5)
+                    pdf.set_text_color(15, 23, 42)
+                    for _, r_det in df_final.iterrows():
+                        if pdf.get_y() > 185:
+                            pdf.add_page()
+                            montar_cabecalho_desossa()
+                            pdf.set_font("Arial", style="B", size=8)
+                            for th, wh in zip(headers_d, widths_d):
+                                pdf.cell(wh, 6, th.encode("latin1", "replace").decode("latin1"), border=1, align="C", fill=True)
+                            pdf.ln()
+                            pdf.set_font("Arial", size=7.5)
+
+                        pdf.cell(45, 5, str(r_det["Corte/Código"])[:25].encode("latin1", "replace").decode("latin1"), border=1, align="L")
+                        pdf.cell(18, 5, str(r_det["Qualidade"]), border=1, align="C")
+                        pdf.cell(25, 5, f"{r_det['Peso /KG']:.3f}", border=1, align="R")
+                        pdf.cell(25, 5, f"R$ {r_det['PREÇO CUSTO/KG']:.2f}", border=1, align="R")
+                        pdf.cell(30, 5, f"R$ {r_det['PREÇO/CUSTO']:.2f}", border=1, align="R")
+                        pdf.cell(25, 5, f"R$ {r_det['PREÇO VENDA/KG']:.2f}", border=1, align="R")
+                        pdf.cell(33, 5, f"R$ {r_det['VALOR TOTAL DE VENDAS']:.2f}", border=1, align="R")
+                        pdf.cell(38, 5, f"R$ {r_det['LUCRO BRUTO']:.2f}", border=1, align="R")
+                        pdf.cell(38, 5, f"R$ {r_det['CUSTO EFETIVO TOTAL']:.2f}", border=1, align="R")
+                        pdf.ln()
+
+                    return pdf.output(dest="S").encode("latin1")
+
+                pdf_bytes_desossa = gerar_pdf_lote_desossa()
+                st.download_button(
+                    label="📄 Baixar Relatório Completo do Lote em PDF (.pdf)",
+                    data=pdf_bytes_desossa,
+                    file_name=f"relatorio_desossa_lote_{id_selecionado}_{datetime.date.today().strftime('%Y%m%d')}.pdf",
+                    mime="application/pdf",
+                    key=f"btn_dl_pdf_desossa_{id_selecionado}"
                 )
