@@ -463,7 +463,7 @@ def render_modulo_ficha_tecnica():
     st.markdown("""
         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 25px;">
             <h2 style="margin: 0; color: white !important;">📋 Módulo de Ficha Técnica & Precificação</h2>
-            <p style="margin: 5px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos alimentícios/não alimentícios e apure custos de produção em tempo real.</p>
+            <p style="margin: 5px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos alimentícios e não alimentícios em formato de tabela, e apure custos de produção.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -727,46 +727,64 @@ def render_modulo_ficha_tecnica():
             if df_insumos.empty:
                 st.info("Nenhum insumo alimentício cadastrado nesta ficha ainda.")
             else:
-                st.markdown("#### 📋 Alterar ou Excluir Insumos Alimentícios")
-                for _, row_ins in df_insumos.iterrows():
-                    ins_id = row_ins['id']
-                    with st.expander(f"🔸 {row_ins['produto_insumo']} ({row_ins['qtd_bruta']} {row_ins['unidade']} - R$ {row_ins['preco_bruto']:.2f})", expanded=False):
-                        with st.form(f"form_alt_ins_{ins_id}"):
-                            ac1, ac2, ac3, ac4, ac5 = st.columns(5)
-                            alt_cod = ac1.text_input("Código", value=str(row_ins['codigo']) if row_ins['codigo'] else "", key=f"alt_cod_{ins_id}")
-                            alt_prod = ac2.text_input("Produto", value=str(row_ins['produto_insumo']), key=f"alt_prod_{ins_id}")
-                            alt_qtd = ac3.number_input("Qtd Bruta", min_value=0.0, value=float(row_ins['qtd_bruta']), step=0.1, format="%.3f", key=f"alt_qtd_{ins_id}")
-                            
-                            unidades_disponiveis = ["KG", "UN", "L", "G"]
-                            un_atual = str(row_ins['unidade']).upper()
-                            idx_un = unidades_disponiveis.index(un_atual) if un_atual in unidades_disponiveis else 0
-                            alt_un = ac4.selectbox("Unidade", unidades_disponiveis, index=idx_un, key=f"alt_un_{ins_id}")
-                            
-                            alt_preco = ac5.number_input("Preço Bruto", min_value=0.0, value=float(row_ins['preco_bruto']), step=0.1, format="%.2f", key=f"alt_pc_{ins_id}")
-                            
-                            btn_salvar_alt = st.form_submit_button("💾 Salvar Alterações")
-                            
-                            if btn_salvar_alt:
-                                conn = get_connection()
-                                cursor = conn.cursor()
-                                cursor.execute("""
-                                    UPDATE insumos_ficha 
-                                    SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?
-                                    WHERE id = ?
-                                """, (alt_cod.strip().upper(), alt_prod.strip().upper(), alt_qtd, alt_un, alt_preco, ins_id))
-                                conn.commit()
-                                conn.close()
-                                st.success("Insumo atualizado com sucesso!")
-                                st.rerun()
+                st.markdown("#### 📋 Tabela de Insumos Alimentícios Cadastrados")
+                
+                # Exibição em formato de tabela resumida
+                df_insumos_view = df_insumos[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto']].copy()
+                df_insumos_view.columns = ['ID', 'Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)']
+                st.dataframe(
+                    df_insumos_view.style.format({
+                        'Qtd Bruta': '{:.3f}',
+                        'Preço Bruto (R$)': 'R$ {:.2f}'
+                    }),
+                    use_container_width=True,
+                    key="tabela_insumos_alimenticios"
+                )
 
-                        if st.button("🗑️ Excluir Insumo Alimentício", key=f"del_ins_{ins_id}"):
-                            conn = get_connection()
-                            cursor = conn.cursor()
-                            cursor.execute("DELETE FROM insumos_ficha WHERE id = ?", (ins_id,))
-                            conn.commit()
-                            conn.close()
-                            st.success("Insumo excluído!")
-                            st.rerun()
+                st.markdown("#### ✏️ Alterar ou Excluir Insumos Alimentícios por Seleção")
+                opcoes_insumos = {f"ID: {r['id']} - {r['produto_insumo']} ({r['qtd_bruta']} {r['unidade']})": r['id'] for _, r in df_insumos.iterrows()}
+                sel_ins_gerenciar = st.selectbox("Selecione o Insumo Alimentício para Editar/Excluir", list(opcoes_insumos.keys()), key="sel_gerenciar_ins_ali")
+                id_ins_gerenciar = opcoes_fichas[ficha_selecionada_label] if not opcoes_insumos else opcoes_insumos[sel_ins_gerenciar]
+                
+                row_ins_sel = df_insumos[df_insumos['id'] == id_ins_gerenciar].iloc[0]
+                
+                with st.form(f"form_alt_ins_tabela_{id_ins_gerenciar}"):
+                    ac1, ac2, ac3, ac4, ac5 = st.columns(5)
+                    alt_cod = ac1.text_input("Código", value=str(row_ins_sel['codigo']) if row_ins_sel['codigo'] else "", key=f"tab_alt_cod_{id_ins_gerenciar}")
+                    alt_prod = ac2.text_input("Produto", value=str(row_ins_sel['produto_insumo']), key=f"tab_alt_prod_{id_ins_gerenciar}")
+                    alt_qtd = ac3.number_input("Qtd Bruta", min_value=0.0, value=float(row_ins_sel['qtd_bruta']), step=0.1, format="%.3f", key=f"tab_alt_qtd_{id_ins_gerenciar}")
+                    
+                    unidades_disponiveis = ["KG", "UN", "L", "G"]
+                    un_atual = str(row_ins_sel['unidade']).upper()
+                    idx_un = unidades_disponiveis.index(un_atual) if un_atual in unidades_disponiveis else 0
+                    alt_un = ac4.selectbox("Unidade", unidades_disponiveis, index=idx_un, key=f"tab_alt_un_{id_ins_gerenciar}")
+                    
+                    alt_preco = ac5.number_input("Preço Bruto", min_value=0.0, value=float(row_ins_sel['preco_bruto']), step=0.1, format="%.2f", key=f"tab_alt_pc_{id_ins_gerenciar}")
+                    
+                    col_b1, col_b2 = st.columns(2)
+                    btn_salvar_alt = col_b1.form_submit_button("💾 Salvar Alterações do Insumo")
+                    
+                    if btn_salvar_alt:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE insumos_ficha 
+                            SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?
+                            WHERE id = ?
+                        """, (alt_cod.strip().upper(), alt_prod.strip().upper(), alt_qtd, alt_un, alt_preco, id_ins_gerenciar))
+                        conn.commit()
+                        conn.close()
+                        st.success("Insumo atualizado com sucesso!")
+                        st.rerun()
+
+                if st.button("🗑️ Excluir Insumo Alimentício Selecionado", key=f"del_ins_tab_{id_ins_gerenciar}"):
+                    conn = get_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM insumos_ficha WHERE id = ?", (id_ins_gerenciar,))
+                    conn.commit()
+                    conn.close()
+                    st.success("Insumo excluído com sucesso!")
+                    st.rerun()
 
             st.markdown("---")
             st.markdown("### 📦 Insumos Não Alimentícios (Embalagens, Gás, etc.)")
@@ -799,46 +817,62 @@ def render_modulo_ficha_tecnica():
             if df_nao_ali.empty:
                 st.info("Nenhum insumo não alimentício cadastrado nesta ficha ainda.")
             else:
-                st.markdown("#### 📋 Alterar ou Excluir Insumos Não Alimentícios")
-                for _, row_nao in df_nao_ali.iterrows():
-                    nao_id = row_nao['id']
-                    with st.expander(f"📦 {row_nao['produto_insumo']} ({row_nao['qtd_bruta']} {row_nao['unidade']} - R$ {row_nao['preco_bruto']:.2f})", expanded=False):
-                        with st.form(f"form_alt_nao_{nao_id}"):
-                            nac1, nac2, nac3, nac4, nac5 = st.columns(5)
-                            alt_n_cod = nac1.text_input("Código", value=str(row_nao['codigo']) if row_nao['codigo'] else "", key=f"alt_n_cod_{nao_id}")
-                            alt_n_prod = nac2.text_input("Produto", value=str(row_nao['produto_insumo']), key=f"alt_n_prod_{nao_id}")
-                            alt_n_qtd = nac3.number_input("Qtd Bruta", min_value=0.0, value=float(row_nao['qtd_bruta']), step=0.1, format="%.3f", key=f"alt_n_qtd_{nao_id}")
-                            
-                            un_nao_disponiveis = ["UNID", "UN", "KG", "L", "PCT"]
-                            un_n_atual = str(row_nao['unidade']).upper()
-                            idx_un_n = un_nao_disponiveis.index(un_n_atual) if un_n_atual in un_nao_disponiveis else 0
-                            alt_n_un = nac4.selectbox("Unidade", un_nao_disponiveis, index=idx_un_n, key=f"alt_n_un_{nao_id}")
-                            
-                            alt_n_preco = nac5.number_input("Preço Bruto", min_value=0.0, value=float(row_nao['preco_bruto']), step=1.0, format="%.2f", key=f"alt_n_pc_{nao_id}")
-                            
-                            btn_salvar_alt_n = st.form_submit_button("💾 Salvar Alterações (Não Alimentício)")
-                            
-                            if btn_salvar_alt_n:
-                                conn = get_connection()
-                                cursor = conn.cursor()
-                                cursor.execute("""
-                                    UPDATE insumos_nao_alimenticios_ficha 
-                                    SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?
-                                    WHERE id = ?
-                                """, (alt_n_cod.strip().upper(), alt_n_prod.strip().upper(), alt_n_qtd, alt_n_un, alt_n_preco, nao_id))
-                                conn.commit()
-                                conn.close()
-                                st.success("Insumo não alimentício atualizado com sucesso!")
-                                st.rerun()
+                st.markdown("#### 📋 Tabela de Insumos Não Alimentícios Cadastrados")
+                
+                df_nao_view = df_nao_ali[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto']].copy()
+                df_nao_view.columns = ['ID', 'Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)']
+                st.dataframe(
+                    df_nao_view.style.format({
+                        'Qtd Bruta': '{:.3f}',
+                        'Preço Bruto (R$)': 'R$ {:.2f}'
+                    }),
+                    use_container_width=True,
+                    key="tabela_insumos_nao_alimenticios"
+                )
 
-                        if st.button("🗑️ Excluir Insumo Não Alimentício", key=f"del_nao_{nao_id}"):
-                            conn = get_connection()
-                            cursor = conn.cursor()
-                            cursor.execute("DELETE FROM insumos_nao_alimenticios_ficha WHERE id = ?", (nao_id,))
-                            conn.commit()
-                            conn.close()
-                            st.success("Insumo excluído!")
-                            st.rerun()
+                st.markdown("#### ✏️ Alterar ou Excluir Insumos Não Alimentícios por Seleção")
+                opcoes_nao = {f"ID: {r['id']} - {r['produto_insumo']} ({r['qtd_bruta']} {r['unidade']})": r['id'] for _, r in df_nao_ali.iterrows()}
+                sel_nao_gerenciar = st.selectbox("Selecione o Insumo Não Alimentício para Editar/Excluir", list(opcoes_nao.keys()), key="sel_gerenciar_ins_nao")
+                id_nao_gerenciar = opcoes_nao[sel_nao_gerenciar]
+                
+                row_nao_sel = df_nao_ali[df_nao_ali['id'] == id_nao_gerenciar].iloc[0]
+                
+                with st.form(f"form_alt_nao_tabela_{id_nao_gerenciar}"):
+                    nac1, nac2, nac3, nac4, nac5 = st.columns(5)
+                    alt_n_cod = nac1.text_input("Código", value=str(row_nao_sel['codigo']) if row_nao_sel['codigo'] else "", key=f"tab_alt_n_cod_{id_nao_gerenciar}")
+                    alt_n_prod = nac2.text_input("Produto", value=str(row_nao_sel['produto_insumo']), key=f"tab_alt_n_prod_{id_nao_gerenciar}")
+                    alt_n_qtd = nac3.number_input("Qtd Bruta", min_value=0.0, value=float(row_nao_sel['qtd_bruta']), step=0.1, format="%.3f", key=f"tab_alt_n_qtd_{id_nao_gerenciar}")
+                    
+                    un_nao_disponiveis = ["UNID", "UN", "KG", "L", "PCT"]
+                    un_n_atual = str(row_nao_sel['unidade']).upper()
+                    idx_un_n = un_nao_disponiveis.index(un_n_atual) if un_n_atual in un_nao_disponiveis else 0
+                    alt_n_un = nac4.selectbox("Unidade", un_nao_disponiveis, index=idx_un_n, key=f"tab_alt_n_un_{id_nao_gerenciar}")
+                    
+                    alt_n_preco = nac5.number_input("Preço Bruto", min_value=0.0, value=float(row_nao_sel['preco_bruto']), step=1.0, format="%.2f", key=f"tab_alt_n_pc_{id_nao_gerenciar}")
+                    
+                    btn_salvar_alt_n = st.form_submit_button("💾 Salvar Alterações (Não Alimentício)")
+                    
+                    if btn_salvar_alt_n:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE insumos_nao_alimenticios_ficha 
+                            SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?
+                            WHERE id = ?
+                        """, (alt_n_cod.strip().upper(), alt_n_prod.strip().upper(), alt_n_qtd, alt_n_un, alt_n_preco, id_nao_gerenciar))
+                        conn.commit()
+                        conn.close()
+                        st.success("Insumo não alimentício atualizado com sucesso!")
+                        st.rerun()
+
+                if st.button("🗑️ Excluir Insumo Não Alimentício Selecionado", key=f"del_nao_tab_{id_nao_gerenciar}"):
+                    conn = get_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM insumos_nao_alimenticios_ficha WHERE id = ?", (id_nao_gerenciar,))
+                    conn.commit()
+                    conn.close()
+                    st.success("Insumo excluído com sucesso!")
+                    st.rerun()
 
 # =========================================================================
 # 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
