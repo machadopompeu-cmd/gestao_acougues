@@ -473,13 +473,13 @@ def render_modulo_ficha_tecnica():
         with st.form("form_nova_ficha_tecnica"):
             col1, col2 = st.columns(2)
             with col1:
-                nome_produto = st.text_input("Nome do Produto / Prato", value="COSTELA ASSADA")
-                rendimento_kg = st.number_input("Rendimento Total (KG)", min_value=0.0, value=21.9, step=0.1, format="%.3f")
-                rendimento_assada_kg = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=14.226, step=0.01, format="%.3f")
-                peso_unidade_kg = st.number_input("Peso da Unidade (KG)", min_value=0.001, value=0.118, step=0.001, format="%.3f")
+                nome_produto = st.text_input("Nome do Produto / Prato", value="")
+                rendimento_kg = st.number_input("Rendimento Total (KG)", min_value=0.0, value=0.0, step=0.1, format="%.3f")
+                rendimento_assada_kg = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=0.0, step=0.01, format="%.3f")
+                peso_unidade_kg = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=0.0, step=0.001, format="%.3f")
             with col2:
-                qtd_por_pacote = st.number_input("Quantidade por Pacote", min_value=1.0, value=4.0, step=1.0)
-                perda_pct = st.number_input("Perda %", min_value=0.0, max_value=1.0, value=0.3504, step=0.0001, format="%.4f")
+                qtd_por_pacote = st.number_input("Quantidade por Pacote", min_value=1.0, value=1.0, step=1.0)
+                perda_pct = st.number_input("Perda %", min_value=0.0, max_value=1.0, value=0.0, step=0.0001, format="%.4f")
             
             btn_salvar_ficha = st.form_submit_button("💾 Salvar Ficha Técnica e Continuar")
             
@@ -515,6 +515,28 @@ def render_modulo_ficha_tecnica():
             ficha_id_ativo = opcoes_fichas[ficha_selecionada_label]
 
             ficha_row = df_fichas[df_fichas['id'] == ficha_id_ativo].iloc[0]
+
+            with st.expander("✏️ Editar Parâmetros de Rendimento desta Ficha", expanded=False):
+                with st.form(f"form_edit_parametros_ficha_{ficha_id_ativo}"):
+                    edit_nome_prod = st.text_input("Nome do Produto / Prato", value=ficha_row['produto'])
+                    edit_rend_kg = st.number_input("Rendimento Total (KG)", min_value=0.0, value=float(ficha_row['rendimento_kg']), step=0.1, format="%.3f")
+                    edit_rend_ass = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=float(ficha_row['rendimento_assada_kg']), step=0.01, format="%.3f")
+                    edit_peso_un = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=float(ficha_row['peso_unidade_kg']), step=0.001, format="%.3f")
+                    edit_qtd_pct = st.number_input("Quantidade por Pacote", min_value=1.0, value=float(ficha_row['qtd_por_pacote']), step=1.0)
+                    edit_perda = st.number_input("Perda %", min_value=0.0, max_value=1.0, value=float(ficha_row['perda_pct']), step=0.0001, format="%.4f")
+                    
+                    if st.form_submit_button("💾 Salvar Alterações dos Parâmetros"):
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE fichas_tecnicas 
+                            SET produto = ?, rendimento_kg = ?, rendimento_assada_kg = ?, peso_unidade_kg = ?, qtd_por_pacote = ?, perda_pct = ?
+                            WHERE id = ?
+                        """, (edit_nome_prod.strip().upper(), edit_rend_kg, edit_rend_ass, edit_peso_un, edit_qtd_pct, edit_perda, ficha_id_ativo))
+                        conn.commit()
+                        conn.close()
+                        st.success("Parâmetros atualizados com sucesso!")
+                        st.rerun()
 
             with st.expander("🗑️ Excluir esta Ficha Técnica Inteira", expanded=False):
                 confirmar_exclusao_ficha = st.checkbox("Confirmar exclusão da ficha e todos os seus insumos", key=f"chk_exc_ficha_{ficha_id_ativo}")
