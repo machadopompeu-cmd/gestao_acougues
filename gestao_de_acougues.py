@@ -158,6 +158,17 @@ def render_modulo_financeiro():
     st.header("🧮 Módulo de Cálculo Financeiro & Amortização (Price & SAC)")
     st.markdown("Selecione o sistema de amortização e insira as variáveis correspondentes.")
 
+    if "df_fin" not in st.session_state:
+        st.session_state.df_fin = None
+    if "valor_presente" not in st.session_state:
+        st.session_state.valor_presente = 0.0
+    if "n_perodos" not in st.session_state:
+        st.session_state.n_perodos = 0
+    if "i_equivalente" not in st.session_state:
+        st.session_state.i_equivalente = 0.0
+    if "nome_sistema" not in st.session_state:
+        st.session_state.nome_sistema = "Sistema Price"
+
     sistema_amortizacao = st.selectbox(
         "Sistema de Amortização",
         ["Sistema Price (Prestações Fixas)", "Sistema SAC (Amortização Constante)"],
@@ -341,7 +352,7 @@ def render_modulo_financeiro():
         except Exception as e:
             st.error(f"Erro ao realizar o cálculo financeiro: {e}")
 
-    if "df_fin" in st.session_state and st.session_state.df_fin is not None:
+    if st.session_state.df_fin is not None and not st.session_state.df_fin.empty:
         df_fin = st.session_state.df_fin
         valor_presente = st.session_state.valor_presente
         n_perodos = st.session_state.n_perodos
@@ -402,7 +413,7 @@ def render_modulo_financeiro():
                 pdf = FPDF(orientation='L', unit='mm', format='A4')
                 
                 def criar_cabecalho_tabela():
-                    criar_cabecalho_pdf_padrao(pdf, nome_sistema, st.session_state.empresa_nome)
+                    criar_cabecalho_pdf_padrao(pdf, nome_sistema, st.session_state.get('empresa_nome', 'Empresa'))
                     pdf.set_font("Arial", style="B", size=8.5)
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
@@ -1241,6 +1252,23 @@ else:
                 id_selecionado = opcoes_map[selecionado]
                 st.session_state.lote_selecionado_id = id_selecionado
                 
+                # NOVO: Seção para excluir a desossa atual com confirmação
+                with st.expander("🗑️ EXCLUIR ESTA DESOSSA", expanded=False):
+                    st.warning("⚠️ Atenção: A exclusão deste lote é irreversível e removerá todos os cortes associados.")
+                    confirmar_exclusao = st.checkbox("Confirmar exclusão deste lote", key=f"chk_exc_lote_{id_selecionado}")
+                    if st.button("🗑️ Excluir Lote Permanentemente", key=f"btn_exc_lote_{id_selecionado}"):
+                        if confirmar_exclusao:
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM cortes WHERE acao_id = ?", (id_selecionado,))
+                            cursor.execute("DELETE FROM acoes WHERE id = ? AND empresa_id = ?", (id_selecionado, emp_id_ativo))
+                            conn.commit()
+                            conn.close()
+                            st.success("🗑️ Lote de desossa excluído com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Por favor, marque a caixa de confirmação para excluir o lote.")
+
                 acao_row = df_acoes[df_acoes["id"] == id_selecionado].iloc[0]
                 conn = get_connection()
                 df_cortes = pd.read_sql_query(f"SELECT * FROM cortes WHERE acao_id = {id_selecionado}", conn)
