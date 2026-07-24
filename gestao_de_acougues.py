@@ -301,129 +301,144 @@ def render_modulo_financeiro():
                 df_fin = pd.DataFrame(tabela_amortizacao)
                 nome_sistema = "Sistema SAC"
 
-            st.success(f"""
-            📊 **Resultados Calculados ({nome_sistema}):**
-            * **Capital (PV):** R$ {valor_presente:,.2f}
-            * **Taxa Equivalente:** {i_equivalente*100:.4f}% por período
-            * **Prazo Total:** {n_perodos} períodos
-            """)
-
-            st.markdown(f"### 📋 Tabela de Amortização - {nome_sistema}")
-            st.dataframe(
-                df_fin.style.format({
-                    "VALOR PRESENTE": "R$ {:,.2f}",
-                    "Amortização": "R$ {:,.2f}",
-                    "Juros": "R$ {:,.2f}",
-                    "Prestação": "R$ {:,.2f}",
-                    "Taxa (%)": "{:.4f}%"
-                }),
-                use_container_width=True,
-                key="df_tabela_amortizacao_estavel"
-            )
-
-            total_amortizacao = df_fin["Amortização"].sum()
-            total_juros = df_fin["Juros"].sum()
-            total_prestacao = df_fin["Prestação"].sum()
-
-            st.markdown(f"""
-            * **Total Amortizado:** R$ {total_amortizacao:,.2f}
-            * **Total de Juros:** R$ {total_juros:,.2f}
-            * **Montante Total Pago:** R$ {total_prestacao:,.2f}
-            """)
-
-            st.markdown("---")
-            st.markdown("### 📥 Exportar Relatório Financeiro")
-            
-            col_exp1, col_exp2 = st.columns(2)
-
-            with col_exp1:
-                output_excel = io.BytesIO()
-                with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
-                    df_fin.to_excel(writer, sheet_name=nome_sistema, index=False)
-                output_excel.seek(0)
-                
-                st.download_button(
-                    label="📥 Baixar Planilha em Excel (.xlsx)",
-                    data=output_excel,
-                    file_name=f"tabela_{nome_sistema.lower().replace(' ', '_')}_{datetime.date.today().strftime('%Y%m%d')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="btn_dl_excel_fin"
-                )
-
-            with col_exp2:
-                def gerar_pdf_financeiro():
-                    pdf = FPDF(orientation='L', unit='mm', format='A4')
-                    
-                    def criar_cabecalho_pagina():
-                        logo_pdf = None
-                        for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
-                            if os.path.exists(lp):
-                                logo_pdf = lp
-                                break
-                                
-                        if logo_pdf:
-                            pdf.image(logo_pdf, x=12, y=10, w=16)
-
-                        pdf.set_fill_color(30, 58, 138)
-                        pdf.rect(32, 10, 255, 14, "F")
-                        pdf.set_text_color(255, 255, 255)
-                        pdf.set_font("Arial", style="B", size=12)
-                        pdf.set_xy(32, 13)
-                        pdf.cell(255, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {nome_sistema.upper()}", ln=1, align="C")
-                        
-                        pdf.set_text_color(15, 23, 42)
-                        pdf.set_font("Arial", style="B", size=9)
-                        pdf.set_xy(10, 27)
-                        txt_info = f"Capital: R$ {valor_presente:,.2f} | Prazo: {n_perodos} periodos | Taxa: {i_equivalente*100:.4f}% p.p."
-                        pdf.cell(277, 6, txt_info.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
-                        
-                        pdf.set_draw_color(30, 58, 138)
-                        pdf.set_line_width(0.8)
-                        pdf.line(10, 34, 287, 34)
-                        
-                        pdf.set_xy(10, 37)
-                        pdf.set_fill_color(30, 58, 138)
-                        pdf.set_text_color(255, 255, 255)
-                        pdf.set_font("Arial", style="B", size=8.5)
-                        
-                        headers = ["Periodo (t)", "Valor Presente (R$)", "Amortizacao (R$)", "Juros (R$)", "Prestacao (R$)", "Taxa (%)"]
-                        widths = [25, 55, 50, 50, 50, 47]
-                        
-                        for text_h, w_h in zip(headers, widths):
-                            pdf.cell(w_h, 6, text_h.encode("latin1", "replace").decode("latin1"), border=1, align="C", fill=True)
-                        pdf.ln()
-
-                    pdf.add_page()
-                    criar_cabecalho_pagina()
-
-                    pdf.set_font("Arial", size=8)
-                    for _, r in df_fin.iterrows():
-                        if pdf.get_y() > 185:
-                            pdf.add_page()
-                            criar_cabecalho_pagina()
-                            pdf.set_font("Arial", size=8)
-
-                        pdf.cell(25, 5, str(int(r["t"])), border=1, align="C")
-                        pdf.cell(55, 5, f"R$ {r['VALOR PRESENTE']:,.2f}", border=1, align="R")
-                        pdf.cell(50, 5, f"R$ {r['Amortização']:,.2f}", border=1, align="R")
-                        pdf.cell(50, 5, f"R$ {r['Juros']:,.2f}", border=1, align="R")
-                        pdf.cell(50, 5, f"R$ {r['Prestação']:,.2f}", border=1, align="R")
-                        pdf.cell(47, 5, f"{r['Taxa (%)']:.4f}%", border=1, align="C")
-                        pdf.ln()
-
-                    return pdf.output(dest="S").encode("latin1")
-
-                pdf_bytes_fin = gerar_pdf_financeiro()
-                st.download_button(
-                    label="📄 Baixar Relatório em PDF (.pdf)",
-                    data=pdf_bytes_fin,
-                    file_name=f"relatorio_financeiro_{datetime.date.today().strftime('%Y%m%d')}.pdf",
-                    mime="application/pdf",
-                    key="btn_dl_pdf_fin"
-                )
+            # Guardar os resultados na sessão para evitar perda de dados durante cliques de download
+            st.session_state.df_fin = df_fin
+            st.session_state.valor_presente = valor_presente
+            st.session_state.n_perodos = n_perodos
+            st.session_state.i_equivalente = i_equivalente
+            st.session_state.nome_sistema = nome_sistema
 
         except Exception as e:
             st.error(f"Erro ao realizar o cálculo financeiro: {e}")
+
+    # Exibir resultados armazenados na sessão (se existirem)
+    if "df_fin" in st.session_state and st.session_state.df_fin is not None:
+        df_fin = st.session_state.df_fin
+        valor_presente = st.session_state.valor_presente
+        n_perodos = st.session_state.n_perodos
+        i_equivalente = st.session_state.i_equivalente
+        nome_sistema = st.session_state.nome_sistema
+
+        st.success(f"""
+        📊 **Resultados Calculados ({nome_sistema}):**
+        * **Capital (PV):** R$ {valor_presente:,.2f}
+        * **Taxa Equivalente:** {i_equivalente*100:.4f}% por período
+        * **Prazo Total:** {n_perodos} períodos
+        """)
+
+        st.markdown(f"### 📋 Tabela de Amortização - {nome_sistema}")
+        st.dataframe(
+            df_fin.style.format({
+                "VALOR PRESENTE": "R$ {:,.2f}",
+                "Amortização": "R$ {:,.2f}",
+                "Juros": "R$ {:,.2f}",
+                "Prestação": "R$ {:,.2f}",
+                "Taxa (%)": "{:.4f}%"
+            }),
+            use_container_width=True,
+            key="df_tabela_amortizacao_estavel"
+        )
+
+        total_amortizacao = df_fin["Amortização"].sum()
+        total_juros = df_fin["Juros"].sum()
+        total_prestacao = df_fin["Prestação"].sum()
+
+        st.markdown(f"""
+        * **Total Amortizado:** R$ {total_amortizacao:,.2f}
+        * **Total de Juros:** R$ {total_juros:,.2f}
+        * **Montante Total Pago:** R$ {total_prestacao:,.2f}
+        """)
+
+        st.markdown("---")
+        st.markdown("### 📥 Exportar Relatório Financeiro")
+        
+        col_exp1, col_exp2 = st.columns(2)
+
+        with col_exp1:
+            output_excel = io.BytesIO()
+            with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
+                df_fin.to_excel(writer, sheet_name=nome_sistema, index=False)
+            output_excel.seek(0)
+            
+            st.download_button(
+                label="📥 Baixar Planilha em Excel (.xlsx)",
+                data=output_excel,
+                file_name=f"tabela_{nome_sistema.lower().replace(' ', '_')}_{datetime.date.today().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="btn_dl_excel_fin"
+            )
+
+        with col_exp2:
+            def gerar_pdf_financeiro():
+                pdf = FPDF(orientation='L', unit='mm', format='A4')
+                
+                def criar_cabecalho_pagina():
+                    logo_pdf = None
+                    for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
+                        if os.path.exists(lp):
+                            logo_pdf = lp
+                            break
+                            
+                    if logo_pdf:
+                        pdf.image(logo_pdf, x=12, y=10, w=16)
+
+                    pdf.set_fill_color(30, 58, 138)
+                    pdf.rect(32, 10, 255, 14, "F")
+                    pdf.set_text_color(255, 255, 255)
+                    pdf.set_font("Arial", style="B", size=12)
+                    pdf.set_xy(32, 13)
+                    pdf.cell(255, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {nome_sistema.upper()}", ln=1, align="C")
+                    
+                    pdf.set_text_color(15, 23, 42)
+                    pdf.set_font("Arial", style="B", size=9)
+                    pdf.set_xy(10, 27)
+                    txt_info = f"Capital: R$ {valor_presente:,.2f} | Prazo: {n_perodos} periodos | Taxa: {i_equivalente*100:.4f}% p.p."
+                    pdf.cell(277, 6, txt_info.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
+                    
+                    pdf.set_draw_color(30, 58, 138)
+                    pdf.set_line_width(0.8)
+                    pdf.line(10, 34, 287, 34)
+                    
+                    pdf.set_xy(10, 37)
+                    pdf.set_fill_color(30, 58, 138)
+                    pdf.set_text_color(255, 255, 255)
+                    pdf.set_font("Arial", style="B", size=8.5)
+                    
+                    headers = ["Periodo (t)", "Valor Presente (R$)", "Amortizacao (R$)", "Juros (R$)", "Prestacao (R$)", "Taxa (%)"]
+                    widths = [25, 55, 50, 50, 50, 47]
+                    
+                    for text_h, w_h in zip(headers, widths):
+                        pdf.cell(w_h, 6, text_h.encode("latin1", "replace").decode("latin1"), border=1, align="C", fill=True)
+                    pdf.ln()
+
+                pdf.add_page()
+                criar_cabecalho_pagina()
+
+                pdf.set_font("Arial", size=8)
+                for _, r in df_fin.iterrows():
+                    if pdf.get_y() > 185:
+                        pdf.add_page()
+                        criar_cabecalho_pagina()
+                        pdf.set_font("Arial", size=8)
+
+                    pdf.cell(25, 5, str(int(r["t"])), border=1, align="C")
+                    pdf.cell(55, 5, f"R$ {r['VALOR PRESENTE']:,.2f}", border=1, align="R")
+                    pdf.cell(50, 5, f"R$ {r['Amortização']:,.2f}", border=1, align="R")
+                    pdf.cell(50, 5, f"R$ {r['Juros']:,.2f}", border=1, align="R")
+                    pdf.cell(50, 5, f"R$ {r['Prestação']:,.2f}", border=1, align="R")
+                    pdf.cell(47, 5, f"{r['Taxa (%)']:.4f}%", border=1, align="C")
+                    pdf.ln()
+
+                return pdf.output(dest="S").encode("latin1")
+
+            pdf_bytes_fin = gerar_pdf_financeiro()
+            st.download_button(
+                label="📄 Baixar Relatório em PDF (.pdf)",
+                data=pdf_bytes_fin,
+                file_name=f"relatorio_financeiro_{datetime.date.today().strftime('%Y%m%d')}.pdf",
+                mime="application/pdf",
+                key="btn_dl_pdf_fin"
+            )
 
 # =========================================================================
 # 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
