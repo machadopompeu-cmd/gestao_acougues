@@ -540,7 +540,6 @@ def render_modulo_ficha_tecnica():
             custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
             custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
             
-            # Quantidade de unidades produzidas (respeitando a inserção do usuário ou calculada)
             unidades_prod_cadastrada = ficha_row['unidades_produzidas'] if 'unidades_produzidas' in ficha_row and ficha_row['unidades_produzidas'] > 0 else (ficha_row['rendimento_assada_kg'] / ficha_row['peso_unidade_kg'] if ficha_row['peso_unidade_kg'] > 0 else 0.0)
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
@@ -598,7 +597,6 @@ def render_modulo_ficha_tecnica():
             if modo_precificacao == "Informar Margem de Lucro (%)":
                 margem_lucro = st.number_input("Margem de Lucro Desejada (%)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key=f"margem_{ficha_id_ativo}")
                 
-                # Soma dos percentuais que incidem sobre o preço (imposto, cartão, comissão, outros, fixas, desconto e margem)
                 soma_percentuais = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + desconto_venda + margem_lucro) / 100.0
                 divisor_preco = 1.0 - soma_percentuais
 
@@ -609,7 +607,6 @@ def render_modulo_ficha_tecnica():
             else:
                 preco_venda_tabela = st.number_input("Preço de Venda Praticado (R$)", min_value=0.0, value=cer_base * 1.5, step=0.50, format="%.2f", key=f"preco_praticado_{ficha_id_ativo}")
                 
-                # Dedução reversa da margem de lucro informada o preço praticado
                 soma_sem_margem = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + desconto_venda) / 100.0
                 if preco_venda_tabela > 0:
                     custos_perc_valor = preco_venda_tabela * soma_sem_margem
@@ -619,10 +616,9 @@ def render_modulo_ficha_tecnica():
                     margem_lucro = 0.0
 
             # Aplicando o desconto como redutor nos resultados finais
-Fator_desconto = (1.0 - (desconto_venda / 100.0))
+            fator_desconto = (1.0 - (desconto_venda / 100.0))
             preco_venda_efetivo = preco_venda_tabela * fator_desconto
 
-            # Detalhamento dos valores sobre o preço efetivo pós-desconto
             valor_imposto = preco_venda_efetivo * (aliquota_imposto / 100.0)
             valor_cartao = preco_venda_efetivo * (taxa_cartao / 100.0)
             valor_comissao = preco_venda_efetivo * (comissao_venda / 100.0)
@@ -640,7 +636,6 @@ Fator_desconto = (1.0 - (desconto_venda / 100.0))
             * **Lucro Líquido Previsto:** R$ {valor_lucro_efetivo:,.2f}
             """)
 
-            # Salvando na sessão para exportação em PDF
             st.session_state['precificacao_dados'] = {
                 'indicador': indicador_cer_escolhido,
                 'cer_base': cer_base,
@@ -668,7 +663,6 @@ Fator_desconto = (1.0 - (desconto_venda / 100.0))
                     pdf.add_page()
                     montar_cabecalho_ficha()
 
-                    # Parâmetros Gerais
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(190, 6, "1. PARAMETROS DE RENDIMENTO", ln=1, fill=True)
@@ -682,7 +676,6 @@ Fator_desconto = (1.0 - (desconto_venda / 100.0))
                     pdf.cell(95, 5, f"Qtd por Pacote: {ficha_row['qtd_por_pacote']}", border=1, ln=1)
                     pdf.ln(4)
 
-                    # Indicadores Financeiros e Pacotes (com Custo da Unidade Produzida)
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(190, 6, "2. INDICADORES E CUSTOS CONSOLIDADOS", ln=1, fill=True)
@@ -696,7 +689,6 @@ Fator_desconto = (1.0 - (desconto_venda / 100.0))
                     pdf.cell(95, 5, f"Custo por Pacote: R$ {custo_pacote:.2f}", border=1, ln=1)
                     pdf.ln(4)
 
-                    # Seção de Precificação no PDF
                     p_info = st.session_state.get('precificacao_dados', None)
                     if p_info:
                         pdf.set_font("Arial", style="B", size=10)
@@ -717,7 +709,6 @@ Fator_desconto = (1.0 - (desconto_venda / 100.0))
                         pdf.cell(190, 6, f"PREÇO EFETIVO (PÓS-DESCONTO): R$ {p_info['preco_efetivo']:.2f} (Lucro: R$ {p_info['lucro']:.2f})", border=1, ln=1, align="C", fill=True)
                         pdf.ln(4)
 
-                    # Insumos Alimentícios
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(190, 6, "4. INSUMOS ALIMENTICIOS", ln=1, fill=True)
@@ -745,7 +736,6 @@ Fator_desconto = (1.0 - (desconto_venda / 100.0))
                             pdf.ln()
                     pdf.ln(4)
 
-                    # Insumos Não Alimentícios
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(190, 6, "5. INSUMOS NAO ALIMENTICIOS (EMBALAGENS, GAS, ETC.)", ln=1, fill=True)
@@ -783,7 +773,6 @@ Fator_desconto = (1.0 - (desconto_venda / 100.0))
                     key="btn_dl_pdf_ficha_tecnica"
                 )
 
-            # Painel de Cards com Indicadores Principais (incluindo Custo da Unidade Produzida e Pacotes)
             st.markdown("### 📊 Indicadores e Custos Consolidados")
             
             m1, m2, m3, m4, m5, m6 = st.columns(6)
