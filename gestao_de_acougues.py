@@ -533,16 +533,18 @@ def render_modulo_ficha_tecnica():
             df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             conn.close()
 
-            # Cálculo de Custos com base nas fórmulas exatas: Qtd Bruta * Rendimento * Preço Bruto
+            # Cálculo de Custos com base nas fórmulas exatas: Qtd Bruta * (Rendimento % / 100) * Preço Bruto
             if not df_insumos.empty:
-                df_insumos['qtd_liquida'] = df_insumos['qtd_bruta'] * df_insumos['rendimento']
+                df_insumos['rendimento_pct_val'] = df_insumos['rendimento'].fillna(100.0)
+                df_insumos['qtd_liquida'] = df_insumos['qtd_bruta'] * (df_insumos['rendimento_pct_val'] / 100.0)
                 df_insumos['preco_liquido'] = df_insumos['qtd_liquida'] * df_insumos['preco_bruto']
                 custo_alimenticios = df_insumos['preco_liquido'].sum()
             else:
                 custo_alimenticios = 0.0
 
             if not df_nao_ali.empty:
-                df_nao_ali['qtd_liquida'] = df_nao_ali['qtd_bruta'] * df_nao_ali['rendimento']
+                df_nao_ali['rendimento_pct_val'] = df_nao_ali['rendimento'].fillna(100.0)
+                df_nao_ali['qtd_liquida'] = df_nao_ali['qtd_bruta'] * (df_nao_ali['rendimento_pct_val'] / 100.0)
                 df_nao_ali['preco_liquido'] = df_nao_ali['qtd_liquida'] * df_nao_ali['preco_bruto']
                 custo_nao_alimenticios = df_nao_ali['preco_liquido'].sum()
             else:
@@ -557,8 +559,9 @@ def render_modulo_ficha_tecnica():
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
-            # Custo do pacote: Custo/Und. Produzida multiplicado pela Quantidade por Pacote
-            custo_pacote = custo_unidade_produzida * ficha_row['qtd_por_pacote']
+            # Custo do pacote: Custo/Und. Produzida multiplicado dinamicamente pela Quantidade por Pacote
+            qtd_pacote_atual = ficha_row['qtd_por_pacote'] if 'qtd_por_pacote' in ficha_row and ficha_row['qtd_por_pacote'] is not None else 1.0
+            custo_pacote = custo_unidade_produzida * qtd_pacote_atual
 
             # =========================================================================
             # MÓDULO DE CÁLCULO DE PRECIFICAÇÃO (REVISADO FIEL AO EXCEL)
@@ -689,7 +692,7 @@ def render_modulo_ficha_tecnica():
                     pdf.cell(63, 5, f"Rend. Assada: {ficha_row['rendimento_assada_kg']:.3f} KG", border=1)
                     pdf.cell(64, 5, f"Peso Unidade: {ficha_row['peso_unidade_kg']:.3f} KG", border=1, ln=1)
                     pdf.cell(95, 5, f"Unidades Produzidas: {unidades_prod_cadastrada:.0f}", border=1)
-                    pdf.cell(95, 5, f"Qtd por Pacote: {ficha_row['qtd_por_pacote']}", border=1, ln=1)
+                    pdf.cell(95, 5, f"Qtd por Pacote: {qtd_pacote_atual}", border=1, ln=1)
                     pdf.ln(4)
 
                     pdf.set_font("Arial", style="B", size=10)
@@ -753,7 +756,7 @@ def render_modulo_ficha_tecnica():
                             pdf.cell(20, 5, f"{ri['qtd_bruta']:.3f}", border=1, align="R")
                             pdf.cell(15, 5, str(ri['unidade']), border=1, align="C")
                             pdf.cell(25, 5, f"R$ {ri['preco_bruto']:.2f}", border=1, align="R")
-                            pdf.cell(18, 5, f"{ri['rendimento']:.2f}", border=1, align="C")
+                            pdf.cell(18, 5, f"{ri['rendimento_pct_val']:.1f}%", border=1, align="C")
                             pdf.cell(20, 5, f"{ri['qtd_liquida']:.3f}", border=1, align="R")
                             pdf.cell(17, 5, f"{ri['preco_liquido']:.2f}", border=1, align="R")
                             pdf.ln()
@@ -787,7 +790,7 @@ def render_modulo_ficha_tecnica():
                             pdf.cell(20, 5, f"{rna['qtd_bruta']:.3f}", border=1, align="R")
                             pdf.cell(15, 5, str(rna['unidade']), border=1, align="C")
                             pdf.cell(25, 5, f"R$ {rna['preco_bruto']:.2f}", border=1, align="R")
-                            pdf.cell(18, 5, f"{rna['rendimento']:.2f}", border=1, align="C")
+                            pdf.cell(18, 5, f"{rna['rendimento_pct_val']:.1f}%", border=1, align="C")
                             pdf.cell(20, 5, f"{rna['qtd_liquida']:.3f}", border=1, align="R")
                             pdf.cell(17, 5, f"{rna['preco_liquido']:.2f}", border=1, align="R")
                             pdf.ln()
@@ -840,7 +843,7 @@ def render_modulo_ficha_tecnica():
                         """, (edit_nome_prod.strip().upper(), edit_rend_kg, edit_rend_ass, edit_peso_un, edit_qtd_pct, edit_unid_prod, perda_calculada_edit, ficha_id_ativo))
                         conn.commit()
                         conn.close()
-                        st.success("Parâmetros e Unidades Produzidas atualizados com sucesso!")
+                        st.success("Parâmetros e Quantidade por Pacote atualizados com sucesso!")
                         st.rerun()
 
             with st.expander("🗑️ Excluir esta Ficha Técnica Inteira", expanded=False):
@@ -863,14 +866,14 @@ def render_modulo_ficha_tecnica():
             st.markdown("### 🥩 Insumos Alimentícios")
             
             with st.form(f"form_add_insumo_{ficha_id_ativo}"):
-                st.markdown("**Adicionar Novo Insumo Alimentício**")
+                st.markdown("**Adicionar Novo Insumo Alimentício** (Rendimento % de 0 a 100%)")
                 c1, c2, c3, c4, c5, c6 = st.columns(6)
                 codigo_ins = c1.text_input("Código", value="", key=f"cod_ali_{ficha_id_ativo}")
                 produto_ins = c2.text_input("Produto / Insumo", value="", key=f"prod_ali_{ficha_id_ativo}")
                 qtd_bruta_ins = c3.number_input("Qtd Bruta", min_value=0.0, value=1.0, step=0.1, format="%.3f", key=f"qtd_ali_{ficha_id_ativo}")
                 unidade_ins = c4.selectbox("Unidade", ["KG", "UN", "L", "G"], key=f"un_ali_{ficha_id_ativo}")
                 preco_bruto_ins = c5.number_input("Preço Bruto (R$)", min_value=0.0, value=10.0, step=0.1, format="%.2f", key=f"pc_ali_{ficha_id_ativo}")
-                rendimento_ins_input = c6.number_input("Rendimento %", min_value=0.0, value=1.0, step=0.01, format="%.3f", key=f"rend_ali_{ficha_id_ativo}")
+                rendimento_ins_input = c6.number_input("Rendimento %", min_value=0.0, max_value=100.0, value=100.0, step=0.1, format="%.1f", key=f"rend_ali_{ficha_id_ativo}")
                 
                 btn_add_ins = st.form_submit_button("➕ Adicionar Insumo Alimentício")
                 if btn_add_ins:
@@ -893,13 +896,13 @@ def render_modulo_ficha_tecnica():
             else:
                 st.markdown("#### 📋 Tabela de Insumos Alimentícios Cadastrados")
                 
-                df_insumos_view = df_insumos[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento', 'qtd_liquida', 'preco_liquido']].copy()
+                df_insumos_view = df_insumos[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento_pct_val', 'qtd_liquida', 'preco_liquido']].copy()
                 df_insumos_view.columns = ['ID', 'Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)', 'Rendimento %', 'Qtd Líquida', 'Preço Líquido (R$)']
                 st.dataframe(
                     df_insumos_view.style.format({
                         'Qtd Bruta': '{:.3f}',
                         'Preço Bruto (R$)': 'R$ {:.2f}',
-                        'Rendimento %': '{:.3f}',
+                        'Rendimento %': '{:.1f}%',
                         'Qtd Líquida': '{:.3f}',
                         'Preço Líquido (R$)': 'R$ {:.2f}'
                     }),
@@ -926,7 +929,7 @@ def render_modulo_ficha_tecnica():
                     alt_un = ac4.selectbox("Unidade", unidades_disponiveis, index=idx_un, key=f"tab_alt_un_{id_ins_gerenciar}")
                     
                     alt_preco = ac5.number_input("Preço Bruto", min_value=0.0, value=float(row_ins_sel['preco_bruto']), step=0.1, format="%.2f", key=f"tab_alt_pc_{id_ins_gerenciar}")
-                    alt_rend = ac6.number_input("Rendimento %", min_value=0.0, value=float(row_ins_sel['rendimento']), step=0.01, format="%.3f", key=f"tab_alt_rend_{id_ins_gerenciar}")
+                    alt_rend = ac6.number_input("Rendimento %", min_value=0.0, max_value=100.0, value=float(row_ins_sel['rendimento_pct_val']), step=0.1, format="%.1f", key=f"tab_alt_rend_{id_ins_gerenciar}")
                     
                     btn_salvar_alt = st.form_submit_button("💾 Salvar Alterações do Insumo")
                     
@@ -956,14 +959,14 @@ def render_modulo_ficha_tecnica():
             st.markdown("### 📦 Insumos Não Alimentícios (Embalagens, Gás, etc.)")
             
             with st.form(f"form_add_nao_ali_{ficha_id_ativo}"):
-                st.markdown("**Adicionar Novo Insumo Não Alimentício**")
+                st.markdown("**Adicionar Novo Insumo Não Alimentício** (Rendimento % de 0 a 100%)")
                 nc1, nc2, nc3, nc4, nc5, nc6 = st.columns(6)
                 n_codigo_ins = nc1.text_input("Código", value="", key=f"cod_nao_{ficha_id_ativo}")
                 n_produto_ins = nc2.text_input("Produto / Insumo", value="", key=f"prod_nao_{ficha_id_ativo}")
                 n_qtd_bruta_ins = nc3.number_input("Qtd Bruta", min_value=0.0, value=1.0, step=0.1, format="%.3f", key=f"qtd_nao_{ficha_id_ativo}")
                 n_unidade_ins = nc4.selectbox("Unidade", ["UNID", "UN", "KG", "L", "PCT"], key=f"un_nao_{ficha_id_ativo}")
                 n_preco_bruto_ins = nc5.number_input("Preço Bruto (R$)", min_value=0.0, value=50.0, step=1.0, format="%.2f", key=f"pc_nao_{ficha_id_ativo}")
-                n_rend_ins_input = nc6.number_input("Rendimento %", min_value=0.0, value=1.0, step=0.01, format="%.3f", key=f"rend_nao_{ficha_id_ativo}")
+                n_rend_ins_input = nc6.number_input("Rendimento %", min_value=0.0, max_value=100.0, value=100.0, step=0.1, format="%.1f", key=f"rend_nao_{ficha_id_ativo}")
                 
                 btn_add_nao = st.form_submit_button("➕ Adicionar Insumo Não Alimentício")
                 if btn_add_nao:
@@ -986,13 +989,13 @@ def render_modulo_ficha_tecnica():
             else:
                 st.markdown("#### 📋 Tabela de Insumos Não Alimentícios Cadastrados")
                 
-                df_nao_view = df_nao_ali[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento', 'qtd_liquida', 'preco_liquido']].copy()
+                df_nao_view = df_nao_ali[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento_pct_val', 'qtd_liquida', 'preco_liquido']].copy()
                 df_nao_view.columns = ['ID', 'Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)', 'Rendimento %', 'Qtd Líquida', 'Preço Líquido (R$)']
                 st.dataframe(
                     df_nao_view.style.format({
                         'Qtd Bruta': '{:.3f}',
                         'Preço Bruto (R$)': 'R$ {:.2f}',
-                        'Rendimento %': '{:.3f}',
+                        'Rendimento %': '{:.1f}%',
                         'Qtd Líquida': '{:.3f}',
                         'Preço Líquido (R$)': 'R$ {:.2f}'
                     }),
@@ -1019,7 +1022,7 @@ def render_modulo_ficha_tecnica():
                     alt_n_un = nac4.selectbox("Unidade", un_nao_disponiveis, index=idx_un_n, key=f"tab_alt_n_un_{id_nao_gerenciar}")
                     
                     alt_n_preco = nac5.number_input("Preço Bruto", min_value=0.0, value=float(row_nao_sel['preco_bruto']), step=1.0, format="%.2f", key=f"tab_alt_n_pc_{id_nao_gerenciar}")
-                    alt_n_rend = nac6.number_input("Rendimento %", min_value=0.0, value=float(row_nao_sel['rendimento']), step=0.01, format="%.3f", key=f"tab_alt_n_rend_{id_nao_gerenciar}")
+                    alt_n_rend = nac6.number_input("Rendimento %", min_value=0.0, max_value=100.0, value=float(row_nao_sel['rendimento_pct_val']), step=0.1, format="%.1f", key=f"tab_alt_n_rend_{id_nao_gerenciar}")
                     
                     btn_salvar_alt_n = st.form_submit_button("💾 Salvar Alterações (Não Alimentício)")
                     
@@ -1135,7 +1138,7 @@ def init_db():
             qtd_bruta REAL DEFAULT 0.0,
             unidade TEXT,
             preco_bruto REAL DEFAULT 0.0,
-            rendimento REAL DEFAULT 1.0,
+            rendimento REAL DEFAULT 100.0,
             FOREIGN KEY(ficha_id) REFERENCES fichas_tecnicas(id) ON DELETE CASCADE
         )
     """)
@@ -1149,7 +1152,7 @@ def init_db():
             qtd_bruta REAL DEFAULT 0.0,
             unidade TEXT,
             preco_bruto REAL DEFAULT 0.0,
-            rendimento REAL DEFAULT 1.0,
+            rendimento REAL DEFAULT 100.0,
             FOREIGN KEY(ficha_id) REFERENCES fichas_tecnicas(id) ON DELETE CASCADE
         )
     """)
@@ -1204,7 +1207,7 @@ def init_db():
         ]
         cursor.executemany("INSERT OR IGNORE INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", cortes_iniciais)
 
-    # Inserção automática da Ficha Técnica "ESPETINHO ASSADO" com os dados do Excel e rendimentos corretos
+    # Inserção automática da Ficha Técnica "ESPETINHO ASSADO" com os dados do Excel e rendimentos corretos (100%)
     cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas WHERE produto = 'ESPETINHO ASSADO'")
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
@@ -1214,13 +1217,13 @@ def init_db():
         ficha_espetinho_id = cursor.lastrowid
 
         insumos_alimenticios_espetinho = [
-            (ficha_espetinho_id, None, 'CARNE PARA ESPETO', 11.42, 'KG', 33.9, 1.0),
-            (ficha_espetinho_id, None, 'GORDURA PARA ESPETO', 1.128, 'KG', 9.9, 1.0),
-            (ficha_espetinho_id, None, 'ALHO TRITURADO', 0.17, 'KG', 11.83, 1.0),
-            (ficha_espetinho_id, None, 'SAL', 0.12, 'KG', 3.99, 1.0),
-            (ficha_espetinho_id, None, 'TEMPERO MINEIRO', 0.09, 'KG', 35.0, 1.0),
-            (ficha_espetinho_id, None, 'TEMPERO BAIANO', 0.07, 'KG', 35.0, 1.0),
-            (ficha_espetinho_id, None, 'SAZON', 0.015, 'KG', 41.11, 1.0)
+            (ficha_espetinho_id, None, 'CARNE PARA ESPETO', 11.42, 'KG', 33.9, 100.0),
+            (ficha_espetinho_id, None, 'GORDURA PARA ESPETO', 1.128, 'KG', 9.9, 100.0),
+            (ficha_espetinho_id, None, 'ALHO TRITURADO', 0.17, 'KG', 11.83, 100.0),
+            (ficha_espetinho_id, None, 'SAL', 0.12, 'KG', 3.99, 100.0),
+            (ficha_espetinho_id, None, 'TEMPERO MINEIRO', 0.09, 'KG', 35.0, 100.0),
+            (ficha_espetinho_id, None, 'TEMPERO BAIANO', 0.07, 'KG', 35.0, 100.0),
+            (ficha_espetinho_id, None, 'SAZON', 0.015, 'KG', 41.11, 100.0)
         ]
         cursor.executemany("""
             INSERT INTO insumos_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
@@ -1228,7 +1231,7 @@ def init_db():
         """, insumos_alimenticios_espetinho)
 
         insumos_nao_alimenticios_espetinho = [
-            (ficha_espetinho_id, None, 'ESPETO DE BAMBU', 118.0, 'UNID', 0.06, 1.0)
+            (ficha_espetinho_id, None, 'ESPETO DE BAMBU', 118.0, 'UNID', 0.06, 100.0)
         ]
         cursor.executemany("""
             INSERT INTO insumos_nao_alimenticios_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
