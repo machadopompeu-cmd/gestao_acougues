@@ -559,7 +559,7 @@ def render_modulo_ficha_tecnica():
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
-            # Custo do pacote corrigido: Custo por Unidade Produzida multiplicado pela Quantidade por Pacote
+            # Custo do pacote ajustado rigorosamente para: Custo / Unid. Produzida * Quantidade por Pacote
             qtd_pacote_atual = ficha_row['qtd_por_pacote'] if 'qtd_por_pacote' in ficha_row and ficha_row['qtd_por_pacote'] is not None else 1.0
             custo_pacote = custo_unidade_produzida * qtd_pacote_atual
 
