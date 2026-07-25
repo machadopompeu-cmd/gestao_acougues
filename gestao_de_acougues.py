@@ -559,7 +559,7 @@ def render_modulo_ficha_tecnica():
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
-            # Custo do pacote: Custo/Und. Produzida multiplicado dinamicamente pela Quantidade por Pacote
+            # Custo do pacote corrigido: Custo por Unidade Produzida multiplicado pela Quantidade por Pacote
             qtd_pacote_atual = ficha_row['qtd_por_pacote'] if 'qtd_por_pacote' in ficha_row and ficha_row['qtd_por_pacote'] is not None else 1.0
             custo_pacote = custo_unidade_produzida * qtd_pacote_atual
 
@@ -568,7 +568,7 @@ def render_modulo_ficha_tecnica():
             # =========================================================================
             st.markdown("---")
             st.markdown("### 🏷️ Cálculo de Precificação (Simulador de Venda)")
-            st.markdown("Configure os parâmetros abaixo. O modelo utilizes exatamente a estrutura da aba `PRECIFICAÇÃO` do Excel (Soma dos percentuais aplicados sobre a venda, cálculo do preço de tabela por divisor, cálculo do Markup e aplicação de desconto redutor).")
+            st.markdown("Configure os parâmetros abaixo. O modelo utiliza exatamente a estrutura da aba `PRECIFICAÇÃO` do Excel (Soma dos percentuais aplicados sobre a venda, cálculo do preço de tabela por divisor, cálculo do Markup e aplicação de desconto redutor).")
 
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
@@ -846,8 +846,9 @@ def render_modulo_ficha_tecnica():
                         st.success("Parâmetros e Quantidade por Pacote atualizados com sucesso!")
                         st.rerun()
 
-            with st.expander("🗑️ Excluir esta Ficha Técnica Inteira", expanded=False):
-                confirmar_exclusao_ficha = st.checkbox("Confirmar exclusão da ficha e todos os seus insumos", key=f"chk_exc_ficha_{ficha_id_ativo}")
+            with st.expander("🗑️ Excluir Ficha Técnica Inteira", expanded=False):
+                st.warning("⚠️ Atenção: A exclusão da ficha técnica removerá permanentemente todos os seus parâmetros, insumos alimentícios e não alimentícios associados.")
+                confirmar_exclusao_ficha = st.checkbox("Confirmar exclusão desta ficha técnica e sua precificação", key=f"chk_exc_ficha_{ficha_id_ativo}")
                 if st.button("🗑️ Excluir Ficha Permanentemente", key=f"btn_exc_ficha_{ficha_id_ativo}"):
                     if confirmar_exclusao_ficha:
                         conn = get_connection()
@@ -857,10 +858,10 @@ def render_modulo_ficha_tecnica():
                         cursor.execute("DELETE FROM fichas_tecnicas WHERE id = ?", (ficha_id_ativo,))
                         conn.commit()
                         conn.close()
-                        st.success("🗑️ Ficha técnica excluída com sucesso!")
+                        st.success("🗑️ Ficha técnica e todos os seus dados excluídos com sucesso!")
                         st.rerun()
                     else:
-                        st.error("Marque a caixa de confirmação para prosseguir.")
+                        st.error("❌ Marque a caixa de confirmação para prosseguir com a exclusão.")
 
             st.markdown("---")
             st.markdown("### 🥩 Insumos Alimentícios")
