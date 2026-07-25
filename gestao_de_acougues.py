@@ -544,7 +544,7 @@ def render_modulo_ficha_tecnica():
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
-            # Custo do pacote: Custo/Und. Produzida multiplicado pela Quantidade por Pacote (Solicitação 2)
+            # Custo do pacote: Custo/Und. Produzida multiplicado pela Quantidade por Pacote (Requisito 2)
             custo_pacote = custo_unidade_produzida * ficha_row['qtd_por_pacote']
 
             # =========================================================================
@@ -1167,7 +1167,7 @@ def init_db():
         ]
         cursor.executemany("INSERT OR IGNORE INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", cortes_iniciais)
 
-    # Inserir Ficha Técnica Padrão "ESPETINHO ASSADO" se não existir
+    # Inserção automática da Ficha Técnica "ESPETINHO ASSADO" com os dados do Excel
     cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas WHERE produto = 'ESPETINHO ASSADO'")
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
