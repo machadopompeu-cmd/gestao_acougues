@@ -461,9 +461,9 @@ def render_modulo_financeiro():
 # =========================================================================
 def render_modulo_ficha_tecnica():
     st.markdown("""
-        <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 25px;">
+        <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 25px; border-radius: 12px; color: white; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
             <h2 style="margin: 0; color: white !important;">📋 Módulo de Ficha Técnica & Precificação</h2>
-            <p style="margin: 5px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos em tabelas e apure custos de produção e preços de venda em tempo real.</p>
+            <p style="margin: 8px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos em tabelas e apure custos de produção e preços de venda em tempo real.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -559,7 +559,7 @@ def render_modulo_ficha_tecnica():
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
-            # Custo do pacote ajustado rigorosamente para: Custo / Unid. Produzida * Quantidade por Pacote
+            # Custo do pacote ajustado rigorosamente para: Custo / Unid. Produzida * Quantidade por Pacote[cite: 1]
             qtd_pacote_atual = ficha_row['qtd_por_pacote'] if 'qtd_por_pacote' in ficha_row and ficha_row['qtd_por_pacote'] is not None else 1.0
             custo_pacote = custo_unidade_produzida * qtd_pacote_atual
 
@@ -808,6 +808,7 @@ def render_modulo_ficha_tecnica():
 
             st.markdown("### 📊 Indicadores e Custos Consolidados")
             
+            # Melhoria visual dos Indicadores em Grid estilizado
             m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("Custo Total", f"R$ {custo_total:.2f}")
             m2.metric("Custo / Unid. Produzida", f"R$ {custo_unidade_produzida:.2f}")
