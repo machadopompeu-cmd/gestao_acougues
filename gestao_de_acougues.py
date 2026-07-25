@@ -484,7 +484,6 @@ def render_modulo_ficha_tecnica():
                 peso_unidade_kg = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=0.0, step=0.001, format="%.3f")
                 qtd_por_pacote = st.number_input("Quantidade por Pacote", min_value=1.0, value=1.0, step=1.0)
             
-            # Cálculo automático da perda % para o cadastro novo
             perda_calculada_nova = (rendimento_kg_novo - rendimento_assada_kg_novo) / rendimento_kg_novo if rendimento_kg_novo > 0 else 0.0
             if perda_calculada_nova < 0:
                 perda_calculada_nova = 0.0
@@ -657,9 +656,9 @@ def render_modulo_ficha_tecnica():
             
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Custo Total", f"R$ {custo_total:.2f}")
-            m2.metric("Custo / Kg (Assada)", f"R$ {custo_kg_assada:.2f}")
-            m3.metric("Custo da Unidade", f"R$ {custo_unidade:.2f}")
-            m4.metric("Custo do Pacote", f"R$ {custo_pacote:.2f}")
+            m2.metric("Custo / Kg Crua", f"R$ {custo_kg_crua:.2f}")
+            m3.metric("Custo / Kg (Assada)", f"R$ {custo_kg_assada:.2f}")
+            m4.metric("Custo da Unidade", f"R$ {custo_unidade:.2f}")
 
             with st.expander("✏️ Editar Parâmetros de Rendimento desta Ficha", expanded=False):
                 with st.form(f"form_edit_parametros_ficha_{ficha_id_ativo}"):
@@ -672,7 +671,6 @@ def render_modulo_ficha_tecnica():
                         edit_peso_un = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=float(ficha_row['peso_unidade_kg']), step=0.001, format="%.3f")
                         edit_qtd_pct = st.number_input("Quantidade por Pacote", min_value=1.0, value=float(ficha_row['qtd_por_pacote']), step=1.0)
                     
-                    # Cálculo automático da perda % no painel de edição
                     perda_calculada_edit = (edit_rend_kg - edit_rend_ass) / edit_rend_kg if edit_rend_kg > 0 else 0.0
                     if perda_calculada_edit < 0:
                         perda_calculada_edit = 0.0
@@ -1902,6 +1900,11 @@ else:
                 p_medio_venda_prata = total_vendas_prata / peso_desossado_prata if peso_desossado_prata > 0 else 0
                 p_medio_venda_total = total_vendas_total / peso_desossado_total if peso_desossado_total > 0 else 0
                 
+                # Custo / Kg Crua (Custo Efetivo Total / Peso Bruto)
+                custo_kg_crua_ouro = custo_efetivo_total_ouro / p_bruto if p_bruto > 0 else 0.0
+                custo_kg_crua_prata = custo_efetivo_total_prata / p_bruto if p_bruto > 0 else 0.0
+                custo_kg_crua_total = custo_efetivo_total_geral / p_bruto if p_bruto > 0 else 0.0
+
                 st.markdown(
                     f"""
                     <div style="background-color: #1E3A8A; padding: 12px; border-radius: 6px; margin-top: 20px; margin-bottom: 10px; color: #FFFFFF; font-weight: bold;">
@@ -1913,25 +1916,25 @@ else:
                 indicadores_data = {
                     "INDICADORES": [
                         "PREÇO TOTAL/Compra Sem Custos Variáveis", "PREÇO TOTAL/Venda", "Peso Desossado", 
-                        "COEFICIENTE", "Custo Efetivo Total", "Margem de Contribuição R$", 
+                        "COEFICIENTE", "Custo Efetivo Total", "Custo/Kg Crua", "Margem de Contribuição R$", 
                         "Margem de Contribuição %", "Markup", "Preço médio de Compra/KG SEM-Custo Variável",
                         "Preço médio de Compra/KG COM-Custo Variável", "Preço médio de Venda/KG"
                     ],
                     "OURO": [
                         f"R$ {compra_ouro:.2f}", f"R$ {total_vendas_ouro:.2f}", f"{peso_desossado_ouro:.3f}",
-                        f"{coeficiente:.6f}", f"R$ {custo_efetivo_total_ouro:.2f}", f"R$ {margem_r_ouro:.2f}",
+                        f"{coeficiente:.6f}", f"R$ {custo_efetivo_total_ouro:.2f}", f"R$ {custo_kg_crua_ouro:.2f}", f"R$ {margem_r_ouro:.2f}",
                         f"{margem_p_ouro*100:.2f}%", f"{markup_ouro*100:.2f}%", f"R$ {p_medio_compra_ouro:.2f}",
                         f"R$ {p_medio_compra_com_ouro:.2f}", f"R$ {p_medio_venda_ouro:.2f}"
                     ],
                     "PRATA": [
                         f"R$ {compra_prata:.2f}", f"R$ {total_vendas_prata:.2f}", f"{peso_desossado_prata:.3f}",
-                        f"{coeficiente:.6f}", f"R$ {custo_efetivo_total_prata:.2f}", f"R$ {margem_r_prata:.2f}",
+                        f"{coeficiente:.6f}", f"R$ {custo_efetivo_total_prata:.2f}", f"R$ {custo_kg_crua_prata:.2f}", f"R$ {margem_r_prata:.2f}",
                         f"{margem_p_prata*100:.2f}%", f"{markup_prata*100:.2f}%", f"R$ {p_medio_compra_prata:.2f}",
                         f"R$ {p_medio_compra_com_prata:.2f}", f"R$ {p_medio_venda_prata:.2f}"
                     ],
                     "Total": [
                         f"R$ {valor_total_compra:.2f}", f"R$ {total_vendas_total:.2f}", f"{peso_desossado_total:.3f}",
-                        f"{coeficiente:.6f}", f"R$ {custo_efetivo_total_geral:.2f}", f"R$ {margem_r_total:.2f}",
+                        f"{coeficiente:.6f}", f"R$ {custo_efetivo_total_geral:.2f}", f"R$ {custo_kg_crua_total:.2f}", f"R$ {margem_r_total:.2f}",
                         f"{st_margem_p_total*100:.2f}%", f"{markup_total*100:.2f}%", f"R$ {p_medio_compra_total:.2f}",
                         f"R$ {p_medio_compra_com_total:.2f}", f"R$ {p_medio_venda_total:.2f}"
                     ]
