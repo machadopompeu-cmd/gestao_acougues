@@ -543,7 +543,8 @@ def render_modulo_ficha_tecnica():
             unidades_prod_cadastrada = ficha_row['unidades_produzidas'] if 'unidades_produzidas' in ficha_row and ficha_row['unidades_produzidas'] > 0 else (ficha_row['rendimento_assada_kg'] / ficha_row['peso_unidade_kg'] if ficha_row['peso_unidade_kg'] > 0 else 0.0)
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
-            pacotes = unidades_prod_cadastrada / ficha_row['qtd_por_pacote'] if ficha_row['qtd_por_pacote'] > 0 else 0.0
+            
+            # Custo do pacote: Custo/Und. Produzida multiplicado pela Quantidade por Pacote
             custo_pacote = custo_unidade_produzida * ficha_row['qtd_por_pacote']
 
             # =========================================================================
@@ -597,7 +598,6 @@ def render_modulo_ficha_tecnica():
             if modo_precificacao == "Informar Margem de Lucro (%)":
                 margem_lucro = st.number_input("Margem de Lucro:", min_value=0.0, max_value=100.0, value=31.07, step=0.1, key=f"margem_{ficha_id_ativo}")
                 
-                # C17 = SUM(C14, C6, C4, C8, C16, C10) -> Soma de todos os percentuais incidentes + margem de lucro
                 soma_percentuais = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + margem_lucro) / 100.0
                 divisor_preco = 1.0 - soma_percentuais
 
@@ -616,7 +616,7 @@ def render_modulo_ficha_tecnica():
                 else:
                     margem_lucro = 0.0
 
-            # Aplicando o desconto como redutor nos resultados finais (Conforme planilha: Preço efetivo = Preço de Tabela - Desconto)
+            # Aplicando o desconto como redutor nos resultados finais
             fator_desconto = (1.0 - (desconto_venda / 100.0))
             preco_venda_efetivo = preco_venda_tabela * fator_desconto
 
@@ -627,7 +627,7 @@ def render_modulo_ficha_tecnica():
             valor_desp_fixas = preco_venda_efetivo * (part_desp_fixas / 100.0)
             valor_lucro_efetivo = preco_venda_efetivo - cer_base - (valor_imposto + valor_cartao + valor_comissao + valor_outros_custos + valor_desp_fixas)
             
-            # MARKUP >> = IFERROR(Preço / CER - 1, 0) conforme aba PRECIFICAÇÃO (Row 22)
+            # MARKUP >> = Preço / CER - 1
             markup_calculado = (preco_venda_efetivo / cer_base - 1.0) * 100.0 if cer_base > 0 else 0.0
 
             st.success(f"""
@@ -779,13 +779,13 @@ def render_modulo_ficha_tecnica():
 
             st.markdown("### 📊 Indicadores e Custos Consolidados")
             
-            m1, m2, m3, m4, m5, m6 = st.columns(6)
+            # Indicadores organizados em 5 colunas (removido o indicador de Unid. Produzidas)
+            m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("Custo Total", f"R$ {custo_total:.2f}")
             m2.metric("Custo / Unid. Produzida", f"R$ {custo_unidade_produzida:.2f}")
             m3.metric("Custo / Kg Crua", f"R$ {custo_kg_crua:.2f}")
             m4.metric("Custo / Kg (Assada)", f"R$ {custo_kg_assada:.2f}")
             m5.metric("Custo / Pacote", f"R$ {custo_pacote:.2f}")
-            m6.metric("Unid. Produzidas", f"{unidades_prod_cadastrada:.0f}")
 
             with st.expander("✏️ Editar Parâmetros de Rendimento desta Ficha", expanded=False):
                 with st.form(f"form_edit_parametros_ficha_{ficha_id_ativo}"):
