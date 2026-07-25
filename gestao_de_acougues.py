@@ -568,7 +568,7 @@ def render_modulo_ficha_tecnica():
             # =========================================================================
             st.markdown("---")
             st.markdown("### 🏷️ Cálculo de Precificação (Simulador de Venda)")
-            st.markdown("Configure os parâmetros abaixo. O modelo utiliza exatamente a estrutura da aba `PRECIFICAÇÃO` do Excel (Soma dos percentuais aplicados sobre a venda, cálculo do preço de tabela por divisor, cálculo do Markup e aplicação de desconto redutor).")
+            st.markdown("Configure os parâmetros abaixo. O modelo utilizes exatamente a estrutura da aba `PRECIFICAÇÃO` do Excel (Soma dos percentuais aplicados sobre a venda, cálculo do preço de tabela por divisor, cálculo do Markup e aplicação de desconto redutor).")
 
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
