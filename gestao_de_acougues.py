@@ -544,7 +544,7 @@ def render_modulo_ficha_tecnica():
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
-            # Custo do pacote: Custo/Und. Produzida multiplicado pela Quantidade por Pacote
+            # Custo do pacote: Custo/Und. Produzida multiplicado pela Quantidade por Pacote (Solicitação 2)
             custo_pacote = custo_unidade_produzida * ficha_row['qtd_por_pacote']
 
             # =========================================================================
@@ -594,7 +594,7 @@ def render_modulo_ficha_tecnica():
             else:
                 cer_base = custo_total
 
-            # Cálculo de acordo com o modo escolhido (Fórmula exata do Excel: =C2/(1-C17))
+            # Cálculo de acordo com o modo escolhido
             if modo_precificacao == "Informar Margem de Lucro (%)":
                 margem_lucro = st.number_input("Margem de Lucro:", min_value=0.0, max_value=100.0, value=31.07, step=0.1, key=f"margem_{ficha_id_ativo}")
                 
@@ -627,7 +627,6 @@ def render_modulo_ficha_tecnica():
             valor_desp_fixas = preco_venda_efetivo * (part_desp_fixas / 100.0)
             valor_lucro_efetivo = preco_venda_efetivo - cer_base - (valor_imposto + valor_cartao + valor_comissao + valor_outros_custos + valor_desp_fixas)
             
-            # MARKUP >> = Preço / CER - 1
             markup_calculado = (preco_venda_efetivo / cer_base - 1.0) * 100.0 if cer_base > 0 else 0.0
 
             st.success(f"""
@@ -779,7 +778,6 @@ def render_modulo_ficha_tecnica():
 
             st.markdown("### 📊 Indicadores e Custos Consolidados")
             
-            # Indicadores organizados em 5 colunas (removido o indicador de Unid. Produzidas)
             m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("Custo Total", f"R$ {custo_total:.2f}")
             m2.metric("Custo / Unid. Produzida", f"R$ {custo_unidade_produzida:.2f}")
@@ -1168,6 +1166,37 @@ def init_db():
             ("SUINO", "PERNIL", None), ("SUINO", "PALETA", None), ("SUINO", "LOMBO", None), ("SUINO", "COSTELINHA", None)
         ]
         cursor.executemany("INSERT OR IGNORE INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", cortes_iniciais)
+
+    # Inserir Ficha Técnica Padrão "ESPETINHO ASSADO" se não existir
+    cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas WHERE produto = 'ESPETINHO ASSADO'")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, unidades_produzidas, perda_pct, data_criacao)
+            VALUES (NULL, 'ESPETINHO ASSADO', 13.013, 11.83, 0.100, 4.0, 118.3, 0.0908, ?)
+        """, (str(datetime.date.today()),))
+        ficha_espetinho_id = cursor.lastrowid
+
+        insumos_alimenticios_espetinho = [
+            (ficha_espetinho_id, None, 'CARNE PARA ESPETO', 11.42, 'KG', 33.9, 1.0),
+            (ficha_espetinho_id, None, 'GORDURA PARA ESPETO', 1.128, 'KG', 9.9, 1.0),
+            (ficha_espetinho_id, None, 'ALHO TRITURADO', 0.17, 'KG', 11.83, 1.0),
+            (ficha_espetinho_id, None, 'SAL', 0.12, 'KG', 3.99, 1.0),
+            (ficha_espetinho_id, None, 'TEMPERO MINEIRO', 0.09, 'KG', 35.0, 1.0),
+            (ficha_espetinho_id, None, 'TEMPERO BAIANO', 0.07, 'KG', 35.0, 1.0),
+            (ficha_espetinho_id, None, 'SAZON', 0.015, 'KG', 41.11, 1.0)
+        ]
+        cursor.executemany("""
+            INSERT INTO insumos_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, insumos_alimenticios_espetinho)
+
+        insumos_nao_alimenticios_espetinho = [
+            (ficha_espetinho_id, None, 'ESPETO DE BAMBU', 118.0, 'UNID', 0.06, 1.0)
+        ]
+        cursor.executemany("""
+            INSERT INTO insumos_nao_alimenticios_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, insumos_nao_alimenticios_espetinho)
         
     conn.commit()
     conn.close()
