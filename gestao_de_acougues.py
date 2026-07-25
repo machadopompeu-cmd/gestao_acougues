@@ -533,8 +533,21 @@ def render_modulo_ficha_tecnica():
             df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             conn.close()
 
-            custo_alimenticios = (df_insumos['qtd_bruta'] * df_insumos['preco_bruto']).sum() if not df_insumos.empty else 0.0
-            custo_nao_alimenticios = (df_nao_ali['qtd_bruta'] * df_nao_ali['preco_bruto']).sum() if not df_nao_ali.empty else 0.0
+            # Cálculo de Custos com base nas fórmulas exatas: Qtd Bruta * Rendimento * Preço Bruto
+            if not df_insumos.empty:
+                df_insumos['qtd_liquida'] = df_insumos['qtd_bruta'] * df_insumos['rendimento']
+                df_insumos['preco_liquido'] = df_insumos['qtd_liquida'] * df_insumos['preco_bruto']
+                custo_alimenticios = df_insumos['preco_liquido'].sum()
+            else:
+                custo_alimenticios = 0.0
+
+            if not df_nao_ali.empty:
+                df_nao_ali['qtd_liquida'] = df_nao_ali['qtd_bruta'] * df_nao_ali['rendimento']
+                df_nao_ali['preco_liquido'] = df_nao_ali['qtd_liquida'] * df_nao_ali['preco_bruto']
+                custo_nao_alimenticios = df_nao_ali['preco_liquido'].sum()
+            else:
+                custo_nao_alimenticios = 0.0
+
             custo_total = custo_alimenticios + custo_nao_alimenticios
 
             custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
@@ -544,7 +557,7 @@ def render_modulo_ficha_tecnica():
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
-            # Custo do pacote: Custo/Und. Produzida multiplicado pela Quantidade por Pacote (Requisito 2)
+            # Custo do pacote: Custo/Und. Produzida multiplicado pela Quantidade por Pacote
             custo_pacote = custo_unidade_produzida * ficha_row['qtd_por_pacote']
 
             # =========================================================================
@@ -712,57 +725,71 @@ def render_modulo_ficha_tecnica():
                         pdf.cell(190, 6, f"PREÇO EFETIVO: R$ {p_info['preco_efetivo']:.2f} | MARKUP: {p_info['markup']:.2f}% | Lucro: R$ {p_info['lucro']:.2f}", border=1, ln=1, align="C", fill=True)
                         pdf.ln(4)
 
+                    # Insumos Alimenticios PDF
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(190, 6, "4. INSUMOS ALIMENTICIOS", ln=1, fill=True)
-                    pdf.set_font("Arial", style="B", size=8.5)
+                    pdf.set_font("Arial", style="B", size=8)
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
-                    pdf.cell(25, 5, "Codigo", border=1, align="C", fill=True)
-                    pdf.cell(85, 5, "Produto / Insumo", border=1, align="L", fill=True)
-                    pdf.cell(25, 5, "Qtd Bruta", border=1, align="C", fill=True)
-                    pdf.cell(20, 5, "Un.", border=1, align="C", fill=True)
-                    pdf.cell(35, 5, "Preco Bruto", border=1, align="R", fill=True)
+                    pdf.cell(20, 5, "Codigo", border=1, align="C", fill=True)
+                    pdf.cell(55, 5, "Produto / Insumo", border=1, align="L", fill=True)
+                    pdf.cell(20, 5, "Qtd Bruta", border=1, align="C", fill=True)
+                    pdf.cell(15, 5, "Un.", border=1, align="C", fill=True)
+                    pdf.cell(25, 5, "Preco Bruto", border=1, align="R", fill=True)
+                    pdf.cell(18, 5, "Rend. %", border=1, align="C", fill=True)
+                    pdf.cell(20, 5, "Qtd Liq.", border=1, align="R", fill=True)
+                    pdf.cell(17, 5, "Total (R$)", border=1, align="R", fill=True)
                     pdf.ln()
 
-                    pdf.set_font("Arial", size=8.5)
+                    pdf.set_font("Arial", size=8)
                     pdf.set_text_color(15, 23, 42)
                     if df_insumos.empty:
                         pdf.cell(190, 5, "Nenhum insumo alimenticio cadastrado.", border=1, align="C", ln=1)
                     else:
                         for _, ri in df_insumos.iterrows():
-                            pdf.cell(25, 5, str(ri['codigo'] or ""), border=1, align="C")
-                            pdf.cell(85, 5, str(ri['produto_insumo'])[:45].encode("latin1", "replace").decode("latin1"), border=1)
-                            pdf.cell(25, 5, f"{ri['qtd_bruta']:.3f}", border=1, align="R")
-                            pdf.cell(20, 5, str(ri['unidade']), border=1, align="C")
-                            pdf.cell(35, 5, f"R$ {ri['preco_bruto']:.2f}", border=1, align="R")
+                            pdf.cell(20, 5, str(ri['codigo'] or ""), border=1, align="C")
+                            pdf.cell(55, 5, str(ri['produto_insumo'])[:30].encode("latin1", "replace").decode("latin1"), border=1)
+                            pdf.cell(20, 5, f"{ri['qtd_bruta']:.3f}", border=1, align="R")
+                            pdf.cell(15, 5, str(ri['unidade']), border=1, align="C")
+                            pdf.cell(25, 5, f"R$ {ri['preco_bruto']:.2f}", border=1, align="R")
+                            pdf.cell(18, 5, f"{ri['rendimento']:.2f}", border=1, align="C")
+                            pdf.cell(20, 5, f"{ri['qtd_liquida']:.3f}", border=1, align="R")
+                            pdf.cell(17, 5, f"{ri['preco_liquido']:.2f}", border=1, align="R")
                             pdf.ln()
                     pdf.ln(4)
 
+                    # Insumos Nao Alimenticios PDF
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
-                    pdf.cell(190, 6, "5. INSUMOS NAO ALIMENTICIOS (EMBALAGENS, GAS, ETC.)", ln=1, fill=True)
-                    pdf.set_font("Arial", style="B", size=8.5)
+                    pdf.cell(190, 6, "5. INSUMOS NAO ALIMENTICIOS", ln=1, fill=True)
+                    pdf.set_font("Arial", style="B", size=8)
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
-                    pdf.cell(25, 5, "Codigo", border=1, align="C", fill=True)
-                    pdf.cell(85, 5, "Produto / Insumo", border=1, align="L", fill=True)
-                    pdf.cell(25, 5, "Qtd Bruta", border=1, align="C", fill=True)
-                    pdf.cell(20, 5, "Un.", border=1, align="C", fill=True)
-                    pdf.cell(35, 5, "Preco Bruto", border=1, align="R", fill=True)
+                    pdf.cell(20, 5, "Codigo", border=1, align="C", fill=True)
+                    pdf.cell(55, 5, "Produto / Insumo", border=1, align="L", fill=True)
+                    pdf.cell(20, 5, "Qtd Bruta", border=1, align="C", fill=True)
+                    pdf.cell(15, 5, "Un.", border=1, align="C", fill=True)
+                    pdf.cell(25, 5, "Preco Bruto", border=1, align="R", fill=True)
+                    pdf.cell(18, 5, "Rend. %", border=1, align="C", fill=True)
+                    pdf.cell(20, 5, "Qtd Liq.", border=1, align="R", fill=True)
+                    pdf.cell(17, 5, "Total (R$)", border=1, align="R", fill=True)
                     pdf.ln()
 
-                    pdf.set_font("Arial", size=8.5)
+                    pdf.set_font("Arial", size=8)
                     pdf.set_text_color(15, 23, 42)
                     if df_nao_ali.empty:
                         pdf.cell(190, 5, "Nenhum insumo nao alimenticio cadastrado.", border=1, align="C", ln=1)
                     else:
                         for _, rna in df_nao_ali.iterrows():
-                            pdf.cell(25, 5, str(rna['codigo'] or ""), border=1, align="C")
-                            pdf.cell(85, 5, str(rna['produto_insumo'])[:45].encode("latin1", "replace").decode("latin1"), border=1)
-                            pdf.cell(25, 5, f"{rna['qtd_bruta']:.3f}", border=1, align="R")
-                            pdf.cell(20, 5, str(rna['unidade']), border=1, align="C")
-                            pdf.cell(35, 5, f"R$ {rna['preco_bruto']:.2f}", border=1, align="R")
+                            pdf.cell(20, 5, str(rna['codigo'] or ""), border=1, align="C")
+                            pdf.cell(55, 5, str(rna['produto_insumo'])[:30].encode("latin1", "replace").decode("latin1"), border=1)
+                            pdf.cell(20, 5, f"{rna['qtd_bruta']:.3f}", border=1, align="R")
+                            pdf.cell(15, 5, str(rna['unidade']), border=1, align="C")
+                            pdf.cell(25, 5, f"R$ {rna['preco_bruto']:.2f}", border=1, align="R")
+                            pdf.cell(18, 5, f"{rna['rendimento']:.2f}", border=1, align="C")
+                            pdf.cell(20, 5, f"{rna['qtd_liquida']:.3f}", border=1, align="R")
+                            pdf.cell(17, 5, f"{rna['preco_liquido']:.2f}", border=1, align="R")
                             pdf.ln()
 
                     return pdf.output(dest="S").encode("latin1")
@@ -837,12 +864,13 @@ def render_modulo_ficha_tecnica():
             
             with st.form(f"form_add_insumo_{ficha_id_ativo}"):
                 st.markdown("**Adicionar Novo Insumo Alimentício**")
-                c1, c2, c3, c4, c5 = st.columns(5)
+                c1, c2, c3, c4, c5, c6 = st.columns(6)
                 codigo_ins = c1.text_input("Código", value="", key=f"cod_ali_{ficha_id_ativo}")
                 produto_ins = c2.text_input("Produto / Insumo", value="", key=f"prod_ali_{ficha_id_ativo}")
                 qtd_bruta_ins = c3.number_input("Qtd Bruta", min_value=0.0, value=1.0, step=0.1, format="%.3f", key=f"qtd_ali_{ficha_id_ativo}")
                 unidade_ins = c4.selectbox("Unidade", ["KG", "UN", "L", "G"], key=f"un_ali_{ficha_id_ativo}")
                 preco_bruto_ins = c5.number_input("Preço Bruto (R$)", min_value=0.0, value=10.0, step=0.1, format="%.2f", key=f"pc_ali_{ficha_id_ativo}")
+                rendimento_ins_input = c6.number_input("Rendimento %", min_value=0.0, value=1.0, step=0.01, format="%.3f", key=f"rend_ali_{ficha_id_ativo}")
                 
                 btn_add_ins = st.form_submit_button("➕ Adicionar Insumo Alimentício")
                 if btn_add_ins:
@@ -853,8 +881,8 @@ def render_modulo_ficha_tecnica():
                         cursor = conn.cursor()
                         cursor.execute("""
                             INSERT INTO insumos_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
-                            VALUES (?, ?, ?, ?, ?, ?, 1.0)
-                        """, (ficha_id_ativo, codigo_ins.strip().upper(), produto_ins.strip().upper(), qtd_bruta_ins, unidade_ins, preco_bruto_ins))
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (ficha_id_ativo, codigo_ins.strip().upper(), produto_ins.strip().upper(), qtd_bruta_ins, unidade_ins, preco_bruto_ins, rendimento_ins_input))
                         conn.commit()
                         conn.close()
                         st.success("Insumo alimentício adicionado com sucesso!")
@@ -865,12 +893,15 @@ def render_modulo_ficha_tecnica():
             else:
                 st.markdown("#### 📋 Tabela de Insumos Alimentícios Cadastrados")
                 
-                df_insumos_view = df_insumos[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto']].copy()
-                df_insumos_view.columns = ['ID', 'Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)']
+                df_insumos_view = df_insumos[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento', 'qtd_liquida', 'preco_liquido']].copy()
+                df_insumos_view.columns = ['ID', 'Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)', 'Rendimento %', 'Qtd Líquida', 'Preço Líquido (R$)']
                 st.dataframe(
                     df_insumos_view.style.format({
                         'Qtd Bruta': '{:.3f}',
-                        'Preço Bruto (R$)': 'R$ {:.2f}'
+                        'Preço Bruto (R$)': 'R$ {:.2f}',
+                        'Rendimento %': '{:.3f}',
+                        'Qtd Líquida': '{:.3f}',
+                        'Preço Líquido (R$)': 'R$ {:.2f}'
                     }),
                     use_container_width=True,
                     key="tabela_insumos_alimenticios"
@@ -884,7 +915,7 @@ def render_modulo_ficha_tecnica():
                 row_ins_sel = df_insumos[df_insumos['id'] == id_ins_gerenciar].iloc[0]
                 
                 with st.form(f"form_alt_ins_tabela_{id_ins_gerenciar}"):
-                    ac1, ac2, ac3, ac4, ac5 = st.columns(5)
+                    ac1, ac2, ac3, ac4, ac5, ac6 = st.columns(6)
                     alt_cod = ac1.text_input("Código", value=str(row_ins_sel['codigo']) if row_ins_sel['codigo'] else "", key=f"tab_alt_cod_{id_ins_gerenciar}")
                     alt_prod = ac2.text_input("Produto", value=str(row_ins_sel['produto_insumo']), key=f"tab_alt_prod_{id_ins_gerenciar}")
                     alt_qtd = ac3.number_input("Qtd Bruta", min_value=0.0, value=float(row_ins_sel['qtd_bruta']), step=0.1, format="%.3f", key=f"tab_alt_qtd_{id_ins_gerenciar}")
@@ -895,6 +926,7 @@ def render_modulo_ficha_tecnica():
                     alt_un = ac4.selectbox("Unidade", unidades_disponiveis, index=idx_un, key=f"tab_alt_un_{id_ins_gerenciar}")
                     
                     alt_preco = ac5.number_input("Preço Bruto", min_value=0.0, value=float(row_ins_sel['preco_bruto']), step=0.1, format="%.2f", key=f"tab_alt_pc_{id_ins_gerenciar}")
+                    alt_rend = ac6.number_input("Rendimento %", min_value=0.0, value=float(row_ins_sel['rendimento']), step=0.01, format="%.3f", key=f"tab_alt_rend_{id_ins_gerenciar}")
                     
                     btn_salvar_alt = st.form_submit_button("💾 Salvar Alterações do Insumo")
                     
@@ -903,9 +935,9 @@ def render_modulo_ficha_tecnica():
                         cursor = conn.cursor()
                         cursor.execute("""
                             UPDATE insumos_ficha 
-                            SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?
+                            SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?, rendimento = ?
                             WHERE id = ?
-                        """, (alt_cod.strip().upper(), alt_prod.strip().upper(), alt_qtd, alt_un, alt_preco, id_ins_gerenciar))
+                        """, (alt_cod.strip().upper(), alt_prod.strip().upper(), alt_qtd, alt_un, alt_preco, alt_rend, id_ins_gerenciar))
                         conn.commit()
                         conn.close()
                         st.success("Insumo atualizado com sucesso!")
@@ -925,12 +957,13 @@ def render_modulo_ficha_tecnica():
             
             with st.form(f"form_add_nao_ali_{ficha_id_ativo}"):
                 st.markdown("**Adicionar Novo Insumo Não Alimentício**")
-                nc1, nc2, nc3, nc4, nc5 = st.columns(5)
+                nc1, nc2, nc3, nc4, nc5, nc6 = st.columns(6)
                 n_codigo_ins = nc1.text_input("Código", value="", key=f"cod_nao_{ficha_id_ativo}")
                 n_produto_ins = nc2.text_input("Produto / Insumo", value="", key=f"prod_nao_{ficha_id_ativo}")
                 n_qtd_bruta_ins = nc3.number_input("Qtd Bruta", min_value=0.0, value=1.0, step=0.1, format="%.3f", key=f"qtd_nao_{ficha_id_ativo}")
                 n_unidade_ins = nc4.selectbox("Unidade", ["UNID", "UN", "KG", "L", "PCT"], key=f"un_nao_{ficha_id_ativo}")
                 n_preco_bruto_ins = nc5.number_input("Preço Bruto (R$)", min_value=0.0, value=50.0, step=1.0, format="%.2f", key=f"pc_nao_{ficha_id_ativo}")
+                n_rend_ins_input = nc6.number_input("Rendimento %", min_value=0.0, value=1.0, step=0.01, format="%.3f", key=f"rend_nao_{ficha_id_ativo}")
                 
                 btn_add_nao = st.form_submit_button("➕ Adicionar Insumo Não Alimentício")
                 if btn_add_nao:
@@ -941,8 +974,8 @@ def render_modulo_ficha_tecnica():
                         cursor = conn.cursor()
                         cursor.execute("""
                             INSERT INTO insumos_nao_alimenticios_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
-                            VALUES (?, ?, ?, ?, ?, ?, 1.0)
-                        """, (ficha_id_ativo, n_codigo_ins.strip().upper(), n_produto_ins.strip().upper(), n_qtd_bruta_ins, n_unidade_ins, n_preco_bruto_ins))
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (ficha_id_ativo, n_codigo_ins.strip().upper(), n_produto_ins.strip().upper(), n_qtd_bruta_ins, n_unidade_ins, n_preco_bruto_ins, n_rend_ins_input))
                         conn.commit()
                         conn.close()
                         st.success("Insumo não alimentício adicionado com sucesso!")
@@ -953,12 +986,15 @@ def render_modulo_ficha_tecnica():
             else:
                 st.markdown("#### 📋 Tabela de Insumos Não Alimentícios Cadastrados")
                 
-                df_nao_view = df_nao_ali[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto']].copy()
-                df_nao_view.columns = ['ID', 'Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)']
+                df_nao_view = df_nao_ali[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento', 'qtd_liquida', 'preco_liquido']].copy()
+                df_nao_view.columns = ['ID', 'Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)', 'Rendimento %', 'Qtd Líquida', 'Preço Líquido (R$)']
                 st.dataframe(
                     df_nao_view.style.format({
                         'Qtd Bruta': '{:.3f}',
-                        'Preço Bruto (R$)': 'R$ {:.2f}'
+                        'Preço Bruto (R$)': 'R$ {:.2f}',
+                        'Rendimento %': '{:.3f}',
+                        'Qtd Líquida': '{:.3f}',
+                        'Preço Líquido (R$)': 'R$ {:.2f}'
                     }),
                     use_container_width=True,
                     key="tabela_insumos_nao_alimenticios"
@@ -972,7 +1008,7 @@ def render_modulo_ficha_tecnica():
                 row_nao_sel = df_nao_ali[df_nao_ali['id'] == id_nao_gerenciar].iloc[0]
                 
                 with st.form(f"form_alt_nao_tabela_{id_nao_gerenciar}"):
-                    nac1, nac2, nac3, nac4, nac5 = st.columns(5)
+                    nac1, nac2, nac3, nac4, nac5, nac6 = st.columns(6)
                     alt_n_cod = nac1.text_input("Código", value=str(row_nao_sel['codigo']) if row_nao_sel['codigo'] else "", key=f"tab_alt_n_cod_{id_nao_gerenciar}")
                     alt_n_prod = nac2.text_input("Produto", value=str(row_nao_sel['produto_insumo']), key=f"tab_alt_n_prod_{id_nao_gerenciar}")
                     alt_n_qtd = nac3.number_input("Qtd Bruta", min_value=0.0, value=float(row_nao_sel['qtd_bruta']), step=0.1, format="%.3f", key=f"tab_alt_n_qtd_{id_nao_gerenciar}")
@@ -983,6 +1019,7 @@ def render_modulo_ficha_tecnica():
                     alt_n_un = nac4.selectbox("Unidade", un_nao_disponiveis, index=idx_un_n, key=f"tab_alt_n_un_{id_nao_gerenciar}")
                     
                     alt_n_preco = nac5.number_input("Preço Bruto", min_value=0.0, value=float(row_nao_sel['preco_bruto']), step=1.0, format="%.2f", key=f"tab_alt_n_pc_{id_nao_gerenciar}")
+                    alt_n_rend = nac6.number_input("Rendimento %", min_value=0.0, value=float(row_nao_sel['rendimento']), step=0.01, format="%.3f", key=f"tab_alt_n_rend_{id_nao_gerenciar}")
                     
                     btn_salvar_alt_n = st.form_submit_button("💾 Salvar Alterações (Não Alimentício)")
                     
@@ -991,9 +1028,9 @@ def render_modulo_ficha_tecnica():
                         cursor = conn.cursor()
                         cursor.execute("""
                             UPDATE insumos_nao_alimenticios_ficha 
-                            SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?
+                            SET codigo = ?, produto_insumo = ?, qtd_bruta = ?, unidade = ?, preco_bruto = ?, rendimento = ?
                             WHERE id = ?
-                        """, (alt_n_cod.strip().upper(), alt_n_prod.strip().upper(), alt_n_qtd, alt_n_un, alt_n_preco, id_nao_gerenciar))
+                        """, (alt_n_cod.strip().upper(), alt_n_prod.strip().upper(), alt_n_qtd, alt_n_un, alt_n_preco, alt_n_rend, id_nao_gerenciar))
                         conn.commit()
                         conn.close()
                         st.success("Insumo não alimentício atualizado com sucesso!")
@@ -1167,7 +1204,7 @@ def init_db():
         ]
         cursor.executemany("INSERT OR IGNORE INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", cortes_iniciais)
 
-    # Inserção automática da Ficha Técnica "ESPETINHO ASSADO" com os dados do Excel
+    # Inserção automática da Ficha Técnica "ESPETINHO ASSADO" com os dados do Excel e rendimentos corretos
     cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas WHERE produto = 'ESPETINHO ASSADO'")
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
