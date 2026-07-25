@@ -483,6 +483,7 @@ def render_modulo_ficha_tecnica():
             with col2:
                 peso_unidade_kg = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=0.0, step=0.001, format="%.3f")
                 qtd_por_pacote = st.number_input("Quantidade por Pacote", min_value=1.0, value=1.0, step=1.0)
+                unidades_produzidas_input = st.number_input("Quantidade de Unidades Produzidas", min_value=0.0, value=1.0, step=1.0, key="novo_qtd_unidades")
             
             perda_calculada_nova = (rendimento_kg_novo - rendimento_assada_kg_novo) / rendimento_kg_novo if rendimento_kg_novo > 0 else 0.0
             if perda_calculada_nova < 0:
@@ -501,9 +502,9 @@ def render_modulo_ficha_tecnica():
                         conn = get_connection()
                         cursor = conn.cursor()
                         cursor.execute("""
-                            INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, perda_pct, data_criacao)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (emp_id_ativo, nome_produto.strip().upper(), rendimento_kg_novo, rendimento_assada_kg_novo, peso_unidade_kg, qtd_por_pacote, perda_calculada_nova, str(datetime.date.today())))
+                            INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, unidades_produzidas, perda_pct, data_criacao)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (emp_id_ativo, nome_produto.strip().upper(), rendimento_kg_novo, rendimento_assada_kg_novo, peso_unidade_kg, qtd_por_pacote, unidades_produzidas_input, perda_calculada_nova, str(datetime.date.today())))
                         conn.commit()
                         conn.close()
                         st.success("🎉 Ficha técnica criada com sucesso! Agora você pode gerenciar seus insumos no menu de consulta.")
@@ -539,18 +540,19 @@ def render_modulo_ficha_tecnica():
             custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
             custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
             
-            unidades_produzidas = ficha_row['rendimento_assada_kg'] / ficha_row['peso_unidade_kg'] if ficha_row['peso_unidade_kg'] > 0 else 0.0
-            pacotes = unidades_produzidas / ficha_row['qtd_por_pacote'] if ficha_row['qtd_por_pacote'] > 0 else 0.0
+            # Quantidade de unidades produzidas (respeitando a inserção do usuário ou calculada)
+            unidades_prod_cadastrada = ficha_row['unidades_produzidas'] if 'unidades_produzidas' in ficha_row and ficha_row['unidades_produzidas'] > 0 else (ficha_row['rendimento_assada_kg'] / ficha_row['peso_unidade_kg'] if ficha_row['peso_unidade_kg'] > 0 else 0.0)
             
-            custo_unidade = custo_total / unidades_produzidas if unidades_produzidas > 0 else 0.0
-            custo_pacote = custo_unidade * ficha_row['qtd_por_pacote']
+            custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
+            pacotes = unidades_prod_cadastrada / ficha_row['qtd_por_pacote'] if ficha_row['qtd_por_pacote'] > 0 else 0.0
+            custo_pacote = custo_unidade_produzida * ficha_row['qtd_por_pacote']
 
             # =========================================================================
-            # NOVO MÓDULO: CÁLCULO DE PRECRIFICAÇÃO (PRECIFIC COST ASSADA-KG)
+            # MÓDULO DE CÁLCULO DE PRECRIFICAÇÃO COM MODO DUPLO E DESCONTO REDUTOR
             # =========================================================================
             st.markdown("---")
             st.markdown("### 🏷️ Cálculo de Precificação (Simulador de Venda)")
-            st.markdown("Configure os parâmetros abaixo para simular o preço de venda ideal com base no indicador de custo escolhido.")
+            st.markdown("Configure os parâmetros abaixo. Você pode inserir o **Preço de Venda Praticado** ou definir a **Margem de Lucro (%)**, e o sistema ajustará os cálculos aplicando o **Desconto (%)** como redutor em todos os resultados.")
 
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
@@ -560,58 +562,82 @@ def render_modulo_ficha_tecnica():
             with col_p2:
                 outros_custos_var = st.number_input("Outros Custos Variáveis e Operacionais (%)", min_value=0.0, max_value=100.0, value=1.0, step=0.1, key=f"out_cust_{ficha_id_ativo}")
                 part_desp_fixas = st.number_input("Part. Desp. Fixas e Não Operacionais (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.1, key=f"p_fixas_{ficha_id_ativo}")
-                desconto_venda = st.number_input("Desconto (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"desconto_{ficha_id_ativo}")
+                desconto_venda = st.number_input("Desconto (%) [Redutor Geral]", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"desconto_{ficha_id_ativo}")
             with col_p3:
-                margem_lucro = st.number_input("Margem de Lucro (%)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key=f"margem_{ficha_id_ativo}")
                 indicador_cer_escolhido = st.selectbox(
                     "Indicador de Custo Base (CER)",
                     [
+                        "Custo por Unidade Produzida", 
                         "Custo por KG (Assada)", 
                         "Custo por KG (Crua)", 
-                        "Custo por Unidade", 
                         "Custo por Pacote", 
                         "Custo Total"
                     ],
                     key=f"ind_cer_{ficha_id_ativo}"
                 )
+                
+                modo_precificacao = st.radio(
+                    "Modo de Definição do Preço:",
+                    ["Informar Margem de Lucro (%)", "Informar Preço de Venda Praticado (R$)"],
+                    key=f"modo_prec_{ficha_id_ativo}"
+                )
 
             # Selecionando o custo base de acordo com a escolha
-            if indicador_cer_escolhido == "Custo por KG (Assada)":
+            if indicador_cer_escolhido == "Custo por Unidade Produzida":
+                cer_base = custo_unidade_produzida
+            elif indicador_cer_escolhido == "Custo por KG (Assada)":
                 cer_base = custo_kg_assada
             elif indicador_cer_escolhido == "Custo por KG (Crua)":
                 cer_base = custo_kg_crua
-            elif indicador_cer_escolhido == "Custo por Unidade":
-                cer_base = custo_unidade
             elif indicador_cer_escolhido == "Custo por Pacote":
                 cer_base = custo_pacote
             else:
                 cer_base = custo_total
 
-            # Soma dos percentuais que incidem sobre o preço de venda (markup divisor)
-            soma_percentuais = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + desconto_venda + margem_lucro) / 100.0
-            divisor_preco = 1.0 - soma_percentuais
+            # Cálculo de acordo com o modo escolhido
+            if modo_precificacao == "Informar Margem de Lucro (%)":
+                margem_lucro = st.number_input("Margem de Lucro Desejada (%)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key=f"margem_{ficha_id_ativo}")
+                
+                # Soma dos percentuais que incidem sobre o preço (imposto, cartão, comissão, outros, fixas, desconto e margem)
+                soma_percentuais = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + desconto_venda + margem_lucro) / 100.0
+                divisor_preco = 1.0 - soma_percentuais
 
-            if divisor_preco > 0:
-                preco_venda_ideal = cer_base / divisor_preco
+                if divisor_preco > 0:
+                    preco_venda_tabela = cer_base / divisor_preco
+                else:
+                    preco_venda_tabela = 0.0
             else:
-                preco_venda_ideal = 0.0
+                preco_venda_tabela = st.number_input("Preço de Venda Praticado (R$)", min_value=0.0, value=cer_base * 1.5, step=0.50, format="%.2f", key=f"preco_praticado_{ficha_id_ativo}")
+                
+                # Dedução reversa da margem de lucro informada o preço praticado
+                soma_sem_margem = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + desconto_venda) / 100.0
+                if preco_venda_tabela > 0:
+                    custos_perc_valor = preco_venda_tabela * soma_sem_margem
+                    lucro_calculado_val = preco_venda_tabela - cer_base - custos_perc_valor
+                    margem_lucro = (lucro_calculado_val / preco_venda_tabela) * 100.0
+                else:
+                    margem_lucro = 0.0
 
-            # Detalhamento dos valores por real de venda
-            valor_imposto = preco_venda_ideal * (aliquota_imposto / 100.0)
-            valor_cartao = preco_venda_ideal * (taxa_cartao / 100.0)
-            valor_comissao = preco_venda_ideal * (comissao_venda / 100.0)
-            valor_outros_custos = preco_venda_ideal * (outros_custos_var / 100.0)
-            valor_desp_fixas = preco_venda_ideal * (part_desp_fixas / 100.0)
-            valor_desconto = preco_venda_ideal * (desconto_venda / 100.0)
-            valor_lucro = preco_venda_ideal * (margem_lucro / 100.0)
-            markup_calculado = (preco_venda_ideal / cer_base - 1.0) * 100.0 if cer_base > 0 else 0.0
+            # Aplicando o desconto como redutor nos resultados finais
+Fator_desconto = (1.0 - (desconto_venda / 100.0))
+            preco_venda_efetivo = preco_venda_tabela * fator_desconto
+
+            # Detalhamento dos valores sobre o preço efetivo pós-desconto
+            valor_imposto = preco_venda_efetivo * (aliquota_imposto / 100.0)
+            valor_cartao = preco_venda_efetivo * (taxa_cartao / 100.0)
+            valor_comissao = preco_venda_efetivo * (comissao_venda / 100.0)
+            valor_outros_custos = preco_venda_efetivo * (outros_custos_var / 100.0)
+            valor_desp_fixas = preco_venda_efetivo * (part_desp_fixas / 100.0)
+            valor_lucro_efetivo = preco_venda_efetivo - cer_base - (valor_imposto + valor_cartao + valor_comissao + valor_outros_custos + valor_desp_fixas)
+            markup_calculado = (preco_venda_efetivo / cer_base - 1.0) * 100.0 if cer_base > 0 else 0.0
 
             st.success(f"""
             🎯 **Resultado da Precificação ({indicador_cer_escolhido}):**
             * **Custo Base (CER):** R$ {cer_base:,.2f}
-            * **Preço de Venda Ideal:** **R$ {preco_venda_ideal:,.2f}**
-            * **Markup Aplicado:** {markup_calculado:.2f}%
-            * **Lucro Líquido Previsto por Unidade/Kg:** R$ {valor_lucro:,.2f}
+            * **Preço de Venda de Tabela:** R$ {preco_venda_tabela:,.2f}
+            * **Preço de Venda Efetivo (Com Desconto de {desconto_venda}%):** **R$ {preco_venda_efetivo:,.2f}**
+            * **Margem de Lucro Efetiva:** {margem_lucro:.2f}%
+            * **Lucro Líquido Previsto:** R$ {valor_lucro_efetivo:,.2f}
             """)
 
             # Salvando na sessão para exportação em PDF
@@ -625,9 +651,10 @@ def render_modulo_ficha_tecnica():
                 'fixas': part_desp_fixas,
                 'desconto': desconto_venda,
                 'margem': margem_lucro,
-                'preco_venda_ideal': preco_venda_ideal,
+                'preco_tabela': preco_venda_tabela,
+                'preco_efetivo': preco_venda_efetivo,
                 'markup': markup_calculado,
-                'lucro': valor_lucro
+                'lucro': valor_lucro_efetivo
             }
 
             with col_btn_fpdf:
@@ -651,11 +678,11 @@ def render_modulo_ficha_tecnica():
                     pdf.cell(63, 5, f"Rendimento Total: {ficha_row['rendimento_kg']:.3f} KG", border=1)
                     pdf.cell(63, 5, f"Rend. Assada: {ficha_row['rendimento_assada_kg']:.3f} KG", border=1)
                     pdf.cell(64, 5, f"Peso Unidade: {ficha_row['peso_unidade_kg']:.3f} KG", border=1, ln=1)
-                    pdf.cell(95, 5, f"Qtd por Pacote: {ficha_row['qtd_por_pacote']}", border=1)
-                    pdf.cell(95, 5, f"Perda % (Indicador): {ficha_row['perda_pct']*100:.2f}%", border=1, ln=1)
+                    pdf.cell(95, 5, f"Unidades Produzidas: {unidades_prod_cadastrada:.0f}", border=1)
+                    pdf.cell(95, 5, f"Qtd por Pacote: {ficha_row['qtd_por_pacote']}", border=1, ln=1)
                     pdf.ln(4)
 
-                    # Indicadores Financeiros e Pacotes
+                    # Indicadores Financeiros e Pacotes (com Custo da Unidade Produzida)
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(190, 6, "2. INDICADORES E CUSTOS CONSOLIDADOS", ln=1, fill=True)
@@ -663,11 +690,10 @@ def render_modulo_ficha_tecnica():
                     pdf.cell(95, 5, f"Custo Insumos Alimenticios: R$ {custo_alimenticios:.2f}", border=1)
                     pdf.cell(95, 5, f"Custo Insumos Nao Alimenticios: R$ {custo_nao_alimenticios:.2f}", border=1, ln=1)
                     pdf.cell(95, 5, f"Custo Total de Producao: R$ {custo_total:.2f}", border=1)
-                    pdf.cell(95, 5, f"Custo por KG (Crua): R$ {custo_kg_crua:.2f}", border=1, ln=1)
-                    pdf.cell(95, 5, f"Custo por KG (Assada): R$ {custo_kg_assada:.2f}", border=1)
-                    pdf.cell(95, 5, f"Custo por Unidade: R$ {custo_unidade:.2f}", border=1, ln=1)
-                    pdf.cell(95, 5, f"Custo por Pacote: R$ {custo_pacote:.2f}", border=1)
-                    pdf.cell(95, 5, f"Unidades Produzidas: {unidades_produzidas:.2f}", border=1, ln=1)
+                    pdf.cell(95, 5, f"Custo da Unidade Produzida: R$ {custo_unidade_produzida:.2f}", border=1, ln=1)
+                    pdf.cell(95, 5, f"Custo por KG (Crua): R$ {custo_kg_crua:.2f}", border=1)
+                    pdf.cell(95, 5, f"Custo por KG (Assada): R$ {custo_kg_assada:.2f}", border=1, ln=1)
+                    pdf.cell(95, 5, f"Custo por Pacote: R$ {custo_pacote:.2f}", border=1, ln=1)
                     pdf.ln(4)
 
                     # Seção de Precificação no PDF
@@ -684,11 +710,11 @@ def render_modulo_ficha_tecnica():
                         pdf.cell(64, 5, f"Comissão: {p_info['comissao']}%", border=1, ln=1)
                         pdf.cell(63, 5, f"Outros Custos: {p_info['outros']}%", border=1)
                         pdf.cell(63, 5, f"Desp. Fixas: {p_info['fixas']}%", border=1)
-                        pdf.cell(64, 5, f"Desconto: {p_info['desconto']}%", border=1, ln=1)
-                        pdf.cell(95, 5, f"Margem de Lucro: {p_info['margem']}%", border=1)
+                        pdf.cell(64, 5, f"Desconto (Redutor): {p_info['desconto']}%", border=1, ln=1)
+                        pdf.cell(95, 5, f"Margem de Lucro: {p_info['margem']:.2f}%", border=1)
                         pdf.cell(95, 5, f"Markup: {p_info['markup']:.2f}%", border=1, ln=1)
                         pdf.set_font("Arial", style="B", size=9)
-                        pdf.cell(190, 6, f"PREÇO DE VENDA IDEAL: R$ {p_info['preco_venda_ideal']:.2f} (Lucro: R$ {p_info['lucro']:.2f})", border=1, ln=1, align="C", fill=True)
+                        pdf.cell(190, 6, f"PREÇO EFETIVO (PÓS-DESCONTO): R$ {p_info['preco_efetivo']:.2f} (Lucro: R$ {p_info['lucro']:.2f})", border=1, ln=1, align="C", fill=True)
                         pdf.ln(4)
 
                     # Insumos Alimentícios
@@ -757,15 +783,16 @@ def render_modulo_ficha_tecnica():
                     key="btn_dl_pdf_ficha_tecnica"
                 )
 
-            # Painel de Cards com Indicadores Principais (incluindo Pacotes)
+            # Painel de Cards com Indicadores Principais (incluindo Custo da Unidade Produzida e Pacotes)
             st.markdown("### 📊 Indicadores e Custos Consolidados")
             
-            m1, m2, m3, m4, m5 = st.columns(5)
+            m1, m2, m3, m4, m5, m6 = st.columns(6)
             m1.metric("Custo Total", f"R$ {custo_total:.2f}")
-            m2.metric("Custo / Kg Crua", f"R$ {custo_kg_crua:.2f}")
-            m3.metric("Custo / Kg (Assada)", f"R$ {custo_kg_assada:.2f}")
-            m4.metric("Custo / Unidade", f"R$ {custo_unidade:.2f}")
+            m2.metric("Custo / Unid. Produzida", f"R$ {custo_unidade_produzida:.2f}")
+            m3.metric("Custo / Kg Crua", f"R$ {custo_kg_crua:.2f}")
+            m4.metric("Custo / Kg (Assada)", f"R$ {custo_kg_assada:.2f}")
             m5.metric("Custo / Pacote", f"R$ {custo_pacote:.2f}")
+            m6.metric("Unid. Produzidas", f"{unidades_prod_cadastrada:.0f}")
 
             with st.expander("✏️ Editar Parâmetros de Rendimento desta Ficha", expanded=False):
                 with st.form(f"form_edit_parametros_ficha_{ficha_id_ativo}"):
@@ -777,6 +804,7 @@ def render_modulo_ficha_tecnica():
                     with ed_col2:
                         edit_peso_un = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=float(ficha_row['peso_unidade_kg']), step=0.001, format="%.3f")
                         edit_qtd_pct = st.number_input("Quantidade por Pacote", min_value=1.0, value=float(ficha_row['qtd_por_pacote']), step=1.0)
+                        edit_unid_prod = st.number_input("Quantidade de Unidades Produzidas", min_value=0.0, value=float(unidades_prod_cadastrada), step=1.0, key="edit_unid_prod_val")
                     
                     perda_calculada_edit = (edit_rend_kg - edit_rend_ass) / edit_rend_kg if edit_rend_kg > 0 else 0.0
                     if perda_calculada_edit < 0:
@@ -789,12 +817,12 @@ def render_modulo_ficha_tecnica():
                         cursor = conn.cursor()
                         cursor.execute("""
                             UPDATE fichas_tecnicas 
-                            SET produto = ?, rendimento_kg = ?, rendimento_assada_kg = ?, peso_unidade_kg = ?, qtd_por_pacote = ?, perda_pct = ?
+                            SET produto = ?, rendimento_kg = ?, rendimento_assada_kg = ?, peso_unidade_kg = ?, qtd_por_pacote = ?, unidades_produzidas = ?, perda_pct = ?
                             WHERE id = ?
-                        """, (edit_nome_prod.strip().upper(), edit_rend_kg, edit_rend_ass, edit_peso_un, edit_qtd_pct, perda_calculada_edit, ficha_id_ativo))
+                        """, (edit_nome_prod.strip().upper(), edit_rend_kg, edit_rend_ass, edit_peso_un, edit_qtd_pct, edit_unid_prod, perda_calculada_edit, ficha_id_ativo))
                         conn.commit()
                         conn.close()
-                        st.success("Parâmetros e Perda % atualizados com sucesso!")
+                        st.success("Parâmetros e Unidades Produzidas atualizados com sucesso!")
                         st.rerun()
 
             with st.expander("🗑️ Excluir esta Ficha Técnica Inteira", expanded=False):
@@ -1058,11 +1086,17 @@ def init_db():
             rendimento_assada_kg REAL DEFAULT 0.0,
             peso_unidade_kg REAL DEFAULT 0.0,
             qtd_por_pacote REAL DEFAULT 4.0,
+            unidades_produzidas REAL DEFAULT 1.0,
             perda_pct REAL DEFAULT 0.0,
             data_criacao TEXT,
             FOREIGN KEY(empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
         )
     """)
+
+    try:
+        cursor.execute("ALTER TABLE fichas_tecnicas ADD COLUMN unidades_produzidas REAL DEFAULT 1.0")
+    except sqlite3.OperationalError:
+        pass
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS insumos_ficha (
