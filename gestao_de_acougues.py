@@ -547,24 +547,24 @@ def render_modulo_ficha_tecnica():
             custo_pacote = custo_unidade_produzida * ficha_row['qtd_por_pacote']
 
             # =========================================================================
-            # MÓDULO DE CÁLCULO DE PRECRIFICAÇÃO COM MODO DUPLO E DESCONTO REDUTOR
+            # MÓDULO DE CÁLCULO DE PRECIFICAÇÃO (REVISADO FIEL AO EXCEL)
             # =========================================================================
             st.markdown("---")
             st.markdown("### 🏷️ Cálculo de Precificação (Simulador de Venda)")
-            st.markdown("Configure os parâmetros abaixo. Você pode inserir o **Preço de Venda Praticado** ou definir a **Margem de Lucro (%)**, e o sistema ajustará os cálculos aplicando o **Desconto (%)** como redutor em todos os resultados.")
+            st.markdown("Configure os parâmetros abaixo. O modelo utiliza exatamente a estrutura da aba `PRECIFICAÇÃO` do Excel (Soma dos percentuais aplicados sobre a venda, cálculo do preço de tabela por divisor, cálculo do Markup e aplicação de desconto redutor).")
 
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
-                aliquota_imposto = st.number_input("Alíquota do Imposto (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1, key=f"aliq_imp_{ficha_id_ativo}")
-                taxa_cartao = st.number_input("Taxa de Cartão e Antecipação (%)", min_value=0.0, max_value=100.0, value=3.5, step=0.1, key=f"tx_cart_{ficha_id_ativo}")
-                comissao_venda = st.number_input("Comissão (%)", min_value=0.0, max_value=100.0, value=2.0, step=0.1, key=f"comissao_{ficha_id_ativo}")
+                aliquota_imposto = st.number_input("Imposto (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1, key=f"aliq_imp_{ficha_id_ativo}")
+                taxa_cartao = st.number_input("Tx. de Cartão e Antecip. (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1, key=f"tx_cart_{ficha_id_ativo}")
+                comissao_venda = st.number_input("Comissão (%)", min_value=0.0, max_value=100.0, value=3.5, step=0.1, key=f"comissao_{ficha_id_ativo}")
             with col_p2:
-                outros_custos_var = st.number_input("Outros Custos Variáveis e Operacionais (%)", min_value=0.0, max_value=100.0, value=1.0, step=0.1, key=f"out_cust_{ficha_id_ativo}")
-                part_desp_fixas = st.number_input("Part. Desp. Fixas e Não Operacionais (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.1, key=f"p_fixas_{ficha_id_ativo}")
-                desconto_venda = st.number_input("Desconto (%) [Redutor Geral]", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"desconto_{ficha_id_ativo}")
+                outros_custos_var = st.number_input("Outros custos Variáveis e Oper. (%)", min_value=0.0, max_value=100.0, value=1.0, step=0.1, key=f"out_cust_{ficha_id_ativo}")
+                part_desp_fixas = st.number_input("Partic. Desp. Fixas e não Oper. (%)", min_value=0.0, max_value=100.0, value=2.0, step=0.1, key=f"p_fixas_{ficha_id_ativo}")
+                desconto_venda = st.number_input("Simulação de Desconto (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"desconto_{ficha_id_ativo}")
             with col_p3:
                 indicador_cer_escolhido = st.selectbox(
-                    "Indicador de Custo Base (CER)",
+                    "Custo de aquisição (CER):",
                     [
                         "Custo por Unidade Produzida", 
                         "Custo por KG (Assada)", 
@@ -593,11 +593,12 @@ def render_modulo_ficha_tecnica():
             else:
                 cer_base = custo_total
 
-            # Cálculo de acordo com o modo escolhido
+            # Cálculo de acordo com o modo escolhido (Fórmula exata do Excel: =C2/(1-C17))
             if modo_precificacao == "Informar Margem de Lucro (%)":
-                margem_lucro = st.number_input("Margem de Lucro Desejada (%)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key=f"margem_{ficha_id_ativo}")
+                margem_lucro = st.number_input("Margem de Lucro:", min_value=0.0, max_value=100.0, value=31.07, step=0.1, key=f"margem_{ficha_id_ativo}")
                 
-                soma_percentuais = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + desconto_venda + margem_lucro) / 100.0
+                # C17 = SUM(C14, C6, C4, C8, C16, C10) -> Soma de todos os percentuais incidentes + margem de lucro
+                soma_percentuais = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + margem_lucro) / 100.0
                 divisor_preco = 1.0 - soma_percentuais
 
                 if divisor_preco > 0:
@@ -607,7 +608,7 @@ def render_modulo_ficha_tecnica():
             else:
                 preco_venda_tabela = st.number_input("Preço de Venda Praticado (R$)", min_value=0.0, value=cer_base * 1.5, step=0.50, format="%.2f", key=f"preco_praticado_{ficha_id_ativo}")
                 
-                soma_sem_margem = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + desconto_venda) / 100.0
+                soma_sem_margem = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas) / 100.0
                 if preco_venda_tabela > 0:
                     custos_perc_valor = preco_venda_tabela * soma_sem_margem
                     lucro_calculado_val = preco_venda_tabela - cer_base - custos_perc_valor
@@ -615,7 +616,7 @@ def render_modulo_ficha_tecnica():
                 else:
                     margem_lucro = 0.0
 
-            # Aplicando o desconto como redutor nos resultados finais
+            # Aplicando o desconto como redutor nos resultados finais (Conforme planilha: Preço efetivo = Preço de Tabela - Desconto)
             fator_desconto = (1.0 - (desconto_venda / 100.0))
             preco_venda_efetivo = preco_venda_tabela * fator_desconto
 
@@ -625,6 +626,8 @@ def render_modulo_ficha_tecnica():
             valor_outros_custos = preco_venda_efetivo * (outros_custos_var / 100.0)
             valor_desp_fixas = preco_venda_efetivo * (part_desp_fixas / 100.0)
             valor_lucro_efetivo = preco_venda_efetivo - cer_base - (valor_imposto + valor_cartao + valor_comissao + valor_outros_custos + valor_desp_fixas)
+            
+            # MARKUP >> = IFERROR(Preço / CER - 1, 0) conforme aba PRECIFICAÇÃO (Row 22)
             markup_calculado = (preco_venda_efetivo / cer_base - 1.0) * 100.0 if cer_base > 0 else 0.0
 
             st.success(f"""
@@ -633,6 +636,7 @@ def render_modulo_ficha_tecnica():
             * **Preço de Venda de Tabela:** R$ {preco_venda_tabela:,.2f}
             * **Preço de Venda Efetivo (Com Desconto de {desconto_venda}%):** **R$ {preco_venda_efetivo:,.2f}**
             * **Margem de Lucro Efetiva:** {margem_lucro:.2f}%
+            * **MARKUP >>:** {markup_calculado:.2f}%
             * **Lucro Líquido Previsto:** R$ {valor_lucro_efetivo:,.2f}
             """)
 
@@ -706,7 +710,7 @@ def render_modulo_ficha_tecnica():
                         pdf.cell(95, 5, f"Margem de Lucro: {p_info['margem']:.2f}%", border=1)
                         pdf.cell(95, 5, f"Markup: {p_info['markup']:.2f}%", border=1, ln=1)
                         pdf.set_font("Arial", style="B", size=9)
-                        pdf.cell(190, 6, f"PREÇO EFETIVO (PÓS-DESCONTO): R$ {p_info['preco_efetivo']:.2f} (Lucro: R$ {p_info['lucro']:.2f})", border=1, ln=1, align="C", fill=True)
+                        pdf.cell(190, 6, f"PREÇO EFETIVO: R$ {p_info['preco_efetivo']:.2f} | MARKUP: {p_info['markup']:.2f}% | Lucro: R$ {p_info['lucro']:.2f}", border=1, ln=1, align="C", fill=True)
                         pdf.ln(4)
 
                     pdf.set_font("Arial", style="B", size=10)
