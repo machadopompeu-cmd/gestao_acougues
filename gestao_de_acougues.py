@@ -463,7 +463,7 @@ def render_modulo_ficha_tecnica():
     st.markdown("""
         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 25px;">
             <h2 style="margin: 0; color: white !important;">📋 Módulo de Ficha Técnica & Precificação</h2>
-            <p style="margin: 5px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos em tabelas e apure custos de produção em tempo real.</p>
+            <p style="margin: 5px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos em tabelas e apure custos de produção e preços de venda em tempo real.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -545,6 +545,91 @@ def render_modulo_ficha_tecnica():
             custo_unidade = custo_total / unidades_produzidas if unidades_produzidas > 0 else 0.0
             custo_pacote = custo_unidade * ficha_row['qtd_por_pacote']
 
+            # =========================================================================
+            # NOVO MÓDULO: CÁLCULO DE PRECRIFICAÇÃO (PRECIFIC COST ASSADA-KG)
+            # =========================================================================
+            st.markdown("---")
+            st.markdown("### 🏷️ Cálculo de Precificação (Simulador de Venda)")
+            st.markdown("Configure os parâmetros abaixo para simular o preço de venda ideal com base no indicador de custo escolhido.")
+
+            col_p1, col_p2, col_p3 = st.columns(3)
+            with col_p1:
+                aliquota_imposto = st.number_input("Alíquota do Imposto (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1, key=f"aliq_imp_{ficha_id_ativo}")
+                taxa_cartao = st.number_input("Taxa de Cartão e Antecipação (%)", min_value=0.0, max_value=100.0, value=3.5, step=0.1, key=f"tx_cart_{ficha_id_ativo}")
+                comissao_venda = st.number_input("Comissão (%)", min_value=0.0, max_value=100.0, value=2.0, step=0.1, key=f"comissao_{ficha_id_ativo}")
+            with col_p2:
+                outros_custos_var = st.number_input("Outros Custos Variáveis e Operacionais (%)", min_value=0.0, max_value=100.0, value=1.0, step=0.1, key=f"out_cust_{ficha_id_ativo}")
+                part_desp_fixas = st.number_input("Part. Desp. Fixas e Não Operacionais (%)", min_value=0.0, max_value=100.0, value=10.0, step=0.1, key=f"p_fixas_{ficha_id_ativo}")
+                desconto_venda = st.number_input("Desconto (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"desconto_{ficha_id_ativo}")
+            with col_p3:
+                margem_lucro = st.number_input("Margem de Lucro (%)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key=f"margem_{ficha_id_ativo}")
+                indicador_cer_escolhido = st.selectbox(
+                    "Indicador de Custo Base (CER)",
+                    [
+                        "Custo por KG (Assada)", 
+                        "Custo por KG (Crua)", 
+                        "Custo por Unidade", 
+                        "Custo por Pacote", 
+                        "Custo Total"
+                    ],
+                    key=f"ind_cer_{ficha_id_ativo}"
+                )
+
+            # Selecionando o custo base de acordo com a escolha
+            if indicador_cer_escolhido == "Custo por KG (Assada)":
+                cer_base = custo_kg_assada
+            elif indicador_cer_escolhido == "Custo por KG (Crua)":
+                cer_base = custo_kg_crua
+            elif indicador_cer_escolhido == "Custo por Unidade":
+                cer_base = custo_unidade
+            elif indicador_cer_escolhido == "Custo por Pacote":
+                cer_base = custo_pacote
+            else:
+                cer_base = custo_total
+
+            # Soma dos percentuais que incidem sobre o preço de venda (markup divisor)
+            soma_percentuais = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + desconto_venda + margem_lucro) / 100.0
+            divisor_preco = 1.0 - soma_percentuais
+
+            if divisor_preco > 0:
+                preco_venda_ideal = cer_base / divisor_preco
+            else:
+                preco_venda_ideal = 0.0
+
+            # Detalhamento dos valores por real de venda
+            valor_imposto = preco_venda_ideal * (aliquota_imposto / 100.0)
+            valor_cartao = preco_venda_ideal * (taxa_cartao / 100.0)
+            valor_comissao = preco_venda_ideal * (comissao_venda / 100.0)
+            valor_outros_custos = preco_venda_ideal * (outros_custos_var / 100.0)
+            valor_desp_fixas = preco_venda_ideal * (part_desp_fixas / 100.0)
+            valor_desconto = preco_venda_ideal * (desconto_venda / 100.0)
+            valor_lucro = preco_venda_ideal * (margem_lucro / 100.0)
+            markup_calculado = (preco_venda_ideal / cer_base - 1.0) * 100.0 if cer_base > 0 else 0.0
+
+            st.success(f"""
+            🎯 **Resultado da Precificação ({indicador_cer_escolhido}):**
+            * **Custo Base (CER):** R$ {cer_base:,.2f}
+            * **Preço de Venda Ideal:** **R$ {preco_venda_ideal:,.2f}**
+            * **Markup Aplicado:** {markup_calculado:.2f}%
+            * **Lucro Líquido Previsto por Unidade/Kg:** R$ {valor_lucro:,.2f}
+            """)
+
+            # Salvando na sessão para exportação em PDF
+            st.session_state['precificacao_dados'] = {
+                'indicador': indicador_cer_escolhido,
+                'cer_base': cer_base,
+                'imposto': aliquota_imposto,
+                'cartao': taxa_cartao,
+                'comissao': comissao_venda,
+                'outros': outros_custos_var,
+                'fixas': part_desp_fixas,
+                'desconto': desconto_venda,
+                'margem': margem_lucro,
+                'preco_venda_ideal': preco_venda_ideal,
+                'markup': markup_calculado,
+                'lucro': valor_lucro
+            }
+
             with col_btn_fpdf:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
                 def gerar_pdf_ficha_tecnica():
@@ -570,7 +655,7 @@ def render_modulo_ficha_tecnica():
                     pdf.cell(95, 5, f"Perda % (Indicador): {ficha_row['perda_pct']*100:.2f}%", border=1, ln=1)
                     pdf.ln(4)
 
-                    # Indicadores Financeiros
+                    # Indicadores Financeiros e Pacotes
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(190, 6, "2. INDICADORES E CUSTOS CONSOLIDADOS", ln=1, fill=True)
@@ -585,10 +670,31 @@ def render_modulo_ficha_tecnica():
                     pdf.cell(95, 5, f"Unidades Produzidas: {unidades_produzidas:.2f}", border=1, ln=1)
                     pdf.ln(4)
 
+                    # Seção de Precificação no PDF
+                    p_info = st.session_state.get('precificacao_dados', None)
+                    if p_info:
+                        pdf.set_font("Arial", style="B", size=10)
+                        pdf.set_fill_color(226, 232, 240)
+                        pdf.cell(190, 6, "3. CALCULO DE PRECIFICAÇÃO (SIMULADOR DE VENDA)", ln=1, fill=True)
+                        pdf.set_font("Arial", size=9)
+                        pdf.cell(95, 5, f"Indicador Base (CER): {p_info['indicador']}", border=1)
+                        pdf.cell(95, 5, f"Custo Base (CER): R$ {p_info['cer_base']:.2f}", border=1, ln=1)
+                        pdf.cell(63, 5, f"Imposto: {p_info['imposto']}%", border=1)
+                        pdf.cell(63, 5, f"Cartão/Antecip.: {p_info['cartao']}%", border=1)
+                        pdf.cell(64, 5, f"Comissão: {p_info['comissao']}%", border=1, ln=1)
+                        pdf.cell(63, 5, f"Outros Custos: {p_info['outros']}%", border=1)
+                        pdf.cell(63, 5, f"Desp. Fixas: {p_info['fixas']}%", border=1)
+                        pdf.cell(64, 5, f"Desconto: {p_info['desconto']}%", border=1, ln=1)
+                        pdf.cell(95, 5, f"Margem de Lucro: {p_info['margem']}%", border=1)
+                        pdf.cell(95, 5, f"Markup: {p_info['markup']:.2f}%", border=1, ln=1)
+                        pdf.set_font("Arial", style="B", size=9)
+                        pdf.cell(190, 6, f"PREÇO DE VENDA IDEAL: R$ {p_info['preco_venda_ideal']:.2f} (Lucro: R$ {p_info['lucro']:.2f})", border=1, ln=1, align="C", fill=True)
+                        pdf.ln(4)
+
                     # Insumos Alimentícios
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
-                    pdf.cell(190, 6, "3. INSUMOS ALIMENTICIOS", ln=1, fill=True)
+                    pdf.cell(190, 6, "4. INSUMOS ALIMENTICIOS", ln=1, fill=True)
                     pdf.set_font("Arial", style="B", size=8.5)
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
@@ -616,7 +722,7 @@ def render_modulo_ficha_tecnica():
                     # Insumos Não Alimentícios
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
-                    pdf.cell(190, 6, "4. INSUMOS NAO ALIMENTICIOS (EMBALAGENS, GAS, ETC.)", ln=1, fill=True)
+                    pdf.cell(190, 6, "5. INSUMOS NAO ALIMENTICIOS (EMBALAGENS, GAS, ETC.)", ln=1, fill=True)
                     pdf.set_font("Arial", style="B", size=8.5)
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
@@ -644,21 +750,22 @@ def render_modulo_ficha_tecnica():
 
                 pdf_bytes_ficha = gerar_pdf_ficha_tecnica()
                 st.download_button(
-                    label="📄 Baixar PDF da Ficha",
+                    label="📄 Baixar PDF da Ficha com Precificação",
                     data=pdf_bytes_ficha,
-                    file_name=f"ficha_tecnica_{ficha_row['produto'].lower().replace(' ', '_')}_{datetime.date.today().strftime('%Y%m%d')}.pdf",
+                    file_name=f"ficha_tecnica_precificacao_{ficha_row['produto'].lower().replace(' ', '_')}_{datetime.date.today().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf",
                     key="btn_dl_pdf_ficha_tecnica"
                 )
 
-            # Painel de Cards com Indicadores Principais
+            # Painel de Cards com Indicadores Principais (incluindo Pacotes)
             st.markdown("### 📊 Indicadores e Custos Consolidados")
             
-            m1, m2, m3, m4 = st.columns(4)
+            m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("Custo Total", f"R$ {custo_total:.2f}")
             m2.metric("Custo / Kg Crua", f"R$ {custo_kg_crua:.2f}")
             m3.metric("Custo / Kg (Assada)", f"R$ {custo_kg_assada:.2f}")
-            m4.metric("Custo da Unidade", f"R$ {custo_unidade:.2f}")
+            m4.metric("Custo / Unidade", f"R$ {custo_unidade:.2f}")
+            m5.metric("Custo / Pacote", f"R$ {custo_pacote:.2f}")
 
             with st.expander("✏️ Editar Parâmetros de Rendimento desta Ficha", expanded=False):
                 with st.form(f"form_edit_parametros_ficha_{ficha_id_ativo}"):
@@ -1835,7 +1942,7 @@ else:
                 st.subheader("📊 Apuração Geral do Lote")
                 apuracao_data = {
                     "Apuração do Lote": ["PESO BRUTO/KG", "OSSOS/MUXIBA", "QUEBRA NÃO IDENTIF", "ESCORRIMENTO", "Peso Final", "TOTAL DE QUEBRA"],
-                    "Peso (KG)": [f"{p_bruto:.3f}", f"{ossos_val:.3f}", f"{quebra_val:.3f}", f"{exsudato_val:.3f}", f"{peso_final:.3f}", f"{total_quebra:.3f}"],
+                    "Peso (KG)": [f"{p_bruto:.3f}", f"{ossos_val:.3f}", f"{quebra_val:.3f}", f"{exsudato_val:.3f}", f"{peso_final:.3f}" , f"{total_quebra:.3f}"],
                     "R$": [f"R$ {valor_total_compra:.2f}", "-", "-", "-", f"R$ {valor_total_compra:.2f}", "-"],
                     "Porcentagem": ["100,00%", f"{porc_ossos:.2f}%", f"{porc_quebra:.2f}%", f"{porc_exsudato:.2f}%", f"{porc_final:.2f}%", f"{porc_total_quebra:.2f}%"]
                 }
@@ -1900,7 +2007,6 @@ else:
                 p_medio_venda_prata = total_vendas_prata / peso_desossado_prata if peso_desossado_prata > 0 else 0
                 p_medio_venda_total = total_vendas_total / peso_desossado_total if peso_desossado_total > 0 else 0
                 
-                # Custo / Kg Crua (Custo Efetivo Total / Peso Bruto)
                 custo_kg_crua_ouro = custo_efetivo_total_ouro / p_bruto if p_bruto > 0 else 0.0
                 custo_kg_crua_prata = custo_efetivo_total_prata / p_bruto if p_bruto > 0 else 0.0
                 custo_kg_crua_total = custo_efetivo_total_geral / p_bruto if p_bruto > 0 else 0.0
