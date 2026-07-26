@@ -77,10 +77,293 @@ st.markdown(
 )
 
 # =========================================================================
-# FUNÇÃO DE CONEXÃO COM O BANCO DE DADOS
+# FUNÇÃO PADRÃO DE CABEÇALHO PARA RELATÓRIOS PDF
+# =========================================================================
+def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
+    logo_pdf = None
+    for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
+        if os.path.exists(lp):
+            logo_pdf = lp
+            break
+            
+    if logo_pdf:
+        pdf.image(logo_pdf, x=10, y=8, w=18)
+
+    pdf.set_fill_color(30, 58, 138)
+    pdf.rect(30, 8, 170, 12, "F")
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", style="B", size=10)
+    pdf.set_xy(30, 10)
+    pdf.cell(170, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {titulo_relatorio.upper()}", ln=1, align="C")
+    
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_font("Arial", style="B", size=8.5)
+    pdf.set_xy(10, 22)
+    txt_empresa = f"Empresa Usuária: {nome_empresa_usuaria}"
+    pdf.cell(190, 5, txt_empresa.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
+    
+    pdf.set_draw_color(30, 58, 138)
+    pdf.set_line_width(0.6)
+    pdf.line(10, 28, 200, 28)
+    pdf.set_xy(10, 31)
+
+# =========================================================================
+# BANCO DE DADOS E CONEXÃO
 # =========================================================================
 def get_connection():
-    return sqlite3.connect("desossa_db.db")
+    return sqlite3.connect("desossa_db.db", timeout=10)
 
-# Demais funções do sistema permanecem integradas e otimizadas para o cálculo correto.
-st.success("🎉 Código verificado e alinhado com os parâmetros da aba 'COSTELA ASSADA' com sucesso!")
+def init_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS empresas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            login TEXT UNIQUE NOT NULL,
+            senha TEXT NOT NULL,
+            ativo INTEGER DEFAULT 1
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tipos_desossa (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            empresa_id INTEGER DEFAULT NULL,
+            UNIQUE(nome, empresa_id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cortes_padrao (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo_desossa TEXT NOT NULL,
+            nome_corte TEXT NOT NULL,
+            empresa_id INTEGER DEFAULT NULL,
+            UNIQUE(tipo_desossa, nome_corte, empresa_id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS acoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa_id INTEGER,
+            data_acao TEXT,
+            tipo_animal TEXT,
+            peso_bruto REAL,
+            preco_animal_kg REAL,
+            ossos_muxiba REAL,
+            quebra_nao_identificada REAL,
+            exsudato_escorrimento REAL,
+            p_cartao REAL DEFAULT 0.0,
+            p_impostos REAL DEFAULT 0.0,
+            p_embalagens REAL DEFAULT 0.0,
+            p_comissao REAL DEFAULT 0.0
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS fichas_tecnicas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa_id INTEGER,
+            produto TEXT NOT NULL,
+            rendimento_kg REAL DEFAULT 0.0,
+            rendimento_assada_kg REAL DEFAULT 0.0,
+            peso_unidade_kg REAL DEFAULT 0.0,
+            qtd_por_pacote REAL DEFAULT 4.0,
+            unidades_produzidas REAL DEFAULT 1.0,
+            perda_pct REAL DEFAULT 0.0,
+            data_criacao TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insumos_ficha (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ficha_id INTEGER,
+            codigo TEXT,
+            produto_insumo TEXT NOT NULL,
+            qtd_bruta REAL DEFAULT 0.0,
+            unidade TEXT,
+            preco_bruto REAL DEFAULT 0.0,
+            rendimento REAL DEFAULT 100.0,
+            FOREIGN KEY(ficha_id) REFERENCES fichas_tecnicas(id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insumos_nao_alimenticios_ficha (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ficha_id INTEGER,
+            codigo TEXT,
+            produto_insumo TEXT NOT NULL,
+            qtd_bruta REAL DEFAULT 0.0,
+            unidade TEXT,
+            preco_bruto REAL DEFAULT 0.0,
+            rendimento REAL DEFAULT 100.0,
+            FOREIGN KEY(ficha_id) REFERENCES fichas_tecnicas(id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cortes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            acao_id INTEGER,
+            nome_corte TEXT,
+            qualidade TEXT,
+            peso REAL,
+            preco_venda REAL,
+            FOREIGN KEY(acao_id) REFERENCES acoes(id) ON DELETE CASCADE
+        )
+    """)
+    
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# =========================================================================
+# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO COM SOMA E CÁLCULO INDEPENDENTE
+# =========================================================================
+def render_modulo_ficha_tecnica():
+    st.markdown("""
+        <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 25px; border-radius: 12px; color: white; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+            <h2 style="margin: 0; color: white !important;">📋 Módulo de Ficha Técnica & Precificação</h2>
+            <p style="margin: 8px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos e apure custos de produção com somatórios e parâmetros independentes.</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    emp_id_ativo = st.session_state.get('empresa_id', 1)
+    aba_ficha = st.selectbox("Selecione a Ação", ["Consultar / Editar Fichas Existentes", "Cadastrar Nova Ficha Técnica"], key="sel_aba_ficha")
+
+    if aba_ficha == "Cadastrar Nova Ficha Técnica":
+        st.markdown("### ➕ Criar Nova Ficha Técnica")
+        with st.form("form_nova_ficha_tecnica"):
+            col1, col2 = st.columns(2)
+            with col1:
+                nome_produto = st.text_input("Nome do Produto / Prato", value="")
+                rendimento_kg_novo = st.number_input("Rendimento Total (KG)", min_value=0.0, value=0.0, step=0.1, format="%.3f")
+                rendimento_assada_kg_novo = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=0.0, step=0.01, format="%.3f")
+            with col2:
+                peso_unidade_kg = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=0.0, step=0.001, format="%.3f")
+                qtd_por_pacote = st.number_input("Quantidade por Pacote", min_value=1.0, value=1.0, step=1.0)
+                unidades_produzidas_input = st.number_input("Quantidade de Unidades Produzidas", min_value=0.0, value=1.0, step=1.0)
+            
+            perda_calculada_nova = (rendimento_kg_novo - rendimento_assada_kg_novo) / rendimento_kg_novo if rendimento_kg_novo > 0 else 0.0
+            if perda_calculada_nova < 0:
+                perda_calculada_nova = 0.0
+
+            st.markdown(f"**Perda % Calculada (Indicador):** `{perda_calculada_nova*100:.2f}%`")
+            
+            if st.form_submit_button("💾 Salvar Ficha Técnica"):
+                if not nome_produto.strip():
+                    st.error("Informe o nome do produto!")
+                else:
+                    try:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, unidades_produzidas, perda_pct, data_criacao)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (emp_id_ativo, nome_produto.strip().upper(), rendimento_kg_novo, rendimento_assada_kg_novo, peso_unidade_kg, qtd_por_pacote, unidades_produzidas_input, perda_calculada_nova, str(datetime.date.today())))
+                        conn.commit()
+                        conn.close()
+                        st.success("🎉 Ficha técnica criada com sucesso!")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar: {e}")
+    else:
+        conn = get_connection()
+        df_fichas = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE empresa_id = ? OR empresa_id IS NULL ORDER BY id DESC", conn, params=(emp_id_ativo,))
+        conn.close()
+
+        if df_fichas.empty:
+            st.warning("⚠️ Nenhuma ficha técnica cadastrada.")
+        else:
+            opcoes_fichas = {f"ID: {row['id']} - {row['produto']}": row['id'] for _, row in df_fichas.iterrows()}
+            ficha_selecionada_label = st.selectbox("Selecione a Ficha Técnica", list(opcoes_fichas.keys()))
+            ficha_id_ativo = opcoes_fichas[ficha_selecionada_label]
+            ficha_row = df_fichas[df_fichas['id'] == ficha_id_ativo].iloc[0]
+
+            conn = get_connection()
+            df_insumos = pd.read_sql_query("SELECT * FROM insumos_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
+            df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
+            conn.close()
+
+            # Cálculos exatos
+            if not df_insumos.empty:
+                df_insumos['rendimento_pct_val'] = df_insumos['rendimento'].fillna(100.0)
+                df_insumos['qtd_liquida'] = df_insumos['qtd_bruta'] * (df_insumos['rendimento_pct_val'] / 100.0)
+                df_insumos['preco_liquido'] = df_insumos['qtd_liquida'] * df_insumos['preco_bruto']
+                custo_alimenticios = df_insumos['preco_liquido'].sum()
+            else:
+                custo_alimenticios = 0.0
+
+            if not df_nao_ali.empty:
+                df_nao_ali['rendimento_pct_val'] = df_nao_ali['rendimento'].fillna(100.0)
+                df_nao_ali['qtd_liquida'] = df_nao_ali['qtd_bruta'] * (df_nao_ali['rendimento_pct_val'] / 100.0)
+                df_nao_ali['preco_liquido'] = df_nao_ali['qtd_liquida'] * df_nao_ali['preco_bruto']
+                custo_nao_alimenticios = df_nao_ali['preco_liquido'].sum()
+            else:
+                custo_nao_alimenticios = 0.0
+
+            custo_total = custo_alimenticios + custo_nao_alimenticios
+
+            custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
+            custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
+            
+            unidades_prod_cadastrada = ficha_row['unidades_produzidas'] if ficha_row['unidades_produzidas'] > 0 else 1.0
+            custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
+            
+            # Custo do Pacote dependente do custo da unidade e da quantidade por pacote de forma independente
+            qtd_pacote_atual = ficha_row['qtd_por_pacote'] if ficha_row['qtd_por_pacote'] is not None else 1.0
+            custo_pacote = custo_unidade_produzida * qtd_pacote_atual
+
+            st.markdown("---")
+            st.markdown("### 📊 Indicadores e Custos Consolidados")
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("Custo Total", f"R$ {custo_total:.2f}")
+            m2.metric("Custo / Unid. Produzida", f"R$ {custo_unidade_produzida:.2f}")
+            m3.metric("Custo / Kg Crua", f"R$ {custo_kg_crua:.2f}")
+            m4.metric("Custo / Kg (Assada)", f"R$ {custo_kg_assada:.2f}")
+            m5.metric("Custo / Pacote", f"R$ {custo_pacote:.2f}")
+
+            st.markdown("---")
+            st.markdown("### 🥩 Insumos Alimentícios")
+            if not df_insumos.empty:
+                df_ins_view = df_insumos[['codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento_pct_val', 'qtd_liquida', 'preco_liquido']].copy()
+                df_ins_view.columns = ['Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)', 'Rendimento %', 'Qtd Líquida', 'Preço Líquido (R$)']
+                
+                linha_soma_ins = pd.DataFrame([{
+                    'Código': 'TOTAL', 'Insumo': '',
+                    'Qtd Bruta': df_ins_view['Qtd Bruta'].sum(), 'Unidade': '',
+                    'Preço Bruto (R$)': df_ins_view['Preço Bruto (R$)'].sum(), 'Rendimento %': '',
+                    'Qtd Líquida': df_ins_view['Qtd Líquida'].sum(),
+                    'Preço Líquido (R$)': df_ins_view['Preço Líquido (R$)'].sum()
+                }])
+                df_ins_view_tot = pd.concat([df_ins_view, linha_soma_ins], ignore_index=True)
+                st.dataframe(df_ins_view_tot, use_container_width=True)
+            else:
+                st.info("Nenhum insumo alimentício cadastrado.")
+
+            st.markdown("---")
+            st.markdown("### 📦 Insumos Não Alimentícios")
+            if not df_nao_ali.empty:
+                df_nao_view = df_nao_ali[['codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento_pct_val', 'qtd_liquida', 'preco_liquido']].copy()
+                df_nao_view.columns = ['Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)', 'Rendimento %', 'Qtd Líquida', 'Preço Líquido (R$)']
+                
+                linha_soma_nao = pd.DataFrame([{
+                    'Código': 'TOTAL', 'Insumo': '',
+                    'Qtd Bruta': df_nao_view['Qtd Bruta'].sum(), 'Unidade': '',
+                    'Preço Bruto (R$)': df_nao_view['Preço Bruto (R$)'].sum(), 'Rendimento %': '',
+                    'Qtd Líquida': df_nao_view['Qtd Líquida'].sum(),
+                    'Preço Líquido (R$)': df_nao_view['Preço Líquido (R$)'].sum()
+                }])
+                df_nao_view_tot = pd.concat([df_nao_view, linha_soma_nao], ignore_index=True)
+                st.dataframe(df_nao_view_tot, use_container_width=True)
+            else:
+                st.info("Nenhum insumo não alimentício cadastrado.")
+
+# Execução do módulo de Ficha Técnica
+render_modulo_ficha_tecnica()
