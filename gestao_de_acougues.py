@@ -108,13 +108,130 @@ def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
     pdf.set_xy(10, 31)
 
 # =========================================================================
-# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO (AJUSTADO CONFORME SOLICITADO)
+# BANCO DE DADOS E CONEXÃO
+# =========================================================================
+def get_connection():
+    return sqlite3.connect("desossa_db.db", timeout=10)
+
+def init_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS empresas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            login TEXT UNIQUE NOT NULL,
+            senha TEXT NOT NULL,
+            ativo INTEGER DEFAULT 1
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tipos_desossa (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            empresa_id INTEGER DEFAULT NULL,
+            UNIQUE(nome, empresa_id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cortes_padrao (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo_desossa TEXT NOT NULL,
+            nome_corte TEXT NOT NULL,
+            empresa_id INTEGER DEFAULT NULL,
+            UNIQUE(tipo_desossa, nome_corte, empresa_id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS acoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa_id INTEGER,
+            data_acao TEXT,
+            tipo_animal TEXT,
+            peso_bruto REAL,
+            preco_animal_kg REAL,
+            ossos_muxiba REAL,
+            quebra_nao_identificada REAL,
+            exsudato_escorrimento REAL,
+            p_cartao REAL DEFAULT 0.0,
+            p_impostos REAL DEFAULT 0.0,
+            p_embalagens REAL DEFAULT 0.0,
+            p_comissao REAL DEFAULT 0.0
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS fichas_tecnicas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa_id INTEGER,
+            produto TEXT NOT NULL,
+            rendimento_kg REAL DEFAULT 0.0,
+            rendimento_assada_kg REAL DEFAULT 0.0,
+            peso_unidade_kg REAL DEFAULT 0.0,
+            qtd_por_pacote REAL DEFAULT 4.0,
+            unidades_produzidas REAL DEFAULT 1.0,
+            perda_pct REAL DEFAULT 0.0,
+            data_criacao TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insumos_ficha (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ficha_id INTEGER,
+            codigo TEXT,
+            produto_insumo TEXT NOT NULL,
+            qtd_bruta REAL DEFAULT 0.0,
+            unidade TEXT,
+            preco_bruto REAL DEFAULT 0.0,
+            rendimento REAL DEFAULT 100.0,
+            FOREIGN KEY(ficha_id) REFERENCES fichas_tecnicas(id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insumos_nao_alimenticios_ficha (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ficha_id INTEGER,
+            codigo TEXT,
+            produto_insumo TEXT NOT NULL,
+            qtd_bruta REAL DEFAULT 0.0,
+            unidade TEXT,
+            preco_bruto REAL DEFAULT 0.0,
+            rendimento REAL DEFAULT 100.0,
+            FOREIGN KEY(ficha_id) REFERENCES fichas_tecnicas(id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cortes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            acao_id INTEGER,
+            nome_corte TEXT,
+            qualidade TEXT,
+            peso REAL,
+            preco_venda REAL,
+            FOREIGN KEY(acao_id) REFERENCES acoes(id) ON DELETE CASCADE
+        )
+    """)
+    
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# =========================================================================
+# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO COM SOMA E CÁLCULO INDEPENDENTE
 # =========================================================================
 def render_modulo_ficha_tecnica():
     st.markdown("""
         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 25px; border-radius: 12px; color: white; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
             <h2 style="margin: 0; color: white !important;">📋 Módulo de Ficha Técnica & Precificação</h2>
-            <p style="margin: 8px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos em tabelas e apure custos de produção e preços de venda em tempo real.</p>
+            <p style="margin: 8px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos e apure custos de produção com somatórios e parâmetros independentes.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -127,23 +244,20 @@ def render_modulo_ficha_tecnica():
             col1, col2 = st.columns(2)
             with col1:
                 nome_produto = st.text_input("Nome do Produto / Prato", value="")
-                rendimento_kg_novo = st.number_input("Rendimento Total (KG)", min_value=0.0, value=0.0, step=0.1, format="%.3f", key="novo_rend_total")
-                rendimento_assada_kg_novo = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=0.0, step=0.01, format="%.3f", key="novo_rend_assado")
+                rendimento_kg_novo = st.number_input("Rendimento Total (KG)", min_value=0.0, value=0.0, step=0.1, format="%.3f")
+                rendimento_assada_kg_novo = st.number_input("Rendimento Depois de Assada (KG)", min_value=0.0, value=0.0, step=0.01, format="%.3f")
             with col2:
                 peso_unidade_kg = st.number_input("Peso da Unidade (KG)", min_value=0.0, value=0.0, step=0.001, format="%.3f")
                 qtd_por_pacote = st.number_input("Quantidade por Pacote", min_value=1.0, value=1.0, step=1.0)
-                unidades_produzidas_input = st.number_input("Quantidade de Unidades Produzidas", min_value=0.0, value=1.0, step=1.0, key="novo_qtd_unidades")
+                unidades_produzidas_input = st.number_input("Quantidade de Unidades Produzidas", min_value=0.0, value=1.0, step=1.0)
             
             perda_calculada_nova = (rendimento_kg_novo - rendimento_assada_kg_novo) / rendimento_kg_novo if rendimento_kg_novo > 0 else 0.0
             if perda_calculada_nova < 0:
                 perda_calculada_nova = 0.0
 
-            st.markdown(f"**Perda % Calculada (Indicador):** `{perda_calculada_nova*100:.2f}%` ({perda_calculada_nova:.4f})")
+            st.markdown(f"**Perda % Calculada (Indicador):** `{perda_calculada_nova*100:.2f}%`")
             
-            st.markdown("<br>", unsafe_allow_html=True)
-            btn_salvar_ficha = st.form_submit_button("💾 Salvar Ficha Técnica e Continuar")
-            
-            if btn_salvar_ficha:
+            if st.form_submit_button("💾 Salvar Ficha Técnica"):
                 if not nome_produto.strip():
                     st.error("Informe o nome do produto!")
                 else:
@@ -158,8 +272,7 @@ def render_modulo_ficha_tecnica():
                         conn.close()
                         st.success("🎉 Ficha técnica criada com sucesso!")
                     except Exception as e:
-                        st.error(f"Erro ao salvar ficha técnica: {e}")
-
+                        st.error(f"Erro ao salvar: {e}")
     else:
         conn = get_connection()
         df_fichas = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE empresa_id = ? OR empresa_id IS NULL ORDER BY id DESC", conn, params=(emp_id_ativo,))
@@ -168,12 +281,8 @@ def render_modulo_ficha_tecnica():
         if df_fichas.empty:
             st.warning("⚠️ Nenhuma ficha técnica cadastrada.")
         else:
-            opcoes_fichas = {f"ID: {row['id']} - {row['produto']} (Criada em: {row['data_criacao']})": row['id'] for _, row in df_fichas.iterrows()}
-            
-            col_sel_f, col_btn_fpdf = st.columns([3, 1])
-            with col_sel_f:
-                ficha_selecionada_label = st.selectbox("Selecione a Ficha Técnica", list(opcoes_fichas.keys()), key="sel_ficha_cadastrada")
-            
+            opcoes_fichas = {f"ID: {row['id']} - {row['produto']}": row['id'] for _, row in df_fichas.iterrows()}
+            ficha_selecionada_label = st.selectbox("Selecione a Ficha Técnica", list(opcoes_fichas.keys()))
             ficha_id_ativo = opcoes_fichas[ficha_selecionada_label]
             ficha_row = df_fichas[df_fichas['id'] == ficha_id_ativo].iloc[0]
 
@@ -182,7 +291,7 @@ def render_modulo_ficha_tecnica():
             df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             conn.close()
 
-            # Cálculos de custos independentes e consistentes
+            # Cálculos exatos
             if not df_insumos.empty:
                 df_insumos['rendimento_pct_val'] = df_insumos['rendimento'].fillna(100.0)
                 df_insumos['qtd_liquida'] = df_insumos['qtd_bruta'] * (df_insumos['rendimento_pct_val'] / 100.0)
@@ -204,11 +313,11 @@ def render_modulo_ficha_tecnica():
             custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
             custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
             
-            unidades_prod_cadastrada = ficha_row['unidades_produzidas'] if 'unidades_produzidas' in ficha_row and ficha_row['unidades_produzidas'] > 0 else 1.0
+            unidades_prod_cadastrada = ficha_row['unidades_produzidas'] if ficha_row['unidades_produzidas'] > 0 else 1.0
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
-            # Cálculo independente e rigoroso para Custo do Pacote: Custo da Unidade x Quantidade por Pacote
-            qtd_pacote_atual = ficha_row['qtd_por_pacote'] if 'qtd_por_pacote' in ficha_row and ficha_row['qtd_por_pacote'] is not None else 1.0
+            # Custo do Pacote dependente do custo da unidade e da quantidade por pacote de forma independente
+            qtd_pacote_atual = ficha_row['qtd_por_pacote'] if ficha_row['qtd_por_pacote'] is not None else 1.0
             custo_pacote = custo_unidade_produzida * qtd_pacote_atual
 
             st.markdown("---")
@@ -226,29 +335,15 @@ def render_modulo_ficha_tecnica():
                 df_ins_view = df_insumos[['codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento_pct_val', 'qtd_liquida', 'preco_liquido']].copy()
                 df_ins_view.columns = ['Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)', 'Rendimento %', 'Qtd Líquida', 'Preço Líquido (R$)']
                 
-                # Adicionando linha de somatório para colunas numéricas
                 linha_soma_ins = pd.DataFrame([{
-                    'Código': 'TOTAL',
-                    'Insumo': '',
-                    'Qtd Bruta': df_ins_view['Qtd Bruta'].sum(),
-                    'Unidade': '',
-                    'Preço Bruto (R$)': df_ins_view['Preço Bruto (R$)'].sum(),
-                    'Rendimento %': '',
+                    'Código': 'TOTAL', 'Insumo': '',
+                    'Qtd Bruta': df_ins_view['Qtd Bruta'].sum(), 'Unidade': '',
+                    'Preço Bruto (R$)': df_ins_view['Preço Bruto (R$)'].sum(), 'Rendimento %': '',
                     'Qtd Líquida': df_ins_view['Qtd Líquida'].sum(),
                     'Preço Líquido (R$)': df_ins_view['Preço Líquido (R$)'].sum()
                 }])
                 df_ins_view_tot = pd.concat([df_ins_view, linha_soma_ins], ignore_index=True)
-                
-                st.dataframe(
-                    df_ins_view_tot.style.format({
-                        'Qtd Bruta': '{:.3f}',
-                        'Preço Bruto (R$)': lambda x: f"R$ {x:.2f}" if isinstance(x, (int, float)) else x,
-                        'Rendimento %': lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x,
-                        'Qtd Líquida': '{:.3f}',
-                        'Preço Líquido (R$)': lambda x: f"R$ {x:.2f}" if isinstance(x, (int, float)) else x
-                    }),
-                    use_container_width=True
-                )
+                st.dataframe(df_ins_view_tot, use_container_width=True)
             else:
                 st.info("Nenhum insumo alimentício cadastrado.")
 
@@ -258,50 +353,17 @@ def render_modulo_ficha_tecnica():
                 df_nao_view = df_nao_ali[['codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento_pct_val', 'qtd_liquida', 'preco_liquido']].copy()
                 df_nao_view.columns = ['Código', 'Insumo', 'Qtd Bruta', 'Unidade', 'Preço Bruto (R$)', 'Rendimento %', 'Qtd Líquida', 'Preço Líquido (R$)']
                 
-                # Adicionando linha de somatório para colunas numéricas
                 linha_soma_nao = pd.DataFrame([{
-                    'Código': 'TOTAL',
-                    'Insumo': '',
-                    'Qtd Bruta': df_nao_view['Qtd Bruta'].sum(),
-                    'Unidade': '',
-                    'Preço Bruto (R$)': df_nao_view['Preço Bruto (R$)'].sum(),
-                    'Rendimento %': '',
+                    'Código': 'TOTAL', 'Insumo': '',
+                    'Qtd Bruta': df_nao_view['Qtd Bruta'].sum(), 'Unidade': '',
+                    'Preço Bruto (R$)': df_nao_view['Preço Bruto (R$)'].sum(), 'Rendimento %': '',
                     'Qtd Líquida': df_nao_view['Qtd Líquida'].sum(),
                     'Preço Líquido (R$)': df_nao_view['Preço Líquido (R$)'].sum()
                 }])
                 df_nao_view_tot = pd.concat([df_nao_view, linha_soma_nao], ignore_index=True)
-                
-                st.dataframe(
-                    df_nao_view_tot.style.format({
-                        'Qtd Bruta': '{:.3f}',
-                        'Preço Bruto (R$)': lambda x: f"R$ {x:.2f}" if isinstance(x, (int, float)) else x,
-                        'Rendimento %': lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x,
-                        'Qtd Líquida': '{:.3f}',
-                        'Preço Líquido (R$)': lambda x: f"R$ {x:.2f}" if isinstance(x, (int, float)) else x
-                    }),
-                    use_container_width=True
-                )
+                st.dataframe(df_nao_view_tot, use_container_width=True)
             else:
                 st.info("Nenhum insumo não alimentício cadastrado.")
 
-def init_db():
-    conn = sqlite3.connect("desossa_db.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS fichas_tecnicas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            empresa_id INTEGER,
-            produto TEXT NOT NULL,
-            rendimento_kg REAL DEFAULT 0.0,
-            rendimento_assada_kg REAL DEFAULT 0.0,
-            peso_unidade_kg REAL DEFAULT 0.0,
-            qtd_por_pacote REAL DEFAULT 4.0,
-            unidades_produzidas REAL DEFAULT 1.0,
-            perda_pct REAL DEFAULT 0.0,
-            data_criacao TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
+# Execução do módulo de Ficha Técnica
+render_modulo_ficha_tecnica()
