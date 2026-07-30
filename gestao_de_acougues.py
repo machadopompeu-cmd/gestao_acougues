@@ -648,7 +648,7 @@ def render_modulo_ficha_tecnica():
             """)
 
 # =========================================================================
-# MÓDULO DE NECESSIDADE DE CAPITAL DE GIRO (NCG) - NOVO MÓDULO
+# MÓDULO DE CAPITAL DE GIRO (NCG) - CORRIGIDO E INTEGRADO
 # =========================================================================
 def render_modulo_ncg():
     st.markdown("""
@@ -798,8 +798,8 @@ def render_modulo_ncg():
         pdf.set_text_color(15, 23, 42)
         for idx, row in df_calc_tabela.reset_index().iterrows():
             pdf.cell(80, 5, str(row["Indicador"]).encode("latin1", "replace").decode("latin1"), border=1)
-            pdf.cell(50, 5, str(row["Cenario Atual"]), border=1, align="R")
-            pdf.cell(50, 5, str(row["Cenario Proposto"]), border=1, align="R")
+            pdf.cell(50, 5, str(row["Cenário Atual"]), border=1, align="R")
+            pdf.cell(50, 5, str(row["Cenário Proposto"]), border=1, align="R")
             pdf.cell(97, 5, str(row["Fórmula / Observação"]).encode("latin1", "replace").decode("latin1"), border=1)
             pdf.ln()
         pdf.ln(4)
@@ -820,8 +820,8 @@ def render_modulo_ncg():
         pdf.set_text_color(15, 23, 42)
         for idx, row in df_liq_tabela.reset_index().iterrows():
             pdf.cell(80, 5, str(row["Indicador"]).encode("latin1", "replace").decode("latin1"), border=1)
-            pdf.cell(50, 5, str(row["Cenario Atual"]), border=1, align="R")
-            pdf.cell(50, 5, str(row["Cenario Proposto"]), border=1, align="R")
+            pdf.cell(50, 5, str(row["Cenário Atual"]), border=1, align="R")
+            pdf.cell(50, 5, str(row["Cenário Proposto"]), border=1, align="R")
             pdf.cell(97, 5, str(row["Fórmula / Observação"]).encode("latin1", "replace").decode("latin1"), border=1)
             pdf.ln()
         pdf.ln(4)
