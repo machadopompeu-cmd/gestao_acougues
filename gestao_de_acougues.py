@@ -134,21 +134,21 @@ def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
         pdf.image(logo_pdf, x=10, y=8, w=18)
 
     pdf.set_fill_color(30, 58, 138)
-    pdf.rect(30, 8, 170, 12, "F")
+    pdf.rect(30, 8, 257, 12, "F")
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", style="B", size=10)
     pdf.set_xy(30, 10)
-    pdf.cell(170, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {titulo_relatorio.upper()}", ln=1, align="C")
+    pdf.cell(257, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {titulo_relatorio.upper()}", ln=1, align="C")
     
     pdf.set_text_color(15, 23, 42)
     pdf.set_font("Arial", style="B", size=8.5)
     pdf.set_xy(10, 22)
     txt_empresa = f"Empresa Usuária: {nome_empresa_usuaria}"
-    pdf.cell(190, 5, txt_empresa.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
+    pdf.cell(277, 5, txt_empresa.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
     
     pdf.set_draw_color(30, 58, 138)
     pdf.set_line_width(0.6)
-    pdf.line(10, 28, 200, 28)
+    pdf.line(10, 28, 287, 28)
     pdf.set_xy(10, 31)
 
 # =========================================================================
@@ -533,7 +533,6 @@ def render_modulo_ficha_tecnica():
             df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             conn.close()
 
-            # Cálculo de Custos com base nas fórmulas exatas: Qtd Bruta * (Rendimento % / 100) * Preço Bruto
             if not df_insumos.empty:
                 df_insumos['rendimento_pct_val'] = df_insumos['rendimento'].fillna(100.0)
                 df_insumos['qtd_liquida'] = df_insumos['qtd_bruta'] * (df_insumos['rendimento_pct_val'] / 100.0)
@@ -559,13 +558,9 @@ def render_modulo_ficha_tecnica():
             
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
-            # Custo do pacote ajustado rigorosamente para: Custo / Unid. Produzida * Quantidade por Pacote[cite: 1]
             qtd_pacote_atual = ficha_row['qtd_por_pacote'] if 'qtd_por_pacote' in ficha_row and ficha_row['qtd_por_pacote'] is not None else 1.0
             custo_pacote = custo_unidade_produzida * qtd_pacote_atual
 
-            # =========================================================================
-            # MÓDULO DE CÁLCULO DE PRECIFICAÇÃO (REVISADO FIEL AO EXCEL)
-            # =========================================================================
             st.markdown("---")
             st.markdown("### 🏷️ Cálculo de Precificação (Simulador de Venda)")
             st.markdown("Configure os parâmetros abaixo. O modelo utiliza exatamente a estrutura da aba `PRECIFICAÇÃO` do Excel (Soma dos percentuais aplicados sobre a venda, cálculo do preço de tabela por divisor, cálculo do Markup e aplicação de desconto redutor).")
@@ -598,7 +593,6 @@ def render_modulo_ficha_tecnica():
                     key=f"modo_prec_{ficha_id_ativo}"
                 )
 
-            # Selecionando o custo base de acordo com a escolha
             if indicador_cer_escolhido == "Custo por Unidade Produzida":
                 cer_base = custo_unidade_produzida
             elif indicador_cer_escolhido == "Custo por KG (Assada)":
@@ -610,7 +604,6 @@ def render_modulo_ficha_tecnica():
             else:
                 cer_base = custo_total
 
-            # Cálculo de acordo com o modo escolhido
             if modo_precificacao == "Informar Margem de Lucro (%)":
                 margem_lucro = st.number_input("Margem de Lucro:", min_value=0.0, max_value=100.0, value=31.07, step=0.1, key=f"margem_{ficha_id_ativo}")
                 
@@ -632,7 +625,6 @@ def render_modulo_ficha_tecnica():
                 else:
                     margem_lucro = 0.0
 
-            # Aplicando o desconto como redutor nos resultados finais
             fator_desconto = (1.0 - (desconto_venda / 100.0))
             preco_venda_efetivo = preco_venda_tabela * fator_desconto
 
@@ -728,7 +720,6 @@ def render_modulo_ficha_tecnica():
                         pdf.cell(190, 6, f"PREÇO EFETIVO: R$ {p_info['preco_efetivo']:.2f} | MARKUP: {p_info['markup']:.2f}% | Lucro: R$ {p_info['lucro']:.2f}", border=1, ln=1, align="C", fill=True)
                         pdf.ln(4)
 
-                    # Insumos Alimenticios PDF
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(190, 6, "4. INSUMOS ALIMENTICIOS", ln=1, fill=True)
@@ -762,7 +753,6 @@ def render_modulo_ficha_tecnica():
                             pdf.ln()
                     pdf.ln(4)
 
-                    # Insumos Nao Alimenticios PDF
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(190, 6, "5. INSUMOS NAO ALIMENTICIOS", ln=1, fill=True)
@@ -808,7 +798,6 @@ def render_modulo_ficha_tecnica():
 
             st.markdown("### 📊 Indicadores e Custos Consolidados")
             
-            # Melhoria visual dos Indicadores em Grid estilizado
             m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("Custo Total", f"R$ {custo_total:.2f}")
             m2.metric("Custo / Unid. Produzida", f"R$ {custo_unidade_produzida:.2f}")
@@ -1209,7 +1198,6 @@ def init_db():
         ]
         cursor.executemany("INSERT OR IGNORE INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", cortes_iniciais)
 
-    # Inserção automática da Ficha Técnica "ESPETINHO ASSADO" com os dados do Excel e rendimentos corretos (100%)
     cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas WHERE produto = 'ESPETINHO ASSADO'")
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
@@ -2199,6 +2187,11 @@ else:
                 total_pct_cortes = df_final["PERCENTUAL/CORTES"].sum()
                 total_custo_efetivo_total = df_final["CUSTO EFETIVO TOTAL"].sum()
                 
+                total_v_cartao = df_final["TAXAS DE CARTÃO"].sum()
+                total_v_impostos = df_final["IMPOSTOS"].sum()
+                total_v_embalagens = df_final["EMBALAGENS"].sum()
+                total_v_comissao = df_final["COMISSÃO"].sum()
+
                 linha_total = pd.DataFrame([{
                     "Corte/Código": "TOTAL SOMA",
                     "Qualidade": "",
@@ -2209,10 +2202,10 @@ else:
                     "VALOR TOTAL DE VENDAS": total_faturamento,
                     "LUCRO BRUTO": total_lucro_bruto,
                     "PERCENTUAL/CORTES": total_pct_cortes,
-                    "TAXAS DE CARTÃO": None,
-                    "IMPOSTOS": None,
-                    "EMBALAGENS": None,
-                    "COMISSÃO": None,
+                    "TAXAS DE CARTÃO": total_v_cartao,
+                    "IMPOSTOS": total_v_impostos,
+                    "EMBALAGENS": total_v_embalagens,
+                    "COMISSÃO": total_v_comissao,
                     "CUSTO EFETIVO/KG": None,
                     "CUSTO EFETIVO TOTAL": total_custo_efetivo_total
                 }])
@@ -2296,46 +2289,56 @@ else:
                         pdf.ln()
                     pdf.ln(3)
 
-                    if pdf.get_y() > 150:
+                    if pdf.get_y() > 140:
                         pdf.add_page()
                         montar_cabecalho_desossa()
 
                     pdf.set_font("Arial", style="B", size=9)
                     pdf.set_fill_color(226, 232, 240)
-                    pdf.cell(277, 6, "DETALHAMENTO ANALITICO DE CORTES E CUSTOS", ln=1, fill=True)
+                    pdf.cell(277, 6, "DETALHAMENTO ANALITICO COMPLETO DE CORTES E CUSTOS (TODAS AS COLUNAS)", ln=1, fill=True)
 
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
-                    pdf.set_font("Arial", style="B", size=8)
+                    pdf.set_font("Arial", style="B", size=6)
                     
-                    headers_d = ["Corte", "Qualid.", "Peso (KG)", "P.Custo/KG", "Total Custo", "P.Venda/KG", "Total Vendas", "Lucro Bruto", "Custo Efet. Total"]
-                    widths_d = [45, 18, 25, 25, 30, 25, 33, 38, 38]
+                    headers_d = [
+                        "Corte", "Qual.", "Peso", "P.Custo/KG", "Pr.Custo", 
+                        "Pr.Venda", "Tot.Vendas", "L.Bruto", "% Cort.", 
+                        "Cartao", "Impost.", "Embal.", "Comiss.", "C.Ef.KG", "C.Ef.Tot"
+                    ]
+                    widths_d = [35, 12, 16, 17, 18, 17, 21, 18, 14, 15, 15, 15, 15, 17, 19] # Total = 277 mm
                     
                     for th, wh in zip(headers_d, widths_d):
                         pdf.cell(wh, 6, th.encode("latin1", "replace").decode("latin1"), border=1, align="C", fill=True)
                     pdf.ln()
 
-                    pdf.set_font("Arial", size=7.5)
+                    pdf.set_font("Arial", size=6)
                     pdf.set_text_color(15, 23, 42)
                     for _, r_det in df_com_total.iterrows():
                         if pdf.get_y() > 185:
                             pdf.add_page()
                             montar_cabecalho_desossa()
-                            pdf.set_font("Arial", style="B", size=8)
+                            pdf.set_font("Arial", style="B", size=6)
                             for th, wh in zip(headers_d, widths_d):
                                 pdf.cell(wh, 6, th.encode("latin1", "replace").decode("latin1"), border=1, align="C", fill=True)
                             pdf.ln()
-                            pdf.set_font("Arial", size=7.5)
+                            pdf.set_font("Arial", size=6)
 
-                        pdf.cell(45, 5, str(r_det["Corte/Código"])[:25].encode("latin1", "replace").decode("latin1"), border=1, align="L")
-                        pdf.cell(18, 5, str(r_det["Qualidade"]), border=1, align="C")
-                        pdf.cell(25, 5, f"{r_det['Peso /KG']:.3f}" if pd.notnull(r_det['Peso /KG']) else "-", border=1, align="R")
-                        pdf.cell(25, 5, f"R$ {r_det['PREÇO CUSTO/KG']:.2f}" if pd.notnull(r_det['PREÇO CUSTO/KG']) else "-", border=1, align="R")
-                        pdf.cell(30, 5, f"R$ {r_det['PREÇO/CUSTO']:.2f}" if pd.notnull(r_det['PREÇO/CUSTO']) else "-", border=1, align="R")
-                        pdf.cell(25, 5, f"R$ {r_det['PREÇO VENDA/KG']:.2f}" if pd.notnull(r_det['PREÇO VENDA/KG']) else "-", border=1, align="R")
-                        pdf.cell(33, 5, f"R$ {r_det['VALOR TOTAL DE VENDAS']:.2f}" if pd.notnull(r_det['VALOR TOTAL DE VENDAS']) else "-", border=1, align="R")
-                        pdf.cell(38, 5, f"R$ {r_det['LUCRO BRUTO']:.2f}" if pd.notnull(r_det['LUCRO BRUTO']) else "-", border=1, align="R")
-                        pdf.cell(38, 5, f"R$ {r_det['CUSTO EFETIVO TOTAL']:.2f}" if pd.notnull(r_det['CUSTO EFETIVO TOTAL']) else "-", border=1, align="R")
+                        pdf.cell(35, 5, str(r_det["Corte/Código"])[:22].encode("latin1", "replace").decode("latin1"), border=1, align="L")
+                        pdf.cell(12, 5, str(r_det["Qualidade"]), border=1, align="C")
+                        pdf.cell(16, 5, f"{r_det['Peso /KG']:.3f}" if pd.notnull(r_det['Peso /KG']) else "-", border=1, align="R")
+                        pdf.cell(17, 5, f"R${r_det['PREÇO CUSTO/KG']:.2f}" if pd.notnull(r_det['PREÇO CUSTO/KG']) else "-", border=1, align="R")
+                        pdf.cell(18, 5, f"R${r_det['PREÇO/CUSTO']:.2f}" if pd.notnull(r_det['PREÇO/CUSTO']) else "-", border=1, align="R")
+                        pdf.cell(17, 5, f"R${r_det['PREÇO VENDA/KG']:.2f}" if pd.notnull(r_det['PREÇO VENDA/KG']) else "-", border=1, align="R")
+                        pdf.cell(21, 5, f"R${r_det['VALOR TOTAL DE VENDAS']:.2f}" if pd.notnull(r_det['VALOR TOTAL DE VENDAS']) else "-", border=1, align="R")
+                        pdf.cell(18, 5, f"R${r_det['LUCRO BRUTO']:.2f}" if pd.notnull(r_det['LUCRO BRUTO']) else "-", border=1, align="R")
+                        pdf.cell(14, 5, f"{r_det['PERCENTUAL/CORTES']*100:.1f}%" if pd.notnull(r_det['PERCENTUAL/CORTES']) else "-", border=1, align="C")
+                        pdf.cell(15, 5, f"R${r_det['TAXAS DE CARTÃO']:.2f}" if pd.notnull(r_det['TAXAS DE CARTÃO']) else "-", border=1, align="R")
+                        pdf.cell(15, 5, f"R${r_det['IMPOSTOS']:.2f}" if pd.notnull(r_det['IMPOSTOS']) else "-", border=1, align="R")
+                        pdf.cell(15, 5, f"R${r_det['EMBALAGENS']:.2f}" if pd.notnull(r_det['EMBALAGENS']) else "-", border=1, align="R")
+                        pdf.cell(15, 5, f"R${r_det['COMISSÃO']:.2f}" if pd.notnull(r_det['COMISSÃO']) else "-", border=1, align="R")
+                        pdf.cell(17, 5, f"R${r_det['CUSTO EFETIVO/KG']:.2f}" if pd.notnull(r_det['CUSTO EFETIVO/KG']) else "-", border=1, align="R")
+                        pdf.cell(19, 5, f"R${r_det['CUSTO EFETIVO TOTAL']:.2f}" if pd.notnull(r_det['CUSTO EFETIVO TOTAL']) else "-", border=1, align="R")
                         pdf.ln()
 
                     return pdf.output(dest="S").encode("latin1")
