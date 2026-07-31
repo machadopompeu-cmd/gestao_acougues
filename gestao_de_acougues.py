@@ -9,7 +9,7 @@ from scipy.optimize import brentq
 from fpdf import FPDF
 
 # =========================================================================
-# 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES (CORREÇÃO DE BUG DE UI)
+# 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES (CORREÇÃO DE UI/UX)
 # =========================================================================
 st.set_page_config(page_title="Gestão de Açougues - Renato Frigotudo & Associados", layout="wide")
 
@@ -30,8 +30,8 @@ st.markdown(
         padding: 6px 12px !important;
     }
     div[data-testid="stTextInput"] input:focus, div[data-testid="stNumberInput"] input:focus {
-        border-color: #A3A3A3 !important;
-        box-shadow: 0 0 0 2px rgba(163, 163, 163, 0.3) !important;
+        border-color: #1E3A8A !important;
+        box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.2) !important;
     }
     label {
         color: #334155 !important;
@@ -40,10 +40,10 @@ st.markdown(
     }
     div.stButton > button,
     div.stDownloadButton > button {
-        background-color: #A3A3A3 !important;
-        color: #0F172A !important;
+        background-color: #1E3A8A !important;
+        color: #FFFFFF !important;
         border-radius: 8px !important;
-        border: 1px solid #737373 !important;
+        border: 1px solid #1E3A8A !important;
         padding: 8px 18px !important;
         font-weight: 700 !important;
         font-size: 15px !important;
@@ -51,22 +51,22 @@ st.markdown(
     }
     div.stButton > button:hover,
     div.stDownloadButton > button:hover {
-        background-color: #8C8C8C !important;
-        color: #0F172A !important;
-        border-color: #525252 !important;
+        background-color: #1D4ED8 !important;
+        color: #FFFFFF !important;
+        border-color: #1D4ED8 !important;
     }
     form button,
     div.stFormSubmitButton > button {
-        background-color: #A3A3A3 !important;
-        color: #0F172A !important;
+        background-color: #1E3A8A !important;
+        color: #FFFFFF !important;
         border-radius: 8px !important;
-        border: 1px solid #737373 !important;
+        border: 1px solid #1E3A8A !important;
         font-weight: 700 !important;
     }
     form button:hover,
     div.stFormSubmitButton > button:hover {
-        background-color: #8C8C8C !important;
-        color: #0F172A !important;
+        background-color: #1D4ED8 !important;
+        color: #FFFFFF !important;
     }
     h1, h2, h3, h4 {
         color: #0F172A !important; 
@@ -87,32 +87,37 @@ st.markdown(
     section[data-testid="stSidebar"] div.stButton > button,
     section[data-testid="stSidebar"] div.stDownloadButton > button,
     section[data-testid="stSidebar"] a {
-        background-color: #A3A3A3 !important;
-        color: #0F172A !important;
-        border: 1px solid #737373 !important;
+        background-color: #1E3A8A !important;
+        color: #FFFFFF !important;
+        border: 1px solid #3B82F6 !important;
         width: 100% !important;
         font-weight: 700 !important;
     }
     section[data-testid="stSidebar"] div.stButton > button:hover,
     section[data-testid="stSidebar"] div.stDownloadButton > button:hover {
-        background-color: #8C8C8C !important;
-        color: #0F172A !important;
+        background-color: #1D4ED8 !important;
+        color: #FFFFFF !important;
     }
-    /* Correção do bug visual do File Uploader (caixa branca com texto invisível) */
+    /* Correção definitiva de contraste no File Uploader (Barra lateral) */
     div[data-testid="stFileUploader"] {
-        background-color: #FFFFFF !important;
-        padding: 15px !important;
+        background-color: #1E293B !important;
+        padding: 12px !important;
         border-radius: 10px !important;
-        border: 1px solid #94A3B8 !important;
+        border: 1px solid #3B82F6 !important;
     }
     div[data-testid="stFileUploader"] section {
-        background-color: #F1F5F9 !important;
-        border: 2px dashed #94A3B8 !important;
+        background-color: #0F172A !important;
+        border: 2px dashed #3B82F6 !important;
         border-radius: 8px !important;
     }
-    div[data-testid="stFileUploader"] small, div[data-testid="stFileUploader"] span, div[data-testid="stFileUploader"] div {
-        color: #0F172A !important;
+    div[data-testid="stFileUploader"] small, div[data-testid="stFileUploader"] span, div[data-testid="stFileUploader"] div, div[data-testid="stFileUploader"] p {
+        color: #FFFFFF !important;
         font-weight: 600 !important;
+    }
+    div[data-testid="stFileUploader"] button {
+        background-color: #3B82F6 !important;
+        color: #FFFFFF !important;
+        border: none !important;
     }
     </style>
     """,
@@ -392,7 +397,7 @@ def render_modulo_financeiro():
         """)
 
         st.markdown("---")
-        st.markdown("### 📥 Exportar Relatório Financeiro")
+        st.markdown("### 📥 Exportar Relatório Financeiro em PDF (Completo com Todos os Quadros)")
         
         col_exp1, col_exp2 = st.columns(2)
 
@@ -428,6 +433,16 @@ def render_modulo_financeiro():
                     pdf.ln()
 
                 pdf.add_page()
+                
+                # Quadro Resumo Financeiro
+                pdf.set_font("Arial", style="B", size=10)
+                pdf.set_fill_color(226, 232, 240)
+                pdf.cell(277, 7, f"RESUMO DO MODULO FINANCEIRO - {nome_sistema.upper()}", ln=1, fill=True, align="C")
+                pdf.set_font("Arial", size=9)
+                pdf.cell(277, 6, f"Capital (PV): R$ {valor_presente:,.2f} | Prazo Total: {n_perodos} periodos | Taxa: {i_equivalente*100:.4f}% por periodo", ln=1, align="C")
+                pdf.cell(277, 6, f"Total Amortizado: R$ {total_amortizacao:,.2f} | Total de Juros: R$ {total_juros:,.2f} | Montante Pago: R$ {total_prestacao:,.2f}", ln=1, align="C")
+                pdf.ln(5)
+
                 criar_cabecalho_tabela()
 
                 pdf.set_font("Arial", size=8)
@@ -451,7 +466,7 @@ def render_modulo_financeiro():
 
             pdf_bytes_fin = gerar_pdf_financeiro()
             st.download_button(
-                label="📄 Baixar Relatório em PDF (.pdf)",
+                label="📄 Baixar Relatório Completo em PDF (.pdf)",
                 data=pdf_bytes_fin,
                 file_name=f"relatorio_financeiro_{datetime.date.today().strftime('%Y%m%d')}.pdf",
                 mime="application/pdf",
@@ -459,13 +474,13 @@ def render_modulo_financeiro():
             )
 
 # =========================================================================
-# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO (AJUSTADO CONFORME XLSX)
+# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO (EDITÁVEL & PDF COMPLETO)
 # =========================================================================
 def render_modulo_ficha_tecnica():
     st.markdown("""
         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 25px; border-radius: 12px; color: white; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
             <h2 style="margin: 0; color: white !important;">📋 Módulo de Ficha Técnica & Precificação</h2>
-            <p style="margin: 8px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas de produtos, controle insumos alimentícios e não alimentícios (com rendimento, quantidade líquida e preço líquido), e apure custos e preços.</p>
+            <p style="margin: 8px 0 0 0; font-size: 15px; opacity: 0.9;">Gerencie fichas técnicas, edite parâmetros de rendimento e perdas em tempo real, controle insumos alimentícios/não alimentícios e exporte relatórios em PDF completos com todos os quadros.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -527,15 +542,49 @@ def render_modulo_ficha_tecnica():
             ficha_id_ativo = opcoes_fichas[ficha_selecionada_label]
             ficha_row = df_fichas[df_fichas['id'] == ficha_id_ativo].iloc[0]
 
+            # -------------------------------------------------------------
+            # SEÇÃO DE EDIÇÃO DOS PARÂMETROS DA FICHA TÉCNICA (TOTALMENTE PASSÍVEL DE ALTERAÇÃO)
+            # -------------------------------------------------------------
+            with st.expander("📝 EDITAR PARÂMETROS E RENDIMENTOS DA FICHA TÉCNICA", expanded=False):
+                with st.form(f"form_editar_ficha_parametros_{ficha_id_ativo}"):
+                    ed_nome_prod = st.text_input("Nome do Produto / Prato", value=ficha_row['produto'])
+                    col_ep1, col_ep2 = st.columns(2)
+                    with col_ep1:
+                        ed_rend_kg = st.number_input("Rendimento Total (KG)", value=float(ficha_row['rendimento_kg']), step=0.1, format="%.3f")
+                        ed_rend_ass = st.number_input("Rendimento Depois de Assada (KG)", value=float(ficha_row['rendimento_assada_kg']), step=0.01, format="%.3f")
+                    with col_ep2:
+                        ed_peso_un = st.number_input("Peso da Unidade (KG)", value=float(ficha_row['peso_unidade_kg']), step=0.001, format="%.3f")
+                        ed_qtd_pac = st.number_input("Quantidade por Pacote", value=float(ficha_row['qtd_por_pacote']), step=1.0)
+                        ed_un_prod = st.number_input("Quantidade de Unidades Produzidas", value=float(ficha_row['unidades_produzidas'] if 'unidades_produzidas' in ficha_row and ficha_row['unidades_produzidas'] else 1.0), step=1.0)
+                    
+                    if st.form_submit_button("💾 Salvar Alterações dos Parâmetros"):
+                        nova_perda_calc = (ed_rend_kg - ed_rend_ass) / ed_rend_kg if ed_rend_kg > 0 else 0.0
+                        if nova_perda_calc < 0: nova_perda_calc = 0.0
+                        try:
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                UPDATE fichas_tecnicas SET produto = ?, rendimento_kg = ?, rendimento_assada_kg = ?, peso_unidade_kg = ?, qtd_por_pacote = ?, unidades_produzidas = ?, perda_pct = ?
+                                WHERE id = ?
+                            """, (ed_nome_prod.strip().upper(), ed_rend_kg, ed_rend_ass, ed_peso_un, ed_qtd_pac, ed_un_prod, nova_perda_calc, ficha_id_ativo))
+                            conn.commit()
+                            conn.close()
+                            st.success("✅ Parâmetros da ficha técnica atualizados com sucesso!")
+                            st.rerun()
+                        except Exception as e_up_ft:
+                            st.error(f"Erro ao atualizar: {e_up_ft}")
+
+            # Recarrega dados atualizados
             conn = get_connection()
+            ficha_row = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE id = ?", conn, params=(ficha_id_ativo,)).iloc[0]
             df_insumos = pd.read_sql_query("SELECT * FROM insumos_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             conn.close()
 
-            st.markdown(f"### ✏️ Editando Ficha: `{ficha_row['produto']}`")
+            st.markdown(f"### 📋 Ficha Técnica Ativa: `{ficha_row['produto']}`")
 
             # -------------------------------------------------------------
-            # SEÇÃO 1: GERENCIAR INSUMOS ALIMENTÍCIOS (Conforme Excel)
+            # SEÇÃO 1: GERENCIAR INSUMOS ALIMENTÍCIOS
             # -------------------------------------------------------------
             st.markdown("#### 🥕 Insumos Alimentícios")
             if not df_insumos.empty:
@@ -544,7 +593,6 @@ def render_modulo_ficha_tecnica():
                 df_insumos['preco_liquido'] = df_insumos['qtd_liquida'] * df_insumos['preco_bruto']
                 custo_alimenticios = df_insumos['preco_liquido'].sum()
                 
-                # Exibição com colunas rigorosamente iguais ao Excel
                 df_exib_ali = df_insumos[['id', 'codigo', 'produto_insumo', 'qtd_bruta', 'unidade', 'preco_bruto', 'rendimento', 'qtd_liquida', 'preco_liquido']].copy()
                 df_exib_ali.columns = ['ID', 'Cód', 'Produto', 'Quantidade Bruta', 'Unidade', 'Preço Bruto', 'Rendimento', 'Quantidade Líquida', 'Preço Líquido']
                 st.dataframe(
@@ -603,7 +651,7 @@ def render_modulo_ficha_tecnica():
             st.markdown("---")
 
             # -------------------------------------------------------------
-            # SEÇÃO 2: GERENCIAR INSUMOS NÃO ALIMENTÍCIOS (Conforme Excel)
+            # SEÇÃO 2: GERENCIAR INSUMOS NÃO ALIMENTÍCIOS
             # -------------------------------------------------------------
             st.markdown("#### 📦 Insumos Não Alimentícios (Embalagens, Gás, etc.)")
             if not df_nao_ali.empty:
@@ -740,71 +788,97 @@ def render_modulo_ficha_tecnica():
             """)
 
             st.markdown("---")
-            st.markdown("### 📥 Exportar Relatório da Ficha Técnica em PDF (Completo e Visível)")
+            st.markdown("### 📥 Exportar Relatório Completo da Ficha Técnica em PDF (Todos os Quadros Inclusos)")
 
-            def gerar_pdf_ficha_tecnica():
+            def gerar_pdf_ficha_tecnica_completo():
                 pdf = FPDF(orientation='P', unit='mm', format='A4')
                 pdf.add_page()
                 criar_cabecalho_pdf_padrao(pdf, f"Ficha Tecnica - {ficha_row['produto']}", st.session_state.get('empresa_nome', 'Empresa'))
                 
+                # Quadro 1: Dados Gerais e Rendimentos
                 pdf.set_font("Arial", style="B", size=9)
-                pdf.cell(190, 6, f"Produto: {ficha_row['produto']} | Data: {ficha_row['data_criacao']}", ln=1)
-                pdf.cell(190, 6, f"Rendimento Total: {ficha_row['rendimento_kg']} kg | Rendimento Assada: {ficha_row['rendimento_assada_kg']} kg", ln=1)
-                pdf.cell(190, 6, f"Custo Total da Receita: R$ {custo_total:,.2f} | Custo por KG Assada: R$ {custo_kg_assada:,.2f} | Custo da Unidade: R$ {custo_unidade_produzida:,.2f}", ln=1)
-                pdf.ln(4)
+                pdf.set_fill_color(226, 232, 240)
+                pdf.cell(190, 6, "1. DADOS GERAIS E RENDIMENTO DO PRODUTO", ln=1, fill=True)
+                pdf.set_font("Arial", size=8.5)
+                pdf.cell(190, 5, f"Produto: {ficha_row['produto']} | Data de Criacao: {ficha_row['data_criacao']}", ln=1)
+                pdf.cell(190, 5, f"Rendimento Total (Crua): {ficha_row['rendimento_kg']} kg | Rendimento Assada: {ficha_row['rendimento_assada_kg']} kg", ln=1)
+                pdf.cell(190, 5, f"Peso por Unidade: {ficha_row['peso_unidade_kg']} kg | Unidades Produzidas: {ficha_row['unidades_produzidas']} | Perda %: {ficha_row['perda_pct']*100:.2f}%", ln=1)
+                pdf.cell(190, 5, f"Custo Total da Receita: R$ {custo_total:,.2f} | Custo por KG Crua: R$ {custo_kg_crua:,.2f} | Custo KG Assada: R$ {custo_kg_assada:,.2f}", ln=1)
+                pdf.cell(190, 5, f"Custo por Unidade: R$ {custo_unidade_produzida:,.2f} | Custo por Pacote: R$ {custo_pacote:,.2f}", ln=1)
+                pdf.ln(3)
 
-                # Insumos Alimentícios no PDF
+                # Quadro 2: Insumos Alimentícios
                 if not df_insumos.empty:
+                    pdf.set_font("Arial", style="B", size=9)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(190, 6, "2. INSUMOS ALIMENTICIOS", ln=1, fill=True)
+                    
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     pdf.set_font("Arial", style="B", size=8)
-                    pdf.cell(190, 5, "INSUMOS ALIMENTICIOS", 1, 1, "C", True)
-                    
-                    pdf.cell(80, 5, "Produto Insumo", 1, 0, "C", True)
-                    pdf.cell(25, 5, "Qtd Bruta", 1, 0, "C", True)
+                    pdf.cell(75, 5, "Produto Insumo", 1, 0, "C", True)
+                    pdf.cell(22, 5, "Qtd Bruta", 1, 0, "C", True)
                     pdf.cell(20, 5, "Unidade", 1, 0, "C", True)
                     pdf.cell(25, 5, "Preco Bruto", 1, 0, "C", True)
                     pdf.cell(20, 5, "Rend %", 1, 0, "C", True)
-                    pdf.cell(20, 5, "Total R$", 1, 1, "C", True)
+                    pdf.cell(28, 5, "Preco Liquido", 1, 1, "C", True)
                     
                     pdf.set_font("Arial", size=8)
                     pdf.set_text_color(15, 23, 42)
                     for _, ri in df_insumos.iterrows():
-                        pdf.cell(80, 5, str(ri['produto_insumo']).encode('latin1', 'replace').decode('latin1'), 1)
-                        pdf.cell(25, 5, f"{ri['qtd_bruta']:.3f}", 1, align="R")
+                        pdf.cell(75, 5, str(ri['produto_insumo']).encode('latin1', 'replace').decode('latin1'), 1)
+                        pdf.cell(22, 5, f"{ri['qtd_bruta']:.3f}", 1, align="R")
                         pdf.cell(20, 5, str(ri['unidade']), 1, align="C")
                         pdf.cell(25, 5, f"R$ {ri['preco_bruto']:.2f}", 1, align="R")
                         pdf.cell(20, 5, f"{ri['rendimento']:.1f}%", 1, align="C")
                         tot_ali_linha = ri['qtd_bruta'] * (ri['rendimento']/100.0) * ri['preco_bruto']
-                        pdf.cell(20, 5, f"R$ {tot_ali_linha:.2f}", 1, align="R")
+                        pdf.cell(28, 5, f"R$ {tot_ali_linha:.2f}", 1, align="R")
                         pdf.ln()
+                    pdf.cell(142, 5, "Total Insumos Alimenticios", 1, 0, "R", True)
+                    pdf.cell(48, 5, f"R$ {custo_alimenticios:,.2f}", 1, 1, "R", True)
                     pdf.ln(3)
 
-                # Insumos Não Alimentícios no PDF
+                # Quadro 3: Insumos Não Alimentícios
                 if not df_nao_ali.empty:
+                    pdf.set_font("Arial", style="B", size=9)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(190, 6, "3. INSUMOS NAO ALIMENTICIOS (EMBALAGENS / GAS)", ln=1, fill=True)
+                    
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     pdf.set_font("Arial", style="B", size=8)
-                    pdf.cell(190, 5, "INSUMOS NAO ALIMENTICIOS (EMBALAGENS / GAS)", 1, 1, "C", True)
-                    
-                    pdf.cell(105, 5, "Produto / Embalagem", 1, 0, "C", True)
+                    pdf.cell(95, 5, "Produto / Embalagem", 1, 0, "C", True)
                     pdf.cell(30, 5, "Quantidade", 1, 0, "C", True)
                     pdf.cell(25, 5, "Unidade", 1, 0, "C", True)
-                    pdf.cell(30, 5, "Preco Total R$", 1, 1, "C", True)
+                    pdf.cell(40, 5, "Preco Total R$", 1, 1, "C", True)
                     
                     pdf.set_font("Arial", size=8)
                     pdf.set_text_color(15, 23, 42)
                     for _, rna in df_nao_ali.iterrows():
-                        pdf.cell(105, 5, str(rna['produto_insumo']).encode('latin1', 'replace').decode('latin1'), 1)
+                        pdf.cell(95, 5, str(rna['produto_insumo']).encode('latin1', 'replace').decode('latin1'), 1)
                         pdf.cell(30, 5, f"{rna['qtd_bruta']:.3f}", 1, align="R")
                         pdf.cell(25, 5, str(rna['unidade']), 1, align="C")
                         tot_nao_linha = rna['qtd_bruta'] * rna['preco_bruto']
-                        pdf.cell(30, 5, f"R$ {tot_nao_linha:.2f}", 1, align="R")
+                        pdf.cell(40, 5, f"R$ {tot_nao_linha:.2f}", 1, align="R")
                         pdf.ln()
+                    pdf.cell(150, 5, "Total Nao Alimenticios", 1, 0, "R", True)
+                    pdf.cell(40, 5, f"R$ {custo_nao_alimenticios:,.2f}", 1, 1, "R", True)
+                    pdf.ln(3)
+
+                # Quadro 4: Simulador de Precificação
+                pdf.set_font("Arial", style="B", size=9)
+                pdf.set_fill_color(226, 232, 240)
+                pdf.cell(190, 6, "4. DEMONSTRATIVO DE PRECIFICAÇÃO E LUCRO", ln=1, fill=True)
+                pdf.set_font("Arial", size=8.5)
+                pdf.cell(190, 5, f"Custo de Aquisicao Base (CER - {indicador_cer_escolhido}): R$ {cer_base:,.2f}", ln=1)
+                pdf.cell(190, 5, f"Impostos: {aliquota_imposto}% | Tx Cartao: {taxa_cartao}% | Comissao: {comissao_venda}%", ln=1)
+                pdf.cell(190, 5, f"Outros Custos: {outros_custos_var}% | Desp. Fixas: {part_desp_fixas}% | Margem Lucro: {margem_lucro:.2f}%", ln=1)
+                pdf.cell(190, 5, f"Preço de Venda Efetivo: R$ {preco_venda_efetivo:,.2f} | Markup: {markup_calculado:.2f}%", ln=1)
+                pdf.cell(190, 5, f"Lucro Liquido Previsto por Unidade: R$ {valor_lucro_efetivo:,.2f}", ln=1)
 
                 return pdf.output(dest="S").encode("latin1")
 
-            pdf_bytes_ficha = gerar_pdf_ficha_tecnica()
+            pdf_bytes_ficha = gerar_pdf_ficha_tecnica_completo()
             st.download_button(
                 label="📄 Baixar Relatório da Ficha Técnica em PDF (.pdf)",
                 data=pdf_bytes_ficha,
