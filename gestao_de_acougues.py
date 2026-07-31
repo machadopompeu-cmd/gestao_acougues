@@ -84,16 +84,30 @@ st.markdown(
         color: #FFFFFF !important;
         font-weight: 600 !important;
     }
-    /* Correção do File Uploader na Barra Lateral */
-    section[data-testid="stSidebar"] div[data-testid="stFileUploader"] section {
+    
+    /* CORREÇÃO ROBUSTA DO FILE UPLOADER NA BARRA LATERAL */
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] {
         background-color: #1E293B !important;
         border: 1px dashed #94A3B8 !important;
+        border-radius: 8px !important;
+        padding: 10px !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stFileUploader"] span,
-    section[data-testid="stSidebar"] div[data-testid="stFileUploader"] small,
-    section[data-testid="stSidebar"] div[data-testid="stFileUploader"] p {
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] section {
+        background-color: #1E293B !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] label,
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] span,
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] small,
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] p {
         color: #FFFFFF !important;
     }
+    section[data-testid="stSidebar"] [data-testid="stFileUploader"] button {
+        background-color: #A3A3A3 !important;
+        color: #0F172A !important;
+        border: 1px solid #737373 !important;
+        font-weight: 700 !important;
+    }
+    
     section[data-testid="stSidebar"] div.stButton > button,
     section[data-testid="stSidebar"] div.stDownloadButton > button,
     section[data-testid="stSidebar"] a {
@@ -484,7 +498,7 @@ def render_modulo_financeiro():
             )
 
 # =========================================================================
-# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO (RESTAURADO E COMPLETO)
+# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO
 # =========================================================================
 def render_modulo_ficha_tecnica():
     st.markdown("""
@@ -560,152 +574,38 @@ def render_modulo_ficha_tecnica():
             df_nao_ali = pd.read_sql_query("SELECT * FROM insumos_nao_alimenticios_ficha WHERE ficha_id = ?", conn, params=(ficha_id_ativo,))
             conn.close()
 
-            st.markdown(f"### ✏️ Editando: `{ficha_row['produto']}`")
-            
-            with st.form(f"form_editar_cabecalho_ficha_{ficha_id_ativo}"):
-                col_e1, col_e2, col_e3 = st.columns(3)
-                with col_e1:
-                    ed_prod_nome = st.text_input("Nome do Produto", value=ficha_row['produto'])
-                    ed_rend_kg = st.number_input("Rendimento Total (KG)", value=float(ficha_row['rendimento_kg']), step=0.1, format="%.3f")
-                with col_e2:
-                    ed_rend_assado = st.number_input("Rendimento Assada (KG)", value=float(ficha_row['rendimento_assada_kg']), step=0.01, format="%.3f")
-                    ed_peso_un = st.number_input("Peso da Unidade (KG)", value=float(ficha_row['peso_unidade_kg']), step=0.001, format="%.3f")
-                with col_e3:
-                    ed_qtd_pac = st.number_input("Qtd por Pacote", value=float(ficha_row['qtd_por_pacote']), step=1.0)
-                    ed_un_prod = st.number_input("Unidades Produzidas", value=float(ficha_row['unidades_produzidas'] if 'unidades_produzidas' in ficha_row and ficha_row['unidades_produzidas'] > 0 else 1.0), step=1.0)
-
-                if st.form_submit_button("💾 Atualizar Dados da Ficha"):
-                    p_calc = (ed_rend_kg - ed_rend_assado) / ed_rend_kg if ed_rend_kg > 0 else 0.0
-                    if p_calc < 0: p_calc = 0.0
-                    try:
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            UPDATE fichas_tecnicas SET produto=?, rendimento_kg=?, rendimento_assada_kg=?, peso_unidade_kg=?, qtd_por_pacote=?, unidades_produzidas=?, perda_pct=? WHERE id=?
-                        """, (ed_prod_nome.strip().upper(), ed_rend_kg, ed_rend_assado, ed_peso_un, ed_qtd_pac, ed_un_prod, p_calc, ficha_id_ativo))
-                        conn.commit()
-                        conn.close()
-                        st.success("Ficha atualizada com sucesso!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao atualizar: {e}")
-
-            st.markdown("---")
-            st.markdown("### 🛒 Insumos Alimentícios")
             if not df_insumos.empty:
-                for _, r_ins in df_insumos.iterrows():
-                    col_i1, col_i2, col_i3, col_i4, col_i5 = st.columns([3, 2, 2, 1, 1])
-                    col_i1.write(f"🔹 **{r_ins['produto_insumo']}** ({r_ins['qtd_bruta']} {r_ins['unidade']})")
-                    col_i2.write(f"Preço: R$ {r_ins['preco_bruto']:.2f}")
-                    col_i3.write(f"Rendimento: {r_ins['rendimento']}%")
-                    if col_i5.button("🗑️ Excluir", key=f"del_ins_{r_ins['id']}"):
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM insumos_ficha WHERE id = ?", (r_ins['id'],))
-                        conn.commit()
-                        conn.close()
-                        st.rerun()
                 df_insumos['rendimento_pct_val'] = df_insumos['rendimento'].fillna(100.0)
                 df_insumos['qtd_liquida'] = df_insumos['qtd_bruta'] * (df_insumos['rendimento_pct_val'] / 100.0)
                 df_insumos['preco_liquido'] = df_insumos['qtd_liquida'] * df_insumos['preco_bruto']
                 custo_alimenticios = df_insumos['preco_liquido'].sum()
             else:
-                st.info("Nenhum insumo alimentício cadastrado.")
                 custo_alimenticios = 0.0
 
-            with st.form(f"form_add_insumo_{ficha_id_ativo}"):
-                st.markdown("**Adicionar Insumo Alimentício**")
-                c_in1, c_in2, c_in3, c_in4, c_in5 = st.columns(5)
-                novo_nome_ins = c_in1.text_input("Nome do Insumo")
-                novo_qtd_ins = c_in2.number_input("Qtd Bruta", min_value=0.0, value=1.0, step=0.1)
-                novo_un_ins = c_in3.text_input("Unidade (KG/UN)", value="KG")
-                novo_preco_ins = c_in4.number_input("Preço Bruto (R$)", min_value=0.0, value=10.0, step=0.1)
-                novo_rend_ins = c_in5.number_input("Rendimento (%)", min_value=0.0, max_value=100.0, value=100.0, step=1.0)
-
-                if st.form_submit_button("➕ Adicionar Insumo") and novo_nome_ins:
-                    try:
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            INSERT INTO insumos_ficha (ficha_id, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, (ficha_id_ativo, novo_nome_ins.strip().upper(), novo_qtd_ins, novo_un_ins.strip().upper(), novo_preco_ins, novo_rend_ins))
-                        conn.commit()
-                        conn.close()
-                        st.success("Insumo adicionado!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
-
-            st.markdown("---")
-            st.markdown("### 📦 Insumos Não Alimentícios (Embalagens / Acessórios)")
             if not df_nao_ali.empty:
-                for _, r_nao in df_nao_ali.iterrows():
-                    col_n1, col_n2, col_n3, col_n4, col_n5 = st.columns([3, 2, 2, 1, 1])
-                    col_n1.write(f"🔸 **{r_nao['produto_insumo']}** ({r_nao['qtd_bruta']} {r_nao['unidade']})")
-                    col_n2.write(f"Preço: R$ {r_nao['preco_bruto']:.2f}")
-                    col_n3.write(f"Rendimento: {r_nao['rendimento']}%")
-                    if col_n5.button("🗑️ Excluir", key=f"del_nao_{r_nao['id']}"):
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM insumos_nao_alimenticios_ficha WHERE id = ?", (r_nao['id'],))
-                        conn.commit()
-                        conn.close()
-                        st.rerun()
                 df_nao_ali['rendimento_pct_val'] = df_nao_ali['rendimento'].fillna(100.0)
                 df_nao_ali['qtd_liquida'] = df_nao_ali['qtd_bruta'] * (df_nao_ali['rendimento_pct_val'] / 100.0)
                 df_nao_ali['preco_liquido'] = df_nao_ali['qtd_liquida'] * df_nao_ali['preco_bruto']
                 custo_nao_alimenticios = df_nao_ali['preco_liquido'].sum()
             else:
-                st.info("Nenhum insumo não alimentício cadastrado.")
                 custo_nao_alimenticios = 0.0
 
-            with st.form(f"form_add_nao_ali_{ficha_id_ativo}"):
-                st.markdown("**Adicionar Insumo Não Alimentício**")
-                cn_in1, cn_in2, cn_in3, cn_in4, cn_in5 = st.columns(5)
-                novo_nome_nao = cn_in1.text_input("Nome da Embalagem/Item")
-                novo_qtd_nao = cn_in2.number_input("Qtd", min_value=0.0, value=1.0, step=1.0)
-                novo_un_nao = cn_in3.text_input("Unidade", value="UNID")
-                novo_preco_nao = cn_in4.number_input("Preço Unitário (R$)", min_value=0.0, value=0.10, step=0.01)
-                novo_rend_nao = cn_in5.number_input("Rendimento (%)", min_value=0.0, max_value=100.0, value=100.0, step=1.0)
-
-                if st.form_submit_button("➕ Adicionar Item Não Alimentício") and novo_nome_nao:
-                    try:
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            INSERT INTO insumos_nao_alimenticios_ficha (ficha_id, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, (ficha_id_ativo, novo_nome_nao.strip().upper(), novo_qtd_nao, novo_un_nao.strip().upper(), novo_preco_nao, novo_rend_nao))
-                        conn.commit()
-                        conn.close()
-                        st.success("Item adicionado!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
-
             custo_total = custo_alimenticios + custo_nao_alimenticios
+
             custo_kg_crua = custo_total / ficha_row['rendimento_kg'] if ficha_row['rendimento_kg'] > 0 else 0.0
             custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
             
             unidades_prod_cadastrada = ficha_row['unidades_produzidas'] if 'unidades_produzidas' in ficha_row and ficha_row['unidades_produzidas'] > 0 else (ficha_row['rendimento_assada_kg'] / ficha_row['peso_unidade_kg'] if ficha_row['peso_unidade_kg'] > 0 else 0.0)
+            
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
             
             qtd_pacote_atual = ficha_row['qtd_por_pacote'] if 'qtd_por_pacote' in ficha_row and ficha_row['qtd_por_pacote'] is not None else 1.0
             custo_pacote = custo_unidade_produzida * qtd_pacote_atual
 
             st.markdown("---")
-            st.markdown("### 📊 Resumo de Custos da Ficha")
-            st.markdown(f"""
-            * **Custo Total da Receita:** R$ {custo_total:,.2f}
-            * **Custo por KG (Crua):** R$ {custo_kg_crua:,.2f} / KG
-            * **Custo por KG (Assada):** R$ {custo_kg_assada:,.2f} / KG
-            * **Custo por Unidade Produzida:** R$ {custo_unidade_produzida:,.2f}
-            * **Custo por Pacote ({qtd_pacote_atual} un):** R$ {custo_pacote:,.2f}
-            """)
-
-            st.markdown("---")
             st.markdown("### 🏷️ Cálculo de Precificação (Simulador de Venda)")
+            st.markdown("Configure os parâmetros abaixo. O modelo utiliza exatamente a estrutura da aba `PRECIFICAÇÃO` do Excel.")
+
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
                 aliquota_imposto = st.number_input("Imposto (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1, key=f"aliq_imp_{ficha_id_ativo}")
@@ -718,28 +618,46 @@ def render_modulo_ficha_tecnica():
             with col_p3:
                 indicador_cer_escolhido = st.selectbox(
                     "Custo de aquisição (CER):",
-                    ["Custo por Unidade Produzida", "Custo por KG (Assada)", "Custo por KG (Crua)", "Custo por Pacote", "Custo Total"],
+                    [
+                        "Custo por Unidade Produzida", 
+                        "Custo por KG (Assada)", 
+                        "Custo por KG (Crua)", 
+                        "Custo por Pacote", 
+                        "Custo Total"
+                    ],
                     key=f"ind_cer_{ficha_id_ativo}"
                 )
+                
                 modo_precificacao = st.radio(
                     "Modo de Definição do Preço:",
                     ["Informar Margem de Lucro (%)", "Informar Preço de Venda Praticado (R$)"],
                     key=f"modo_prec_{ficha_id_ativo}"
                 )
 
-            if indicador_cer_escolhido == "Custo por Unidade Produzida": cer_base = custo_unidade_produzida
-            elif indicador_cer_escolhido == "Custo por KG (Assada)": cer_base = custo_kg_assada
-            elif indicador_cer_escolhido == "Custo por KG (Crua)": cer_base = custo_kg_crua
-            elif indicador_cer_escolhido == "Custo por Pacote": cer_base = custo_pacote
-            else: cer_base = custo_total
+            if indicador_cer_escolhido == "Custo por Unidade Produzida":
+                cer_base = custo_unidade_produzida
+            elif indicador_cer_escolhido == "Custo por KG (Assada)":
+                cer_base = custo_kg_assada
+            elif indicador_cer_escolhido == "Custo por KG (Crua)":
+                cer_base = custo_kg_crua
+            elif indicador_cer_escolhido == "Custo por Pacote":
+                cer_base = custo_pacote
+            else:
+                cer_base = custo_total
 
             if modo_precificacao == "Informar Margem de Lucro (%)":
                 margem_lucro = st.number_input("Margem de Lucro:", min_value=0.0, max_value=100.0, value=31.07, step=0.1, key=f"margem_{ficha_id_ativo}")
+                
                 soma_percentuais = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + margem_lucro) / 100.0
                 divisor_preco = 1.0 - soma_percentuais
-                preco_venda_tabela = cer_base / divisor_preco if divisor_preco > 0 else 0.0
+
+                if divisor_preco > 0:
+                    preco_venda_tabela = cer_base / divisor_preco
+                else:
+                    preco_venda_tabela = 0.0
             else:
                 preco_venda_tabela = st.number_input("Preço de Venda Praticado (R$)", min_value=0.0, value=cer_base * 1.5, step=0.50, format="%.2f", key=f"preco_praticado_{ficha_id_ativo}")
+                
                 soma_sem_margem = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas) / 100.0
                 if preco_venda_tabela > 0:
                     custos_perc_valor = preco_venda_tabela * soma_sem_margem
@@ -750,12 +668,14 @@ def render_modulo_ficha_tecnica():
 
             fator_desconto = (1.0 - (desconto_venda / 100.0))
             preco_venda_efetivo = preco_venda_tabela * fator_desconto
+
             valor_imposto = preco_venda_efetivo * (aliquota_imposto / 100.0)
             valor_cartao = preco_venda_efetivo * (taxa_cartao / 100.0)
             valor_comissao = preco_venda_efetivo * (comissao_venda / 100.0)
             valor_outros_custos = preco_venda_efetivo * (outros_custos_var / 100.0)
             valor_desp_fixas = preco_venda_efetivo * (part_desp_fixas / 100.0)
             valor_lucro_efetivo = preco_venda_efetivo - cer_base - (valor_imposto + valor_cartao + valor_comissao + valor_outros_custos + valor_desp_fixas)
+            
             markup_calculado = (preco_venda_efetivo / cer_base - 1.0) * 100.0 if cer_base > 0 else 0.0
 
             st.success(f"""
@@ -780,7 +700,11 @@ def render_modulo_ncg():
     """, unsafe_allow_html=True)
 
     emp_id_ativo = st.session_state.empresa_id
-    aba_ncg = st.selectbox("Selecione a Ação no Módulo NCG", ["Novo Cálculo / Simulação", "Consultar Histórico, Filtrar por Data e Editar"], key="sel_aba_ncg_geral")
+    aba_ncg = st.selectbox(
+        "Selecione a Ação no Módulo NCG", 
+        ["Novo Cálculo / Simulação", "Consultar Histórico, Filtrar por Data e Editar"], 
+        key="sel_aba_ncg_geral"
+    )
 
     def gerar_relatorio_pdf_ncg(nome_simulacao, data_sim, faturamento, cmv, df_calc, df_liq, df_diag):
         pdf = FPDF(orientation='L', unit='mm', format='A4')
@@ -796,30 +720,31 @@ def render_modulo_ncg():
             st.subheader("0. Identificação da Simulação")
             nome_simulacao = st.text_input("Nome / Descrição da Simulação", value=f"Simulação NCG - {datetime.date.today().strftime('%d/%m/%Y')}")
             data_simulacao = st.date_input("Data de Referência", datetime.date.today())
+
             st.markdown("---")
             st.subheader("1. Dados Financeiros da Empresa (Entrada)")
             col_d1, col_d2 = st.columns(2)
             with col_d1:
-                fat_mensal = st.number_input("Faturamento Bruto Mensal (R$)", min_value=0.0, value=157399.10, step=100.0, format="%.2f")
-                cmv_mensal = st.number_input("Custo da Mercadoria Vendida - CMV (R$)", min_value=0.0, value=98409.78, step=100.0, format="%.2f")
-                contas_receber = st.number_input("Contas a Receber Acumuladas (R$)", min_value=0.0, value=1193.67, step=10.0, format="%.2f")
+                fat_mensal = st.number_input("Faturamento Bruto Mensal (R$)", min_value=0.0, value=157399.10, step=100.0, format="%.2f", key="ncg_fat")
+                cmv_mensal = st.number_input("Custo da Mercadoria Vendida - CMV (R$)", min_value=0.0, value=98409.78, step=100.0, format="%.2f", key="ncg_cmv")
+                contas_receber = st.number_input("Contas a Receber Acumuladas (R$)", min_value=0.0, value=1193.67, step=10.0, format="%.2f", key="ncg_rec")
             with col_d2:
-                estoque_atual = st.number_input("Estoque Atual (R$)", min_value=0.0, value=18700.00, step=100.0, format="%.2f")
-                contas_pagar = st.number_input("Contas a Pagar / Fornecedores (R$)", min_value=0.0, value=50971.32, step=100.0, format="%.2f")
-                reserva_financeira = st.number_input("Reserva Financeira / Caixa (R$)", min_value=0.0, value=0.0, step=100.0, format="%.2f")
+                estoque_atual = st.number_input("Estoque Atual (R$)", min_value=0.0, value=18700.00, step=100.0, format="%.2f", key="ncg_est")
+                contas_pagar = st.number_input("Contas a Pagar / Fornecedores (R$)", min_value=0.0, value=50971.32, step=100.0, format="%.2f", key="ncg_pag")
+                reserva_financeira = st.number_input("Reserva Financeira / Caixa (R$)", min_value=0.0, value=0.0, step=100.0, format="%.2f", key="ncg_res")
 
             st.markdown("---")
             st.subheader("2. Prazos Médios Operacionais (em dias)")
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
-                pme_atual = st.number_input("PME Atual", min_value=0.0, value=8.5, step=0.5)
-                pme_prop = st.number_input("PME Proposto", min_value=0.0, value=7.0, step=0.5)
+                pme_atual = st.number_input("Prazo Médio de Estoque (PME) - Atual", min_value=0.0, value=8.5, step=0.5, key="ncg_pme_a")
+                pme_prop = st.number_input("Prazo Médio de Estoque (PME) - Proposto", min_value=0.0, value=7.0, step=0.5, key="ncg_pme_p")
             with col_p2:
-                pmr_atual = st.number_input("PMR Atual", min_value=0.0, value=1.0, step=0.5)
-                pmr_prop = st.number_input("PMR Proposto", min_value=0.0, value=7.0, step=0.5)
+                pmr_atual = st.number_input("Prazo Médio de Recebimento (PMR) - Atual", min_value=0.0, value=1.0, step=0.5, key="ncg_pmr_a")
+                pmr_prop = st.number_input("Prazo Médio de Recebimento (PMR) - Proposto", min_value=0.0, value=7.0, step=0.5, key="ncg_pmr_p")
             with col_p3:
-                pmp_atual = st.number_input("PMP Atual", min_value=0.0, value=14.0, step=0.5)
-                pmp_prop = st.number_input("PMP Proposto", min_value=0.0, value=18.0, step=0.5)
+                pmp_atual = st.number_input("Prazo Médio de Pagamento (PMP) - Atual", min_value=0.0, value=14.0, step=0.5, key="ncg_pmp_a")
+                pmp_prop = st.number_input("Prazo Médio de Pagamento (PMP) - Proposto", min_value=0.0, value=18.0, step=0.5, key="ncg_pmp_p")
 
             btn_calc_ncg = st.form_submit_button("🚀 Calcular e Salvar Simulação de NCG")
 
@@ -849,18 +774,18 @@ def render_modulo_ncg():
                 ))
                 conn.commit()
                 conn.close()
-                st.success("🎉 Simulação calculada e salva com sucesso!")
+                st.success("🎉 Simulação calculada e salva com sucesso no banco de dados!")
             except Exception as e:
-                st.error(f"Erro ao salvar: {e}")
+                st.error(f"Erro ao salvar no banco de dados: {e}")
     else:
-        st.markdown("### 📂 Histórico de Simulações NCG")
+        st.markdown("### 📂 Histórico de Simulações e Parâmetros Salvos")
         conn = get_connection()
-        df_hist = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = ? ORDER BY data_simulacao DESC", conn, params=(emp_id_ativo,))
+        df_historico_ncg = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = ? ORDER BY data_simulacao DESC", conn, params=(emp_id_ativo,))
         conn.close()
-        if df_hist.empty:
-            st.warning("Nenhuma simulação salva encontrada.")
+        if df_historico_ncg.empty:
+            st.warning("⚠️ Nenhuma simulação encontrada.")
         else:
-            st.dataframe(df_hist, use_container_width=True)
+            st.dataframe(df_historico_ncg, use_container_width=True)
 
 # =========================================================================
 # 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
@@ -1027,32 +952,6 @@ def init_db():
             ("QUARTO DIANTEIRO", "ACEM", None), ("SUINO", "PERNIL", None)
         ]
         cursor.executemany("INSERT OR IGNORE INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", cortes_iniciais)
-
-    cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas WHERE produto = 'ESPETINHO ASSADO'")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("""
-            INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, unidades_produzidas, perda_pct, data_criacao)
-            VALUES (NULL, 'ESPETINHO ASSADO', 13.013, 11.83, 0.100, 4.0, 118.3, 0.0908, ?)
-        """, (str(datetime.date.today()),))
-        ficha_espetinho_id = cursor.lastrowid
-
-        insumos_alimenticios_espetinho = [
-            (ficha_espetinho_id, None, 'CARNE PARA ESPETO', 11.42, 'KG', 33.9, 100.0),
-            (ficha_espetinho_id, None, 'GORDURA PARA ESPETO', 1.128, 'KG', 9.9, 100.0),
-            (ficha_espetinho_id, None, 'SAL', 0.12, 'KG', 3.99, 100.0)
-        ]
-        cursor.executemany("""
-            INSERT INTO insumos_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, insumos_alimenticios_espetinho)
-
-        insumos_nao_alimenticios_espetinho = [
-            (ficha_espetinho_id, None, 'ESPETO DE BAMBU', 118.0, 'UNID', 0.06, 100.0)
-        ]
-        cursor.executemany("""
-            INSERT INTO insumos_nao_alimenticios_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, insumos_nao_alimenticios_espetinho)
         
     conn.commit()
     conn.close()
