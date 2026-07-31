@@ -440,7 +440,6 @@ def render_modulo_ncg():
 
     emp_id_ativo = st.session_state.empresa_id
 
-    # Abas de navegação interna do módulo NCG
     aba_ncg = st.selectbox(
         "Selecione a Ação no Módulo NCG", 
         ["Novo Cálculo / Simulação", "Consultar Histórico, Filtrar por Data e Editar"], 
@@ -626,7 +625,6 @@ def render_modulo_ncg():
             col_info2.metric("NCG Atual", f"R$ {sim_row['ncg_atual']:,.2f}")
             col_info3.metric("Economia NCG Proposta", f"R$ {sim_row['economia_ncg']:,.2f}")
 
-            # Opções de Exclusão ou Atualização do Nome
             col_A, col_B = st.columns(2)
             with col_A:
                 with st.form(f"form_editar_nome_sim_{sim_id_ativo}"):
@@ -657,7 +655,7 @@ def render_modulo_ncg():
                             st.error("Marque a caixa de confirmação para excluir.")
 
 # =========================================================================
-# 2. ESTRUTURA DO BANCO DE DADOS (COM A TABELA DE HISTÓRICO NCG)
+# 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
 # =========================================================================
 def init_db():
     conn = sqlite3.connect("desossa_db.db")
@@ -800,7 +798,7 @@ def reset_form_states():
     st.session_state.cortes_temp = []
 
 # =========================================================================
-# 4. ELEMENTOS VISUAIS DE CABEÇALHO
+# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO
 # =========================================================================
 def exibir_cabecalho(nome_empresa_usuaria=None):
     col_logo, col_info = st.columns([1, 4])
@@ -858,6 +856,7 @@ if not st.session_state.logado:
         
         if btn_entrar:
             login_formatado = campo_login.strip().lower() 
+            
             if login_formatado == "admin" and campo_senha == "renato123":
                 st.session_state.logado = True
                 st.session_state.empresa_id = 0
