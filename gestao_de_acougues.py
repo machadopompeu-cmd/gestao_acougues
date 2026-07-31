@@ -107,9 +107,6 @@ st.markdown(
 # FUNÇÃO PADRÃO DE CABEÇALHO PARA RELATÓRIOS PDF
 # =========================================================================
 def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
-    """
-    Função auxiliar que desenha o cabeçalho padrão em qualquer PDF gerado pelo sistema.
-    """
     logo_pdf = None
     for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
         if os.path.exists(lp):
@@ -154,6 +151,8 @@ def render_modulo_financeiro():
         st.session_state.i_equivalente = 0.0
     if "nome_sistema" not in st.session_state:
         st.session_state.nome_sistema = "Sistema Price"
+    if "params_fin" not in st.session_state:
+        st.session_state.params_fin = {}
 
     sistema_amortizacao = st.selectbox(
         "Sistema de Amortização",
@@ -329,11 +328,21 @@ def render_modulo_financeiro():
                 df_fin = pd.DataFrame(tabela_amortizacao)
                 nome_sistema = "Sistema SAC"
 
+            # Salvando estado e parâmetros para o PDF
             st.session_state.df_fin = df_fin
             st.session_state.valor_presente = valor_presente
             st.session_state.n_perodos = n_perodos
             st.session_state.i_equivalente = i_equivalente
             st.session_state.nome_sistema = nome_sistema
+            st.session_state.params_fin = {
+                "sistema": sistema_amortizacao,
+                "tipo_calculo": tipo_calculo,
+                "taxa_informada": taxa_informada,
+                "periodo_taxa": periodo_taxa,
+                "prazo_informado": prazo_informado,
+                "periodo_prazo": periodo_prazo,
+                "prestacao_informada": prestacao_informada
+            }
 
         except Exception as e:
             st.error(f"Erro ao realizar o cálculo financeiro: {e}")
@@ -344,6 +353,7 @@ def render_modulo_financeiro():
         n_perodos = st.session_state.n_perodos
         i_equivalente = st.session_state.i_equivalente
         nome_sistema = st.session_state.nome_sistema
+        params = st.session_state.get("params_fin", {})
 
         st.success(f"""
         📊 **Resultados Calculados ({nome_sistema}):**
@@ -400,6 +410,31 @@ def render_modulo_financeiro():
                 
                 def criar_cabecalho_tabela():
                     criar_cabecalho_pdf_padrao(pdf, nome_sistema, st.session_state.get('empresa_nome', 'Empresa'))
+                    
+                    # Bloco de Parâmetros Utilizados no Cálculo
+                    pdf.set_font("Arial", style="B", size=9)
+                    pdf.set_fill_color(226, 232, 240)
+                    pdf.cell(277, 5, "PARAMETROS UTILIZADOS NO CALCULO FINANCEIRO", ln=1, fill=True)
+                    
+                    pdf.set_font("Arial", size=8)
+                    pdf.set_text_color(15, 23, 42)
+                    
+                    p_sys = params.get('sistema', nome_sistema)
+                    p_tipo = params.get('tipo_calculo', 'N/A')
+                    p_tx = params.get('taxa_informada', 0.0)
+                    p_un_tx = params.get('periodo_taxa', 'Meses')
+                    p_pz = params.get('prazo_informado', n_perodos)
+                    p_un_pz = params.get('periodo_prazo', 'Meses')
+                    p_pmt = params.get('prestacao_informada', 0.0)
+                    
+                    txt_param1 = f"Sistema: {p_sys} | Operacao: {p_tipo}"
+                    txt_param2 = f"Taxa Informada: {p_tx:.4f}% a. {p_un_tx.lower()} | Prazo Informado: {p_pz} {p_un_pz.lower()} | Capital (PV): R$ {valor_presente:,.2f}"
+                    
+                    pdf.cell(277, 5, txt_param1.encode("latin1", "replace").decode("latin1"), ln=1)
+                    pdf.cell(277, 5, txt_param2.encode("latin1", "replace").decode("latin1"), ln=1)
+                    pdf.ln(2)
+
+                    # Cabeçalho da Tabela de Amortização
                     pdf.set_font("Arial", style="B", size=8.5)
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
@@ -417,7 +452,7 @@ def render_modulo_financeiro():
                 pdf.set_font("Arial", size=8)
                 pdf.set_text_color(15, 23, 42)
                 for _, r in df_fin.iterrows():
-                    if pdf.get_y() > 185:
+                    if pdf.get_y() > 180:
                         pdf.add_page()
                         criar_cabecalho_tabela()
                         pdf.set_font("Arial", size=8)
@@ -634,13 +669,9 @@ def render_modulo_ficha_tecnica():
             """)
 
 # =========================================================================
-# MÓDULO DE CAPITAL DE GIRO (NCG) - COM CRUD E EXPORTAÇÃO PDF
+# MÓDULO DE CAPITAL DE GIRO (NCG)
 # =========================================================================
 def render_modulo_ncg():
-    """
-    Renderiza o módulo NCG e contém as funções internas de cálculo
-    e geração de PDF (Exportação).
-    """
     st.markdown("""
         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 25px; border-radius: 12px; color: white; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
             <h2 style="margin: 0; color: white !important;">📈 Análise de Necessidade de Capital de Giro (NCG)</h2>
@@ -649,29 +680,22 @@ def render_modulo_ncg():
     """, unsafe_allow_html=True)
 
     emp_id_ativo = st.session_state.empresa_id
-
     aba_ncg = st.selectbox(
         "Selecione a Ação no Módulo NCG", 
         ["Novo Cálculo / Simulação", "Consultar Histórico, Filtrar por Data e Editar"], 
         key="sel_aba_ncg_geral"
     )
 
-    # -----------------------------------------------------------------
-    # Função Interna: Gera o PDF a partir dos DataFrames
-    # -----------------------------------------------------------------
     def gerar_relatorio_pdf_ncg(nome_simulacao, data_sim, faturamento, cmv, df_calc, df_liq, df_diag):
         pdf = FPDF(orientation='L', unit='mm', format='A4')
         pdf.add_page()
         
-        # Cria o cabeçalho padronizado
         criar_cabecalho_pdf_padrao(pdf, "Relatorio de Necessidade de Capital de Giro (NCG)", st.session_state.get('empresa_nome', 'Empresa'))
 
-        # Informações Gerais
         pdf.set_font("Arial", style="B", size=9)
         pdf.cell(277, 5, f"Simulacao: {nome_simulacao} | Data: {data_sim} | Faturamento: R$ {faturamento:,.2f} | CMV: R$ {cmv:,.2f}", ln=1)
         pdf.ln(3)
 
-        # 1. Tabela de Cálculos Automáticos
         pdf.set_font("Arial", style="B", size=9)
         pdf.set_fill_color(226, 232, 240)
         pdf.cell(277, 6, "1. CALCULOS AUTOMATICOS (NCG)", ln=1, fill=True)
@@ -695,7 +719,6 @@ def render_modulo_ncg():
             pdf.ln()
         pdf.ln(4)
 
-        # 2. Tabela de Análise de Liquidez
         pdf.set_font("Arial", style="B", size=9)
         pdf.set_fill_color(226, 232, 240)
         pdf.cell(277, 6, "2. ANALISE DE LIQUIDEZ E RISCO", ln=1, fill=True)
@@ -719,7 +742,6 @@ def render_modulo_ncg():
             pdf.ln()
         pdf.ln(4)
 
-        # 3. Tabela de Diagnóstico
         pdf.set_font("Arial", style="B", size=9)
         pdf.set_fill_color(226, 232, 240)
         pdf.cell(277, 6, "3. DIAGNOSTICO AUTOMATICO", ln=1, fill=True)
@@ -742,9 +764,6 @@ def render_modulo_ncg():
 
         return pdf.output(dest="S").encode("latin1")
 
-    # -----------------------------------------------------------------
-    # ABA 1: NOVO CÁLCULO
-    # -----------------------------------------------------------------
     if aba_ncg == "Novo Cálculo / Simulação":
         st.markdown("Insira os dados financeiros da sua empresa, configure os prazos e salve sua simulação no banco de dados.")
 
@@ -780,9 +799,6 @@ def render_modulo_ncg():
 
             btn_calc_ncg = st.form_submit_button("🚀 Calcular e Salvar Simulação de NCG")
 
-        # -------------------------------------------------------------
-        # Realizar Cálculos (Mesmo fora do click, para exibir na tela)
-        # -------------------------------------------------------------
         margem_bruta = fat_mensal - cmv_mensal
         margem_bruta_pct = (margem_bruta / fat_mensal) if fat_mensal > 0 else 0.0
         cmv_diario = cmv_mensal / 30.0
@@ -826,7 +842,6 @@ def render_modulo_ncg():
             except Exception as e:
                 st.error(f"Erro ao salvar no banco de dados: {e}")
 
-        # Preparando os DataFrames para exibição visual e uso no PDF
         calc_data = {
             "Indicador": [
                 "Margem Bruta (R$)", "Margem Bruta (%)", "CMV Diário (R$)", "Faturamento Diário (R$)",
@@ -888,13 +903,9 @@ def render_modulo_ncg():
         st.markdown("### 💡 5. Diagnóstico Automático")
         st.table(df_diag_tabela)
 
-        # -------------------------------------------------------------
-        # Gerar Botão de PDF
-        # -------------------------------------------------------------
         st.markdown("---")
         st.markdown("### 📥 Exportar Relatório NCG")
         
-        # Chama a função gerar_relatorio_pdf_ncg enviando os dados calculados
         pdf_bytes = gerar_relatorio_pdf_ncg(
             nome_simulacao, str(data_simulacao.strftime('%d/%m/%Y')), fat_mensal, cmv_mensal, 
             df_calc_tabela, df_liq_tabela, df_diag_tabela
@@ -908,13 +919,8 @@ def render_modulo_ncg():
             key="btn_dl_pdf_ncg_novo"
         )
 
-    # -----------------------------------------------------------------
-    # ABA 2: CONSULTAR HISTÓRICO, FILTRAR E EDITAR
-    # -----------------------------------------------------------------
     else:
         st.markdown("### 📂 Histórico de Simulações e Parâmetros Salvos")
-        st.markdown("Filtre as simulações salvas por período, altere os parâmetros, atualize o nome ou baixe o PDF.")
-
         col_f1, col_f2 = st.columns(2)
         hoje = datetime.date.today()
         inicio_ano_padrao = hoje.replace(month=1, day=1)
@@ -947,7 +953,6 @@ def render_modulo_ncg():
             sim_id_ativo = opcoes_sim[sim_selecionada_label]
             sim_row = df_historico_ncg[df_historico_ncg['id'] == sim_id_ativo].iloc[0]
 
-            # Recriando variáveis da simulação salva para gerar PDF do histórico
             fat_h = float(sim_row['fat_mensal'])
             cmv_h = float(sim_row['cmv_mensal'])
             rec_h = float(sim_row['contas_receber'])
@@ -1052,7 +1057,6 @@ def render_modulo_ncg():
                 btn_excluir = col_btn_del.form_submit_button("🗑️ Excluir esta Simulação")
 
                 if btn_atualizar:
-                    # Recalcular valores baseados nas edições
                     m_b = ed_fat - ed_cmv
                     c_diario = ed_cmv / 30.0
                     c_atual = ed_pme_a + ed_pmr_a - ed_pmp_a
@@ -1204,7 +1208,6 @@ def init_db():
         )
     """)
 
-    # Tabela para o Histórico de NCG
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS historico_ncg (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1480,9 +1483,6 @@ else:
 
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
-    # =========================================================================
-    # 6. TELAS EXCLUSIVAS DO ADMINISTRADOR
-    # =========================================================================
     if st.session_state.e_admin and menu not in ["Gerenciar Cadastro de Cortes", "Cálculo Financeiro", "Ficha Técnica", "Capital de Giro (NCG)"]:
         
         if menu == "Importar Cortes (CSV)":
@@ -1650,9 +1650,6 @@ else:
                                     st.error("Usuário já existe.")
                     st.markdown("<hr style='margin: 4px 0; border-top: 1px dashed #e0e0e0;'>", unsafe_allow_html=True)
 
-    # =========================================================================
-    # 7. TELA GLOBAL: GERENCIAR CADASTRO DE CORTES
-    # =========================================================================
     elif menu == "Gerenciar Cadastro de Cortes":
         st.header("🥩 Configurar e Gerenciar Tipos de Desossa e Cortes")
         emp_id_ativo = st.session_state.empresa_id
@@ -1786,27 +1783,15 @@ else:
                                         st.error("Corte duplicado!")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px dotted #cbd5e1;'>", unsafe_allow_html=True)
 
-    # =========================================================================
-    # 8. MÓDULO DE CÁLCULO FINANCEIRO
-    # =========================================================================
     elif menu == "Cálculo Financeiro":
         render_modulo_financeiro()
 
-    # =========================================================================
-    # 9. MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO
-    # =========================================================================
     elif menu == "Ficha Técnica":
         render_modulo_ficha_tecnica()
 
-    # =========================================================================
-    # 10. MÓDULO DE CAPITAL DE GIRO (NCG)
-    # =========================================================================
     elif menu == "Capital de Giro (NCG)":
         render_modulo_ncg()
 
-    # =========================================================================
-    # 11. TELAS OPERACIONAIS DAS EMPRESAS PARCEIRAS
-    # =========================================================================
     else:
         emp_id_ativo = st.session_state.empresa_id
         v_form = st.session_state.form_version
