@@ -328,7 +328,6 @@ def render_modulo_financeiro():
                 df_fin = pd.DataFrame(tabela_amortizacao)
                 nome_sistema = "Sistema SAC"
 
-            # Salvando estado e parâmetros para o PDF
             st.session_state.df_fin = df_fin
             st.session_state.valor_presente = valor_presente
             st.session_state.n_perodos = n_perodos
@@ -411,7 +410,6 @@ def render_modulo_financeiro():
                 def criar_cabecalho_tabela():
                     criar_cabecalho_pdf_padrao(pdf, nome_sistema, st.session_state.get('empresa_nome', 'Empresa'))
                     
-                    # Bloco de Parâmetros Utilizados no Cálculo
                     pdf.set_font("Arial", style="B", size=9)
                     pdf.set_fill_color(226, 232, 240)
                     pdf.cell(277, 5, "PARAMETROS UTILIZADOS NO CALCULO FINANCEIRO", ln=1, fill=True)
@@ -425,21 +423,19 @@ def render_modulo_financeiro():
                     p_un_tx = params.get('periodo_taxa', 'Meses')
                     p_pz = params.get('prazo_informado', n_perodos)
                     p_un_pz = params.get('periodo_prazo', 'Meses')
-                    p_pmt = params.get('prestacao_informada', 0.0)
                     
                     txt_param1 = f"Sistema: {p_sys} | Operacao: {p_tipo}"
-                    txt_param2 = f"Taxa Informada: {p_tx:.4f}% a. {p_un_tx.lower()} | Prazo Informado: {p_pz} {p_un_pz.lower()} | Capital (PV): R$ {valor_presente:,.2f}"
+                    txt_param2 = f"Taxa Informada: {p_tx:.4f}% a. {p_un_tx.lower()} | Taxa Equivalente por Periodo: {i_equivalente*100:.4f}% | Prazo: {p_pz} {p_un_pz.lower()} | Capital (PV): R$ {valor_presente:,.2f}"
                     
                     pdf.cell(277, 5, txt_param1.encode("latin1", "replace").decode("latin1"), ln=1)
                     pdf.cell(277, 5, txt_param2.encode("latin1", "replace").decode("latin1"), ln=1)
                     pdf.ln(2)
 
-                    # Cabeçalho da Tabela de Amortização
                     pdf.set_font("Arial", style="B", size=8.5)
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     
-                    headers = ["Periodo", "Valor Presente", "Amortizacao", "Juros", "Prestacao", "Taxa"]
+                    headers = ["Periodo", "Valor Presente", "Amortizacao", "Juros", "Prestacao", "Taxa (%)"]
                     widths = [25, 55, 50, 50, 50, 47]
                     
                     for text_h, w_h in zip(headers, widths):
@@ -463,7 +459,7 @@ def render_modulo_financeiro():
                     pdf.cell(50, 5, f"R$ {r['Amortização']:,.2f}", border=1, align="R")
                     pdf.cell(50, 5, f"R$ {r['Juros']:,.2f}", border=1, align="R")
                     pdf.cell(50, 5, f"R$ {r['Prestação']:,.2f}", border=1, align="R")
-                    pdf.cell(47, 5, f"{r['Taxa (%)']:.4f}%", border=1, align="C")
+                    pdf.cell(47, 5, f"{r['Taxa (%)']:.4f}%".encode("latin1", "replace").decode("latin1"), border=1, align="C")
                     pdf.ln()
 
                 return pdf.output(dest="S").encode("latin1")
