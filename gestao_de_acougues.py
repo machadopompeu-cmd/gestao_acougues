@@ -9,7 +9,7 @@ from scipy.optimize import brentq
 from fpdf import FPDF
 
 # =========================================================================
-# 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES
+# 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES (BOTÕES EM #A3A3A3)
 # =========================================================================
 st.set_page_config(page_title="Gestão de Açougues - Renato Frigotudo & Associados", layout="wide")
 
@@ -98,13 +98,30 @@ st.markdown(
         background-color: #8C8C8C !important;
         color: #0F172A !important;
     }
+    section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] {
+        background-color: #1E293B !important;
+        border: 2px dashed #A3A3A3 !important;
+        border-radius: 8px !important;
+    }
+    section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] div {
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+    }
+    section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] button,
+    section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] button *,
+    section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] a,
+    section[data-testid="stSidebar"] section[data-testid="stFileUploaderDropzone"] a * {
+        color: #0F172A !important;
+        fill: #0F172A !important;
+        font-weight: 700 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True
 )
 
 # =========================================================================
-# FUNÇÃO PADRÃO DE CABEÇALHO PARA RELATÓRIOS PDF
+# FUNÇÃO PADRÃO DE CABEÇALHO PARA RELATÓRIOS PDF (DIMENSIONADA)
 # =========================================================================
 def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
     logo_pdf = None
@@ -135,7 +152,7 @@ def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
     pdf.set_xy(10, 31)
 
 # =========================================================================
-# MÓDULO DE CÁLCULO FINANCEIRO
+# MÓDULO DE CÁLCULO FINANCEIRO (SISTEMA PRICE & SISTEMA SAC)
 # =========================================================================
 def render_modulo_financeiro():
     st.header("🧮 Módulo de Cálculo Financeiro & Amortização (Price & SAC)")
@@ -151,8 +168,6 @@ def render_modulo_financeiro():
         st.session_state.i_equivalente = 0.0
     if "nome_sistema" not in st.session_state:
         st.session_state.nome_sistema = "Sistema Price"
-    if "params_fin" not in st.session_state:
-        st.session_state.params_fin = {}
 
     sistema_amortizacao = st.selectbox(
         "Sistema de Amortização",
@@ -297,7 +312,7 @@ def render_modulo_financeiro():
                 df_fin = pd.DataFrame(tabela_amortizacao)
                 nome_sistema = "Sistema Price"
 
-            else: 
+            else: # Sistema SAC
                 if tipo_calculo == "Calcular Capital / Valor Presente (PV)":
                     prestacao = prestacao_informada
                     n_perodos = int(prazo_informado)
@@ -333,15 +348,6 @@ def render_modulo_financeiro():
             st.session_state.n_perodos = n_perodos
             st.session_state.i_equivalente = i_equivalente
             st.session_state.nome_sistema = nome_sistema
-            st.session_state.params_fin = {
-                "sistema": sistema_amortizacao,
-                "tipo_calculo": tipo_calculo,
-                "taxa_informada": taxa_informada,
-                "periodo_taxa": periodo_taxa,
-                "prazo_informado": prazo_informado,
-                "periodo_prazo": periodo_prazo,
-                "prestacao_informada": prestacao_informada
-            }
 
         except Exception as e:
             st.error(f"Erro ao realizar o cálculo financeiro: {e}")
@@ -352,7 +358,6 @@ def render_modulo_financeiro():
         n_perodos = st.session_state.n_perodos
         i_equivalente = st.session_state.i_equivalente
         nome_sistema = st.session_state.nome_sistema
-        params = st.session_state.get("params_fin", {})
 
         st.success(f"""
         📊 **Resultados Calculados ({nome_sistema}):**
@@ -409,33 +414,11 @@ def render_modulo_financeiro():
                 
                 def criar_cabecalho_tabela():
                     criar_cabecalho_pdf_padrao(pdf, nome_sistema, st.session_state.get('empresa_nome', 'Empresa'))
-                    
-                    pdf.set_font("Arial", style="B", size=9)
-                    pdf.set_fill_color(226, 232, 240)
-                    pdf.cell(277, 5, "PARAMETROS UTILIZADOS NO CALCULO FINANCEIRO", ln=1, fill=True)
-                    
-                    pdf.set_font("Arial", size=8)
-                    pdf.set_text_color(15, 23, 42)
-                    
-                    p_sys = params.get('sistema', nome_sistema)
-                    p_tipo = params.get('tipo_calculo', 'N/A')
-                    p_tx = params.get('taxa_informada', 0.0)
-                    p_un_tx = params.get('periodo_taxa', 'Meses')
-                    p_pz = params.get('prazo_informado', n_perodos)
-                    p_un_pz = params.get('periodo_prazo', 'Meses')
-                    
-                    txt_param1 = f"Sistema: {p_sys} | Operacao: {p_tipo}"
-                    txt_param2 = f"Taxa Informada: {p_tx:.4f}% a. {p_un_tx.lower()} | Taxa Equivalente por Periodo: {i_equivalente*100:.4f}% | Prazo: {p_pz} {p_un_pz.lower()} | Capital (PV): R$ {valor_presente:,.2f}"
-                    
-                    pdf.cell(277, 5, txt_param1.encode("latin1", "replace").decode("latin1"), ln=1)
-                    pdf.cell(277, 5, txt_param2.encode("latin1", "replace").decode("latin1"), ln=1)
-                    pdf.ln(2)
-
                     pdf.set_font("Arial", style="B", size=8.5)
                     pdf.set_fill_color(30, 58, 138)
                     pdf.set_text_color(255, 255, 255)
                     
-                    headers = ["Periodo", "Valor Presente", "Amortizacao", "Juros", "Prestacao", "Taxa (%)"]
+                    headers = ["Periodo", "Valor Presente", "Amortizacao", "Juros", "Prestacao", "Taxa"]
                     widths = [25, 55, 50, 50, 50, 47]
                     
                     for text_h, w_h in zip(headers, widths):
@@ -448,7 +431,7 @@ def render_modulo_financeiro():
                 pdf.set_font("Arial", size=8)
                 pdf.set_text_color(15, 23, 42)
                 for _, r in df_fin.iterrows():
-                    if pdf.get_y() > 180:
+                    if pdf.get_y() > 185:
                         pdf.add_page()
                         criar_cabecalho_tabela()
                         pdf.set_font("Arial", size=8)
@@ -459,7 +442,7 @@ def render_modulo_financeiro():
                     pdf.cell(50, 5, f"R$ {r['Amortização']:,.2f}", border=1, align="R")
                     pdf.cell(50, 5, f"R$ {r['Juros']:,.2f}", border=1, align="R")
                     pdf.cell(50, 5, f"R$ {r['Prestação']:,.2f}", border=1, align="R")
-                    pdf.cell(47, 5, f"{r['Taxa (%)']:.4f}%".encode("latin1", "replace").decode("latin1"), border=1, align="C")
+                    pdf.cell(47, 5, f"{r['Taxa (%)']:.4f}%", border=1, align="C")
                     pdf.ln()
 
                 return pdf.output(dest="S").encode("latin1")
@@ -665,103 +648,26 @@ def render_modulo_ficha_tecnica():
             """)
 
 # =========================================================================
-# MÓDULO DE CAPITAL DE GIRO (NCG)
+# MÓDULO DE CAPITAL DE GIRO (NCG) - COM HISTÓRICO E GESTÃO COMPLETA
 # =========================================================================
 def render_modulo_ncg():
     st.markdown("""
         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 25px; border-radius: 12px; color: white; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
             <h2 style="margin: 0; color: white !important;">📈 Análise de Necessidade de Capital de Giro (NCG)</h2>
-            <p style="margin: 8px 0 0 0; font-size: 15px; opacity: 0.9;">Calcule, armazene no banco de dados, filtre por período, edite parâmetros ou exporte em PDF.</p>
+            <p style="margin: 8px 0 0 0; font-size: 15px; opacity: 0.9;">Calcule, armazene, filtre por data e compare cenários de capital de giro e prazos operacionais.</p>
         </div>
     """, unsafe_allow_html=True)
 
     emp_id_ativo = st.session_state.empresa_id
+
     aba_ncg = st.selectbox(
         "Selecione a Ação no Módulo NCG", 
         ["Novo Cálculo / Simulação", "Consultar Histórico, Filtrar por Data e Editar"], 
         key="sel_aba_ncg_geral"
     )
 
-    def gerar_relatorio_pdf_ncg(nome_simulacao, data_sim, faturamento, cmv, df_calc, df_liq, df_diag):
-        pdf = FPDF(orientation='L', unit='mm', format='A4')
-        pdf.add_page()
-        
-        criar_cabecalho_pdf_padrao(pdf, "Relatorio de Necessidade de Capital de Giro (NCG)", st.session_state.get('empresa_nome', 'Empresa'))
-
-        pdf.set_font("Arial", style="B", size=9)
-        pdf.cell(277, 5, f"Simulacao: {nome_simulacao} | Data: {data_sim} | Faturamento: R$ {faturamento:,.2f} | CMV: R$ {cmv:,.2f}", ln=1)
-        pdf.ln(3)
-
-        pdf.set_font("Arial", style="B", size=9)
-        pdf.set_fill_color(226, 232, 240)
-        pdf.cell(277, 6, "1. CALCULOS AUTOMATICOS (NCG)", ln=1, fill=True)
-        
-        pdf.set_font("Arial", style="B", size=8)
-        pdf.set_fill_color(30, 58, 138)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(80, 5, "Indicador", border=1, align="C", fill=True)
-        pdf.cell(50, 5, "Cenario Atual", border=1, align="C", fill=True)
-        pdf.cell(50, 5, "Cenario Proposto", border=1, align="C", fill=True)
-        pdf.cell(97, 5, "Formula / Observacao", border=1, align="C", fill=True)
-        pdf.ln()
-
-        pdf.set_font("Arial", size=8)
-        pdf.set_text_color(15, 23, 42)
-        for idx, row in df_calc.reset_index().iterrows():
-            pdf.cell(80, 5, str(row["Indicador"]).encode("latin1", "replace").decode("latin1"), border=1)
-            pdf.cell(50, 5, str(row["Cenário Atual"]), border=1, align="R")
-            pdf.cell(50, 5, str(row["Cenário Proposto"]), border=1, align="R")
-            pdf.cell(97, 5, str(row["Fórmula / Observação"]).encode("latin1", "replace").decode("latin1"), border=1)
-            pdf.ln()
-        pdf.ln(4)
-
-        pdf.set_font("Arial", style="B", size=9)
-        pdf.set_fill_color(226, 232, 240)
-        pdf.cell(277, 6, "2. ANALISE DE LIQUIDEZ E RISCO", ln=1, fill=True)
-        
-        pdf.set_font("Arial", style="B", size=8)
-        pdf.set_fill_color(30, 58, 138)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(80, 5, "Indicador", border=1, align="C", fill=True)
-        pdf.cell(50, 5, "Cenario Atual", border=1, align="C", fill=True)
-        pdf.cell(50, 5, "Cenario Proposto", border=1, align="C", fill=True)
-        pdf.cell(97, 5, "Formula / Observacao", border=1, align="C", fill=True)
-        pdf.ln()
-
-        pdf.set_font("Arial", size=8)
-        pdf.set_text_color(15, 23, 42)
-        for idx, row in df_liq.reset_index().iterrows():
-            pdf.cell(80, 5, str(row["Indicador"]).encode("latin1", "replace").decode("latin1"), border=1)
-            pdf.cell(50, 5, str(row["Cenário Atual"]), border=1, align="R")
-            pdf.cell(50, 5, str(row["Cenário Proposto"]), border=1, align="R")
-            pdf.cell(97, 5, str(row["Fórmula / Observação"]).encode("latin1", "replace").decode("latin1"), border=1)
-            pdf.ln()
-        pdf.ln(4)
-
-        pdf.set_font("Arial", style="B", size=9)
-        pdf.set_fill_color(226, 232, 240)
-        pdf.cell(277, 6, "3. DIAGNOSTICO AUTOMATICO", ln=1, fill=True)
-        
-        pdf.set_font("Arial", style="B", size=8)
-        pdf.set_fill_color(30, 58, 138)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(80, 5, "Indicador", border=1, align="C", fill=True)
-        pdf.cell(80, 5, "Resultado", border=1, align="C", fill=True)
-        pdf.cell(117, 5, "Interpretacao", border=1, align="C", fill=True)
-        pdf.ln()
-
-        pdf.set_font("Arial", size=8)
-        pdf.set_text_color(15, 23, 42)
-        for idx, row in df_diag.reset_index().iterrows():
-            pdf.cell(80, 5, str(row["Indicador"]).encode("latin1", "replace").decode("latin1"), border=1)
-            pdf.cell(80, 5, str(row["Resultado"]).encode("latin1", "replace").decode("latin1"), border=1)
-            pdf.cell(117, 5, str(row["Interpretação"]).encode("latin1", "replace").decode("latin1"), border=1)
-            pdf.ln()
-
-        return pdf.output(dest="S").encode("latin1")
-
     if aba_ncg == "Novo Cálculo / Simulação":
-        st.markdown("Insira os dados financeiros da sua empresa, configure os prazos e salve sua simulação no banco de dados.")
+        st.markdown("Insira os dados financeiros da sua empresa, configure os prazos e salve sua simulação para estudos futuros.")
 
         with st.form("form_ncg_calculo"):
             st.subheader("0. Identificação da Simulação")
@@ -795,6 +701,7 @@ def render_modulo_ncg():
 
             btn_calc_ncg = st.form_submit_button("🚀 Calcular e Salvar Simulação de NCG")
 
+        # Realizar Cálculos
         margem_bruta = fat_mensal - cmv_mensal
         margem_bruta_pct = (margem_bruta / fat_mensal) if fat_mensal > 0 else 0.0
         cmv_diario = cmv_mensal / 30.0
@@ -834,10 +741,13 @@ def render_modulo_ncg():
                 ))
                 conn.commit()
                 conn.close()
-                st.success("🎉 Simulação calculada e salva com sucesso no banco de dados!")
+                st.success("🎉 Simulação calculada e salva com sucesso no histórico!")
             except Exception as e:
                 st.error(f"Erro ao salvar no banco de dados: {e}")
 
+        st.markdown("---")
+        st.markdown("### 📊 3. Resultados da Simulação Atual")
+        
         calc_data = {
             "Indicador": [
                 "Margem Bruta (R$)", "Margem Bruta (%)", "CMV Diário (R$)", "Faturamento Diário (R$)",
@@ -857,66 +767,45 @@ def render_modulo_ncg():
             ]
         }
         df_calc_tabela = pd.DataFrame(calc_data).set_index("Indicador")
+        st.table(df_calc_tabela)
 
+        st.markdown("### ⚖️ 4. Análise de Liquidez e Risco")
         liq_data = {
             "Indicador": [
                 "Déficit/Superávit Imediato (R$)", "Entradas previstas conforme o PMP", 
                 "Novo Saldo após o Ciclo Financeiro", "Economia de NCG com mudança (R$)"
             ],
             "Cenário Atual": [
-                f"R$ {deficit_imediato:,.2f}", f"R$ {entradas_atual:,.2f}", f"R$ {novo_saldo_atual:,.2f}", f"R$ {ncg_atual:,.2f}"
+                f"R$ {deficit_imediato:,.2f}", f"R$ {entradas_atual:,.2f}", f"R$ {novo_saldo_atual:,.2f}", "-"
             ],
             "Cenário Proposto": [
-                f"R$ {deficit_imediato:,.2f}", f"R$ {entradas_prop:,.2f}", f"R$ {novo_saldo_prop:,.2f}", f"R$ {ncg_prop:,.2f}"
+                f"R$ {deficit_imediato:,.2f}", f"R$ {entradas_prop:,.2f}", f"R$ {novo_saldo_prop:,.2f}", f"R$ {economia_ncg:,.2f}"
             ],
             "Fórmula / Observação": [
                 "Contas a Receber - Contas a Pagar + Caixa", "Faturamento Diário × PMP", 
-                "Entradas + Receber - Pagar", f"Variação / Diferença (Atual - Proposto): R$ {economia_ncg:,.2f}"
+                "Entradas + Receber - Pagar", "NCG Atual - NCG Proposto"
             ]
         }
         df_liq_tabela = pd.DataFrame(liq_data).set_index("Indicador")
-
-        ciclo_texto = f"{ciclo_atual:.1f} dias (NEGATIVO)" if ciclo_atual < 0 else f"{ciclo_atual:.1f} dias (POSITIVO)"
-        interp_ciclo = "Fornecedor financia a empresa" if ciclo_atual < 0 else "Empresa precisa imobilizar capital"
-        sit_liq = f"DÉFICIT DE R$ {abs(deficit_imediato):,.2f}" if deficit_imediato < 0 else f"SUPERÁVIT DE R$ {deficit_imediato:,.2f}"
-        recomendacao_texto = "Manter política atual" if ciclo_atual < 0 else "Ajustar prazos de recebimento/pagamento"
-        interp_recomendacao = "A estrutura atual de prazos já financia o capital de giro eficientemente." if ciclo_atual < 0 else "Necessário renegociar prazos com fornecedores e clientes para otimizar o caixa."
-
-        diag_data = {
-            "Indicador": ["Ciclo Financeiro Atual", "Situação de Liquidez", "Recomendação Principal"],
-            "Resultado": [ciclo_texto, sit_liq, recomendacao_texto],
-            "Interpretação": [interp_ciclo, "ALERTA: Risco de inadimplência" if deficit_imediato < 0 else "Caixa saudável", interp_recomendacao]
-        }
-        df_diag_tabela = pd.DataFrame(diag_data).set_index("Indicador")
-
-        st.markdown("---")
-        st.markdown("### 📊 3. Resultados da Simulação Atual")
-        st.table(df_calc_tabela)
-
-        st.markdown("### ⚖️ 4. Análise de Liquidez e Risco")
         st.table(df_liq_tabela)
 
         st.markdown("### 💡 5. Diagnóstico Automático")
+        ciclo_texto = f"{ciclo_atual:.1f} dias (NEGATIVO)" if ciclo_atual < 0 else f"{ciclo_atual:.1f} dias (POSITIVO)"
+        interp_ciclo = "Fornecedor financia a empresa" if ciclo_atual < 0 else "Empresa precisa imobilizar capital"
+        sit_liq = f"DÉFICIT DE R$ {abs(deficit_imediato):,.2f}" if deficit_imediato < 0 else f"SUPERÁVIT DE R$ {deficit_imediato:,.2f}"
+
+        diag_data = {
+            "Indicador": ["Ciclo Financeiro Atual", "Situação de Liquidez", "Recomendação Principal"],
+            "Resultado": [ciclo_texto, sit_liq, "Manter política atual" if ciclo_atual < 0 else "Ajustar prazos de recebimento/pagamento"],
+            "Interpretação": [interp_ciclo, "ALERTA: Risco de inadimplência" if deficit_imediato < 0 else "Caixa saudável", "-"]
+        }
+        df_diag_tabela = pd.DataFrame(diag_data).set_index("Indicador")
         st.table(df_diag_tabela)
 
-        st.markdown("---")
-        st.markdown("### 📥 Exportar Relatório NCG")
-        
-        pdf_bytes = gerar_relatorio_pdf_ncg(
-            nome_simulacao, str(data_simulacao.strftime('%d/%m/%Y')), fat_mensal, cmv_mensal, 
-            df_calc_tabela, df_liq_tabela, df_diag_tabela
-        )
-        
-        st.download_button(
-            label="📄 Baixar Simulação Atual em PDF (.pdf)",
-            data=pdf_bytes,
-            file_name=f"relatorio_ncg_{datetime.date.today().strftime('%Y%m%d')}.pdf",
-            mime="application/pdf",
-            key="btn_dl_pdf_ncg_novo"
-        )
-
     else:
-        st.markdown("### 📂 Histórico de Simulações e Parâmetros Salvos")
+        st.markdown("### 📂 Histórico de Simulações de Capital de Giro")
+        st.markdown("Filtre as simulações salvas por período, visualize detalhes, edite descrições ou exclua registros antigos.")
+
         col_f1, col_f2 = st.columns(2)
         hoje = datetime.date.today()
         inicio_ano_padrao = hoje.replace(month=1, day=1)
@@ -949,151 +838,40 @@ def render_modulo_ncg():
             sim_id_ativo = opcoes_sim[sim_selecionada_label]
             sim_row = df_historico_ncg[df_historico_ncg['id'] == sim_id_ativo].iloc[0]
 
-            fat_h = float(sim_row['fat_mensal'])
-            cmv_h = float(sim_row['cmv_mensal'])
-            rec_h = float(sim_row['contas_receber'])
-            est_h = float(sim_row['estoque_atual'])
-            pag_h = float(sim_row['contas_pagar'])
-            res_h = float(sim_row['reserva_financeira'])
-
-            pme_a_h = float(sim_row['pme_atual'])
-            pme_p_h = float(sim_row['pme_prop'])
-            pmr_a_h = float(sim_row['pmr_atual'])
-            pmr_p_h = float(sim_row['pmr_prop'])
-            pmp_a_h = float(sim_row['pmp_atual'])
-            pmp_p_h = float(sim_row['pmp_prop'])
-
-            mb_h = fat_h - cmv_h
-            mb_pct_h = (mb_h / fat_h) if fat_h > 0 else 0.0
-            cmv_d_h = cmv_h / 30.0
-            fat_d_h = fat_h / 30.0
-            ciclo_a_h = pme_a_h + pmr_a_h - pmp_a_h
-            ciclo_p_h = pme_p_h + pmr_p_h - pmp_p_h
-            ncg_a_h = cmv_d_h * ciclo_a_h
-            ncg_p_h = cmv_d_h * ciclo_p_h
-            def_h = rec_h - pag_h + res_h
-            ent_a_h = fat_d_h * pmp_a_h
-            ent_p_h = fat_d_h * pmp_p_h
-            ns_a_h = ent_a_h + rec_h - pag_h
-            ns_p_h = ent_p_h + rec_h - pag_h
-            eco_h = ncg_a_h - ncg_p_h
-
-            df_calc_hist = pd.DataFrame({
-                "Indicador": ["Margem Bruta (R$)", "Margem Bruta (%)", "CMV Diário (R$)", "Faturamento Diário (R$)", "CICLO FINANCEIRO (dias)", "NCG - Necessidade de Capital de Giro (R$)"],
-                "Cenário Atual": [f"R$ {mb_h:,.2f}", f"{mb_pct_h*100:.2f}%", f"R$ {cmv_d_h:,.2f}", f"R$ {fat_d_h:,.2f}", f"{ciclo_a_h:.1f} dias", f"R$ {ncg_a_h:,.2f}"],
-                "Cenário Proposto": [f"R$ {mb_h:,.2f}", f"{mb_pct_h*100:.2f}%", f"R$ {cmv_d_h:,.2f}", f"R$ {fat_d_h:,.2f}", f"{ciclo_p_h:.1f} dias", f"R$ {ncg_p_h:,.2f}"],
-                "Fórmula / Observação": ["Faturamento - CMV", "(Margem / Faturamento) × 100", "CMV / 30 dias", "Faturamento / 30 dias", "PME + PMR - PMP", "CMV Diário × Ciclo Financeiro"]
-            }).set_index("Indicador")
-
-            df_liq_hist = pd.DataFrame({
-                "Indicador": ["Déficit/Superávit Imediato (R$)", "Entradas previstas conforme o PMP", "Novo Saldo após o Ciclo Financeiro", "Economia de NCG com mudança (R$)"],
-                "Cenário Atual": [f"R$ {def_h:,.2f}", f"R$ {ent_a_h:,.2f}", f"R$ {ns_a_h:,.2f}", f"R$ {ncg_a_h:,.2f}"],
-                "Cenário Proposto": [f"R$ {def_h:,.2f}", f"R$ {ent_p_h:,.2f}", f"R$ {ns_p_h:,.2f}", f"R$ {ncg_p_h:,.2f}"],
-                "Fórmula / Observação": ["Contas a Receber - Contas a Pagar + Caixa", "Faturamento Diário × PMP", "Entradas + Receber - Pagar", f"Variação / Diferença (Atual - Proposto): R$ {eco_h:,.2f}"]
-            }).set_index("Indicador")
-
-            ciclo_txt_h = f"{ciclo_a_h:.1f} dias (NEGATIVO)" if ciclo_a_h < 0 else f"{ciclo_a_h:.1f} dias (POSITIVO)"
-            int_ciclo_h = "Fornecedor financia a empresa" if ciclo_a_h < 0 else "Empresa precisa imobilizar capital"
-            sit_liq_h = f"DÉFICIT DE R$ {abs(def_h):,.2f}" if def_h < 0 else f"SUPERÁVIT DE R$ {def_h:,.2f}"
-            rec_txt_h = "Manter política atual" if ciclo_a_h < 0 else "Ajustar prazos de recebimento/pagamento"
-            int_rec_h = "A estrutura atual de prazos já financia o capital de giro eficientemente." if ciclo_a_h < 0 else "Necessário renegociar prazos com fornecedores e clientes para otimizar o caixa."
-
-            df_diag_hist = pd.DataFrame({
-                "Indicador": ["Ciclo Financeiro Atual", "Situação de Liquidez", "Recomendação Principal"],
-                "Resultado": [ciclo_txt_h, sit_liq_h, rec_txt_h],
-                "Interpretação": [int_ciclo_h, "ALERTA: Risco de inadimplência" if def_h < 0 else "Caixa saudável", int_rec_h]
-            }).set_index("Indicador")
-
             st.markdown("---")
-            col_tit_h, col_btn_pdf_h = st.columns([3, 1])
-            with col_tit_h:
-                st.markdown(f"### ✏️ Editar ou Excluir: `{sim_row['nome_simulacao']}`")
-            with col_btn_pdf_h:
-                pdf_hist_bytes = gerar_relatorio_pdf_ncg(
-                    sim_row['nome_simulacao'], datetime.datetime.strptime(sim_row['data_simulacao'], "%Y-%m-%d").strftime("%d/%m/%Y"), 
-                    fat_h, cmv_h, df_calc_hist, df_liq_hist, df_diag_hist
-                )
-                st.download_button(
-                    label="📄 Exportar Este Histórico (PDF)",
-                    data=pdf_hist_bytes,
-                    file_name=f"historico_ncg_{sim_id_ativo}.pdf",
-                    mime="application/pdf",
-                    key=f"btn_dl_pdf_hist_{sim_id_ativo}"
-                )
+            col_info1, col_info2, col_info3 = st.columns(3)
+            col_info1.metric("Faturamento Mensal", f"R$ {sim_row['fat_mensal']:,.2f}")
+            col_info2.metric("NCG Atual", f"R$ {sim_row['ncg_atual']:,.2f}")
+            col_info3.metric("Economia NCG Proposta", f"R$ {sim_row['economia_ncg']:,.2f}")
 
-            with st.form(f"form_editar_completo_sim_{sim_id_ativo}"):
-                st.subheader("Parâmetros Cadastrados")
-                ed_nome_sim = st.text_input("Nome da Simulação", value=sim_row['nome_simulacao'])
-                ed_data_sim = st.date_input("Data de Referência", datetime.datetime.strptime(sim_row['data_simulacao'], "%Y-%m-%d").date())
-
-                col_ed1, col_ed2 = st.columns(2)
-                with col_ed1:
-                    ed_fat = st.number_input("Faturamento Bruto Mensal (R$)", value=float(sim_row['fat_mensal']), step=100.0, format="%.2f")
-                    ed_cmv = st.number_input("CMV Mensal (R$)", value=float(sim_row['cmv_mensal']), step=100.0, format="%.2f")
-                    ed_rec = st.number_input("Contas a Receber (R$)", value=float(sim_row['contas_receber']), step=10.0, format="%.2f")
-                with col_ed2:
-                    ed_est = st.number_input("Estoque Atual (R$)", value=float(sim_row['estoque_atual']), step=100.0, format="%.2f")
-                    ed_pag = st.number_input("Contas a Pagar (R$)", value=float(sim_row['contas_pagar']), step=100.0, format="%.2f")
-                    ed_res = st.number_input("Reserva Financeira / Caixa (R$)", value=float(sim_row['reserva_financeira']), step=100.0, format="%.2f")
-
-                st.markdown("#### Prazos Operacionais (dias)")
-                col_ep1, col_ep2, col_ep3 = st.columns(3)
-                with col_ep1:
-                    ed_pme_a = st.number_input("PME Atual", value=float(sim_row['pme_atual']), step=0.5)
-                    ed_pme_p = st.number_input("PME Proposto", value=float(sim_row['pme_prop']), step=0.5)
-                with col_ep2:
-                    ed_pmr_a = st.number_input("PMR Atual", value=float(sim_row['pmr_atual']), step=0.5)
-                    ed_pmr_p = st.number_input("PMR Proposto", value=float(sim_row['pmr_prop']), step=0.5)
-                with col_ep3:
-                    ed_pmp_a = st.number_input("PMP Atual", value=float(sim_row['pmp_atual']), step=0.5)
-                    ed_pmp_p = st.number_input("PMP Proposto", value=float(sim_row['pmp_prop']), step=0.5)
-
-                col_btn_up, col_btn_del = st.columns(2)
-                btn_atualizar = col_btn_up.form_submit_button("💾 Salvar Alterações e Recalcular")
-                btn_excluir = col_btn_del.form_submit_button("🗑️ Excluir esta Simulação")
-
-                if btn_atualizar:
-                    m_b = ed_fat - ed_cmv
-                    c_diario = ed_cmv / 30.0
-                    c_atual = ed_pme_a + ed_pmr_a - ed_pmp_a
-                    c_prop = ed_pme_p + ed_pmr_p - ed_pmp_p
-                    n_atual = c_diario * c_atual
-                    n_prop = c_diario * c_prop
-                    e_ncg = n_atual - n_prop
-
-                    try:
+            col_A, col_B = st.columns(2)
+            with col_A:
+                with st.form(f"form_editar_nome_sim_{sim_id_ativo}"):
+                    novo_nome_sim = st.text_input("Alterar Nome da Simulação", value=sim_row['nome_simulacao'])
+                    if st.form_submit_button("💾 Atualizar Nome"):
                         conn = get_connection()
                         cursor = conn.cursor()
-                        cursor.execute("""
-                            UPDATE historico_ncg SET
-                                nome_simulacao = ?, data_simulacao = ?, fat_mensal = ?, cmv_mensal = ?,
-                                contas_receber = ?, estoque_atual = ?, contas_pagar = ?, reserva_financeira = ?,
-                                pme_atual = ?, pme_prop = ?, pmr_atual = ?, pmr_prop = ?, pmp_atual = ?, pmp_prop = ?,
-                                ncg_atual = ?, ncg_prop = ?, economia_ncg = ?
-                            WHERE id = ?
-                        """, (
-                            ed_nome_sim, str(ed_data_sim), ed_fat, ed_cmv, ed_rec, ed_est, ed_pag, ed_res,
-                            ed_pme_a, ed_pme_p, ed_pmr_a, ed_pmr_p, ed_pmp_a, ed_pmp_p,
-                            n_atual, n_prop, e_ncg, sim_id_ativo
-                        ))
+                        cursor.execute("UPDATE historico_ncg SET nome_simulacao = ? WHERE id = ?", (novo_nome_sim, sim_id_ativo))
                         conn.commit()
                         conn.close()
-                        st.success("🎉 Simulação atualizada e recalculada com sucesso!")
+                        st.success("Nome atualizado com sucesso!")
                         st.rerun()
-                    except Exception as err_up:
-                        st.error(f"Erro ao atualizar: {err_up}")
 
-                if btn_excluir:
-                    try:
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM historico_ncg WHERE id = ?", (sim_id_ativo,))
-                        conn.commit()
-                        conn.close()
-                        st.success("🗑️ Simulação excluída com sucesso!")
-                        st.rerun()
-                    except Exception as err_del:
-                        st.error(f"Erro ao excluir: {err_del}")
+            with col_B:
+                with st.form(f"form_excluir_sim_{sim_id_ativo}"):
+                    st.markdown("**Excluir Registro**")
+                    conf_del = st.checkbox("Confirmar exclusão desta simulação")
+                    if st.form_submit_button("🗑️ Excluir Simulação Permanentemente"):
+                        if conf_del:
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM historico_ncg WHERE id = ?", (sim_id_ativo,))
+                            conn.commit()
+                            conn.close()
+                            st.success("Simulação excluída com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("Marque a caixa de confirmação para excluir.")
 
 # =========================================================================
 # 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
@@ -1204,6 +982,7 @@ def init_db():
         )
     """)
 
+    # Nova tabela para o Histórico de NCG
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS historico_ncg (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1479,6 +1258,9 @@ else:
 
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
+    # =========================================================================
+    # 6. TELAS EXCLUSIVAS DO ADMINISTRADOR
+    # =========================================================================
     if st.session_state.e_admin and menu not in ["Gerenciar Cadastro de Cortes", "Cálculo Financeiro", "Ficha Técnica", "Capital de Giro (NCG)"]:
         
         if menu == "Importar Cortes (CSV)":
@@ -1646,6 +1428,9 @@ else:
                                     st.error("Usuário já existe.")
                     st.markdown("<hr style='margin: 4px 0; border-top: 1px dashed #e0e0e0;'>", unsafe_allow_html=True)
 
+    # =========================================================================
+    # 7. TELA GLOBAL: GERENCIAR CADASTRO DE CORTES
+    # =========================================================================
     elif menu == "Gerenciar Cadastro de Cortes":
         st.header("🥩 Configurar e Gerenciar Tipos de Desossa e Cortes")
         emp_id_ativo = st.session_state.empresa_id
@@ -1779,15 +1564,27 @@ else:
                                         st.error("Corte duplicado!")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px dotted #cbd5e1;'>", unsafe_allow_html=True)
 
+    # =========================================================================
+    # 8. MÓDULO DE CÁLCULO FINANCEIRO
+    # =========================================================================
     elif menu == "Cálculo Financeiro":
         render_modulo_financeiro()
 
+    # =========================================================================
+    # 9. MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO
+    # =========================================================================
     elif menu == "Ficha Técnica":
         render_modulo_ficha_tecnica()
 
+    # =========================================================================
+    # 10. MÓDULO DE CAPITAL DE GIRO (NCG)
+    # =========================================================================
     elif menu == "Capital de Giro (NCG)":
         render_modulo_ncg()
 
+    # =========================================================================
+    # 11. TELAS OPERACIONAIS DAS EMPRESAS PARCEIRAS
+    # =========================================================================
     else:
         emp_id_ativo = st.session_state.empresa_id
         v_form = st.session_state.form_version
