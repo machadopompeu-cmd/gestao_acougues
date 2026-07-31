@@ -498,7 +498,7 @@ def render_modulo_financeiro():
             )
 
 # =========================================================================
-# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO
+# MÓDULO DE FICHA TÉCNICA E PRECIFICAÇÃO (COM EMISSÃO DE PDF)
 # =========================================================================
 def render_modulo_ficha_tecnica():
     st.markdown("""
@@ -596,16 +596,12 @@ def render_modulo_ficha_tecnica():
             custo_kg_assada = custo_total / ficha_row['rendimento_assada_kg'] if ficha_row['rendimento_assada_kg'] > 0 else 0.0
             
             unidades_prod_cadastrada = ficha_row['unidades_produzidas'] if 'unidades_produzidas' in ficha_row and ficha_row['unidades_produzidas'] > 0 else (ficha_row['rendimento_assada_kg'] / ficha_row['peso_unidade_kg'] if ficha_row['peso_unidade_kg'] > 0 else 0.0)
-            
             custo_unidade_produzida = custo_total / unidades_prod_cadastrada if unidades_prod_cadastrada > 0 else 0.0
-            
             qtd_pacote_atual = ficha_row['qtd_por_pacote'] if 'qtd_por_pacote' in ficha_row and ficha_row['qtd_por_pacote'] is not None else 1.0
             custo_pacote = custo_unidade_produzida * qtd_pacote_atual
 
             st.markdown("---")
             st.markdown("### 🏷️ Cálculo de Precificação (Simulador de Venda)")
-            st.markdown("Configure os parâmetros abaixo. O modelo utiliza exatamente a estrutura da aba `PRECIFICAÇÃO` do Excel.")
-
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
                 aliquota_imposto = st.number_input("Imposto (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1, key=f"aliq_imp_{ficha_id_ativo}")
@@ -618,46 +614,28 @@ def render_modulo_ficha_tecnica():
             with col_p3:
                 indicador_cer_escolhido = st.selectbox(
                     "Custo de aquisição (CER):",
-                    [
-                        "Custo por Unidade Produzida", 
-                        "Custo por KG (Assada)", 
-                        "Custo por KG (Crua)", 
-                        "Custo por Pacote", 
-                        "Custo Total"
-                    ],
+                    ["Custo por Unidade Produzida", "Custo por KG (Assada)", "Custo por KG (Crua)", "Custo por Pacote", "Custo Total"],
                     key=f"ind_cer_{ficha_id_ativo}"
                 )
-                
                 modo_precificacao = st.radio(
                     "Modo de Definição do Preço:",
                     ["Informar Margem de Lucro (%)", "Informar Preço de Venda Praticado (R$)"],
                     key=f"modo_prec_{ficha_id_ativo}"
                 )
 
-            if indicador_cer_escolhido == "Custo por Unidade Produzida":
-                cer_base = custo_unidade_produzida
-            elif indicador_cer_escolhido == "Custo por KG (Assada)":
-                cer_base = custo_kg_assada
-            elif indicador_cer_escolhido == "Custo por KG (Crua)":
-                cer_base = custo_kg_crua
-            elif indicador_cer_escolhido == "Custo por Pacote":
-                cer_base = custo_pacote
-            else:
-                cer_base = custo_total
+            if indicador_cer_escolhido == "Custo por Unidade Produzida": cer_base = custo_unidade_produzida
+            elif indicador_cer_escolhido == "Custo por KG (Assada)": cer_base = custo_kg_assada
+            elif indicador_cer_escolhido == "Custo por KG (Crua)": cer_base = custo_kg_crua
+            elif indicador_cer_escolhido == "Custo por Pacote": cer_base = custo_pacote
+            else: cer_base = custo_total
 
             if modo_precificacao == "Informar Margem de Lucro (%)":
                 margem_lucro = st.number_input("Margem de Lucro:", min_value=0.0, max_value=100.0, value=31.07, step=0.1, key=f"margem_{ficha_id_ativo}")
-                
                 soma_percentuais = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas + margem_lucro) / 100.0
                 divisor_preco = 1.0 - soma_percentuais
-
-                if divisor_preco > 0:
-                    preco_venda_tabela = cer_base / divisor_preco
-                else:
-                    preco_venda_tabela = 0.0
+                preco_venda_tabela = cer_base / divisor_preco if divisor_preco > 0 else 0.0
             else:
                 preco_venda_tabela = st.number_input("Preço de Venda Praticado (R$)", min_value=0.0, value=cer_base * 1.5, step=0.50, format="%.2f", key=f"preco_praticado_{ficha_id_ativo}")
-                
                 soma_sem_margem = (aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas) / 100.0
                 if preco_venda_tabela > 0:
                     custos_perc_valor = preco_venda_tabela * soma_sem_margem
@@ -668,14 +646,7 @@ def render_modulo_ficha_tecnica():
 
             fator_desconto = (1.0 - (desconto_venda / 100.0))
             preco_venda_efetivo = preco_venda_tabela * fator_desconto
-
-            valor_imposto = preco_venda_efetivo * (aliquota_imposto / 100.0)
-            valor_cartao = preco_venda_efetivo * (taxa_cartao / 100.0)
-            valor_comissao = preco_venda_efetivo * (comissao_venda / 100.0)
-            valor_outros_custos = preco_venda_efetivo * (outros_custos_var / 100.0)
-            valor_desp_fixas = preco_venda_efetivo * (part_desp_fixas / 100.0)
-            valor_lucro_efetivo = preco_venda_efetivo - cer_base - (valor_imposto + valor_cartao + valor_comissao + valor_outros_custos + valor_desp_fixas)
-            
+            valor_lucro_efetivo = preco_venda_efetivo - cer_base - (preco_venda_efetivo * ((aliquota_imposto + taxa_cartao + comissao_venda + outros_custos_var + part_desp_fixas) / 100.0))
             markup_calculado = (preco_venda_efetivo / cer_base - 1.0) * 100.0 if cer_base > 0 else 0.0
 
             st.success(f"""
@@ -687,6 +658,32 @@ def render_modulo_ficha_tecnica():
             * **MARKUP >>:** {markup_calculado:.2f}%
             * **Lucro Líquido Previsto:** R$ {valor_lucro_efetivo:,.2f}
             """)
+
+            st.markdown("---")
+            st.markdown("### 📥 Exportar Relatório da Ficha Técnica em PDF")
+            
+            def gerar_pdf_ficha_tecnica():
+                pdf = FPDF(orientation='P', unit='mm', format='A4')
+                pdf.add_page()
+                criar_cabecalho_pdf_padrao(pdf, f"Ficha Tecnica - {ficha_row['produto']}", st.session_state.get('empresa_nome', 'Empresa'))
+                
+                pdf.set_font("Arial", style="B", size=9)
+                pdf.cell(190, 6, f"Produto: {ficha_row['produto']} | Data: {ficha_row['data_criacao']}", ln=1)
+                pdf.cell(190, 6, f"Rendimento Total: {ficha_row['rendimento_kg']:.3f} KG | Assada: {ficha_row['rendimento_assada_kg']:.3f} KG", ln=1)
+                pdf.cell(190, 6, f"Custo Total da Receita: R$ {custo_total:,.2f} | Custo por KG Assada: R$ {custo_kg_assada:,.2f}", ln=1)
+                pdf.cell(190, 6, f"Preço de Venda Efetivo: R$ {preco_venda_efetivo:,.2f} | Margem: {margem_lucro:.2f}%", ln=1)
+                pdf.ln(4)
+                
+                return pdf.output(dest="S").encode("latin1")
+
+            pdf_bytes_ficha = gerar_pdf_ficha_tecnica()
+            st.download_button(
+                label="📄 Baixar Relatório da Ficha Técnica (.pdf)",
+                data=pdf_bytes_ficha,
+                file_name=f"ficha_tecnica_{ficha_row['produto'].lower().replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                key=f"btn_dl_pdf_ficha_{ficha_id_ativo}"
+            )
 
 # =========================================================================
 # MÓDULO DE CAPITAL DE GIRO (NCG)
@@ -700,13 +697,9 @@ def render_modulo_ncg():
     """, unsafe_allow_html=True)
 
     emp_id_ativo = st.session_state.empresa_id
-    aba_ncg = st.selectbox(
-        "Selecione a Ação no Módulo NCG", 
-        ["Novo Cálculo / Simulação", "Consultar Histórico, Filtrar por Data e Editar"], 
-        key="sel_aba_ncg_geral"
-    )
+    aba_ncg = st.selectbox("Selecione a Ação no Módulo NCG", ["Novo Cálculo / Simulação", "Consultar Histórico, Filtrar por Data e Editar"], key="sel_aba_ncg_geral")
 
-    def gerar_relatorio_pdf_ncg(nome_simulacao, data_sim, faturamento, cmv, df_calc, df_liq, df_diag):
+    def gerar_relatorio_pdf_ncg(nome_simulacao, data_sim, faturamento, cmv):
         pdf = FPDF(orientation='L', unit='mm', format='A4')
         pdf.add_page()
         criar_cabecalho_pdf_padrao(pdf, "Relatorio de Necessidade de Capital de Giro (NCG)", st.session_state.get('empresa_nome', 'Empresa'))
@@ -720,31 +713,30 @@ def render_modulo_ncg():
             st.subheader("0. Identificação da Simulação")
             nome_simulacao = st.text_input("Nome / Descrição da Simulação", value=f"Simulação NCG - {datetime.date.today().strftime('%d/%m/%Y')}")
             data_simulacao = st.date_input("Data de Referência", datetime.date.today())
-
             st.markdown("---")
             st.subheader("1. Dados Financeiros da Empresa (Entrada)")
             col_d1, col_d2 = st.columns(2)
             with col_d1:
-                fat_mensal = st.number_input("Faturamento Bruto Mensal (R$)", min_value=0.0, value=157399.10, step=100.0, format="%.2f", key="ncg_fat")
-                cmv_mensal = st.number_input("Custo da Mercadoria Vendida - CMV (R$)", min_value=0.0, value=98409.78, step=100.0, format="%.2f", key="ncg_cmv")
-                contas_receber = st.number_input("Contas a Receber Acumuladas (R$)", min_value=0.0, value=1193.67, step=10.0, format="%.2f", key="ncg_rec")
+                fat_mensal = st.number_input("Faturamento Bruto Mensal (R$)", min_value=0.0, value=157399.10, step=100.0, format="%.2f")
+                cmv_mensal = st.number_input("Custo da Mercadoria Vendida - CMV (R$)", min_value=0.0, value=98409.78, step=100.0, format="%.2f")
+                contas_receber = st.number_input("Contas a Receber Acumuladas (R$)", min_value=0.0, value=1193.67, step=10.0, format="%.2f")
             with col_d2:
-                estoque_atual = st.number_input("Estoque Atual (R$)", min_value=0.0, value=18700.00, step=100.0, format="%.2f", key="ncg_est")
-                contas_pagar = st.number_input("Contas a Pagar / Fornecedores (R$)", min_value=0.0, value=50971.32, step=100.0, format="%.2f", key="ncg_pag")
-                reserva_financeira = st.number_input("Reserva Financeira / Caixa (R$)", min_value=0.0, value=0.0, step=100.0, format="%.2f", key="ncg_res")
+                estoque_atual = st.number_input("Estoque Atual (R$)", min_value=0.0, value=18700.00, step=100.0, format="%.2f")
+                contas_pagar = st.number_input("Contas a Pagar / Fornecedores (R$)", min_value=0.0, value=50971.32, step=100.0, format="%.2f")
+                reserva_financeira = st.number_input("Reserva Financeira / Caixa (R$)", min_value=0.0, value=0.0, step=100.0, format="%.2f")
 
             st.markdown("---")
             st.subheader("2. Prazos Médios Operacionais (em dias)")
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
-                pme_atual = st.number_input("Prazo Médio de Estoque (PME) - Atual", min_value=0.0, value=8.5, step=0.5, key="ncg_pme_a")
-                pme_prop = st.number_input("Prazo Médio de Estoque (PME) - Proposto", min_value=0.0, value=7.0, step=0.5, key="ncg_pme_p")
+                pme_atual = st.number_input("PME Atual", min_value=0.0, value=8.5, step=0.5)
+                pme_prop = st.number_input("PME Proposto", min_value=0.0, value=7.0, step=0.5)
             with col_p2:
-                pmr_atual = st.number_input("Prazo Médio de Recebimento (PMR) - Atual", min_value=0.0, value=1.0, step=0.5, key="ncg_pmr_a")
-                pmr_prop = st.number_input("Prazo Médio de Recebimento (PMR) - Proposto", min_value=0.0, value=7.0, step=0.5, key="ncg_pmr_p")
+                pmr_atual = st.number_input("PMR Atual", min_value=0.0, value=1.0, step=0.5)
+                pmr_prop = st.number_input("PMR Proposto", min_value=0.0, value=7.0, step=0.5)
             with col_p3:
-                pmp_atual = st.number_input("Prazo Médio de Pagamento (PMP) - Atual", min_value=0.0, value=14.0, step=0.5, key="ncg_pmp_a")
-                pmp_prop = st.number_input("Prazo Médio de Pagamento (PMP) - Proposto", min_value=0.0, value=18.0, step=0.5, key="ncg_pmp_p")
+                pmp_atual = st.number_input("PMP Atual", min_value=0.0, value=14.0, step=0.5)
+                pmp_prop = st.number_input("PMP Proposto", min_value=0.0, value=18.0, step=0.5)
 
             btn_calc_ncg = st.form_submit_button("🚀 Calcular e Salvar Simulação de NCG")
 
@@ -774,18 +766,18 @@ def render_modulo_ncg():
                 ))
                 conn.commit()
                 conn.close()
-                st.success("🎉 Simulação calculada e salva com sucesso no banco de dados!")
+                st.success("🎉 Simulação calculada e salva com sucesso!")
             except Exception as e:
-                st.error(f"Erro ao salvar no banco de dados: {e}")
+                st.error(f"Erro ao salvar: {e}")
     else:
-        st.markdown("### 📂 Histórico de Simulações e Parâmetros Salvos")
+        st.markdown("### 📂 Histórico de Simulações NCG")
         conn = get_connection()
-        df_historico_ncg = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = ? ORDER BY data_simulacao DESC", conn, params=(emp_id_ativo,))
+        df_hist = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = ? ORDER BY data_simulacao DESC", conn, params=(emp_id_ativo,))
         conn.close()
-        if df_historico_ncg.empty:
-            st.warning("⚠️ Nenhuma simulação encontrada.")
+        if df_hist.empty:
+            st.warning("Nenhuma simulação salva encontrada.")
         else:
-            st.dataframe(df_historico_ncg, use_container_width=True)
+            st.dataframe(df_hist, use_container_width=True)
 
 # =========================================================================
 # 2. ESTRUTURA DO BANCO DE DADOS (SQLITE AUTOMÁTICO)
@@ -952,6 +944,32 @@ def init_db():
             ("QUARTO DIANTEIRO", "ACEM", None), ("SUINO", "PERNIL", None)
         ]
         cursor.executemany("INSERT OR IGNORE INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", cortes_iniciais)
+
+    cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas WHERE produto = 'ESPETINHO ASSADO'")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, rendimento_assada_kg, peso_unidade_kg, qtd_por_pacote, unidades_produzidas, perda_pct, data_criacao)
+            VALUES (NULL, 'ESPETINHO ASSADO', 13.013, 11.83, 0.100, 4.0, 118.3, 0.0908, ?)
+        """, (str(datetime.date.today()),))
+        ficha_espetinho_id = cursor.lastrowid
+
+        insumos_alimenticios_espetinho = [
+            (ficha_espetinho_id, None, 'CARNE PARA ESPETO', 11.42, 'KG', 33.9, 100.0),
+            (ficha_espetinho_id, None, 'GORDURA PARA ESPETO', 1.128, 'KG', 9.9, 100.0),
+            (ficha_espetinho_id, None, 'SAL', 0.12, 'KG', 3.99, 100.0)
+        ]
+        cursor.executemany("""
+            INSERT INTO insumos_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, insumos_alimenticios_espetinho)
+
+        insumos_nao_alimenticios_espetinho = [
+            (ficha_espetinho_id, None, 'ESPETO DE BAMBU', 118.0, 'UNID', 0.06, 100.0)
+        ]
+        cursor.executemany("""
+            INSERT INTO insumos_nao_alimenticios_ficha (ficha_id, codigo, produto_insumo, qtd_bruta, unidade, preco_bruto, rendimento)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, insumos_nao_alimenticios_espetinho)
         
     conn.commit()
     conn.close()
