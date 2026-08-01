@@ -440,11 +440,15 @@ def processar_calculos_desossa(acao, df_cortes):
     else:
         df['peso'] = 0.0
         
-    if 'preco_venda' in df.columns:
-        df['preco_venda'] = df['preco_venda'].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace(',', '.', regex=True)
-        df['preco_venda'] = pd.to_numeric(df['preco_venda'], errors='coerce').fillna(0.0)
-    elif 'preço_de_venda' in df.columns:
-        df['preco_venda'] = df['preço_de_venda'].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace(',', '.', regex=True)
+    # Identificar coluna de preço de venda (suporta preco_venda, preco_de_venda, preço_de_venda)
+    col_preco_encontrada = None
+    for c_p in ['preco_venda', 'preco_de_venda', 'preço_de_venda']:
+        if c_p in df.columns:
+            col_preco_encontrada = c_p
+            break
+            
+    if col_preco_encontrada:
+        df['preco_venda'] = df[col_preco_encontrada].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace(',', '.', regex=True)
         df['preco_venda'] = pd.to_numeric(df['preco_venda'], errors='coerce').fillna(0.0)
     else:
         df['preco_venda'] = 0.0
@@ -454,10 +458,15 @@ def processar_calculos_desossa(acao, df_cortes):
     else:
         df['qualidade'] = df['qualidade'].astype(str).str.upper().str.strip()
         
-    if 'nome_corte' not in df.columns and 'nom_corte' in df.columns:
-        df['nome_corte'] = df['nom_corte'].astype(str).str.upper().str.strip()
-    elif 'nome_corte' in df.columns:
-        df['nome_corte'] = df['nome_corte'].astype(str).str.upper().str.strip()
+    # Identificar coluna de nome do corte (nome_corte ou nom_corte)
+    col_nome_encontrada = None
+    for c_n in ['nome_corte', 'nom_corte']:
+        if c_n in df.columns:
+            col_nome_encontrada = c_n
+            break
+            
+    if col_nome_encontrada:
+        df['nome_corte'] = df[col_nome_encontrada].astype(str).str.upper().str.strip()
     else:
         df['nome_corte'] = 'CORTE'
     
@@ -842,7 +851,7 @@ else:
                 if uploaded_cortes_file is not None:
                     try:
                         if uploaded_cortes_file.name.endswith('.csv'):
-                            df_up = pd.read_csv(uploaded_cortes_file, encoding='latin-1', sep=';')
+                            df_up = pd.read_csv(uploaded_cortes_file, encoding='latin-1', sep=None, engine='python')
                         else:
                             df_up = pd.read_excel(uploaded_cortes_file)
                         
@@ -851,10 +860,19 @@ else:
                         
                         if 'nom_corte' in df_up.columns and 'nome_corte' not in df_up.columns:
                             df_up.rename(columns={'nom_corte': 'nome_corte'}, inplace=True)
-                        if 'preço_de_venda' in df_up.columns and 'preco_venda' not in df_up.columns:
-                            df_up.rename(columns={'preço_de_venda': 'preco_venda'}, inplace=True)
                         
-                        if all(k in df_up.columns for k in ['nome_corte', 'qualidade', 'peso', 'preco_venda']):
+                        # Mapear qualquer variação de preço de venda
+                        col_preco_encontrada = None
+                        for cp_cand in ['preco_venda', 'preco_de_venda', 'preço_de_venda']:
+                            if cp_cand in df_up.columns:
+                                col_preco_encontrada = cp_cand
+                                break
+                        
+                        if col_preco_encontrada and col_preco_encontrada != 'preco_venda':
+                            df_up.rename(columns={col_preco_encontrada: 'preco_venda'}, inplace=True)
+                        
+                        colunas_necessarias = ['nome_corte', 'qualidade', 'peso', 'preco_venda']
+                        if all(k in df_up.columns for k in colunas_necessarias):
                             if st.button("⚡ Importar Cortes do Ficheiro para o Lote", key=f"btn_import_file_{v_form}"):
                                 st.session_state.cortes_temp = []
                                 for _, r in df_up.iterrows():
