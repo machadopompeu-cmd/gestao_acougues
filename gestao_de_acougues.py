@@ -8,7 +8,7 @@ import numpy as np
 from fpdf import FPDF
 
 # =========================================================================
-# 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES (UI/UX)
+# 1. CONFIGURAÇÃO VISUAL E ESTILIZAÇÃO DA INTERFACE (UI/UX)
 # =========================================================================
 st.set_page_config(page_title="Gestão de Açougues - Renato Frigotudo & Associados", layout="wide")
 
@@ -433,14 +433,40 @@ def processar_calculos_desossa(acao, df_cortes):
         return pd.DataFrame(), {}
 
     df = df_cortes.copy()
-    df['peso'] = pd.to_numeric(df['peso'], errors='coerce').fillna(0.0)
-    df['preco_venda'] = pd.to_numeric(df['preco_venda'], errors='coerce').fillna(0.0)
     
-    peso_ouro = df[df['qualidade'].str.upper() == 'OURO']['peso'].sum()
-    peso_prata = df[df['qualidade'].str.upper() == 'PRATA']['peso'].sum()
+    # Tratamento robusto de colunas e dados numéricos vindos do DB ou CSV
+    if 'peso' in df.columns:
+        df['peso'] = df['peso'].astype(str).str.replace(',', '.', regex=True)
+        df['peso'] = pd.to_numeric(df['peso'], errors='coerce').fillna(0.0)
+    else:
+        df['peso'] = 0.0
+        
+    if 'preco_venda' in df.columns:
+        df['preco_venda'] = df['preco_venda'].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace(',', '.', regex=True)
+        df['preco_venda'] = pd.to_numeric(df['preco_venda'], errors='coerce').fillna(0.0)
+    elif 'preço_de_venda' in df.columns:
+        df['preco_venda'] = df['preço_de_venda'].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace(',', '.', regex=True)
+        df['preco_venda'] = pd.to_numeric(df['preco_venda'], errors='coerce').fillna(0.0)
+    else:
+        df['preco_venda'] = 0.0
+        
+    if 'qualidade' not in df.columns:
+        df['qualidade'] = 'OURO'
+    else:
+        df['qualidade'] = df['qualidade'].astype(str).str.upper().str.strip()
+        
+    if 'nome_corte' not in df.columns and 'nom_corte' in df.columns:
+        df['nome_corte'] = df['nom_corte'].astype(str).str.upper().str.strip()
+    elif 'nome_corte' in df.columns:
+        df['nome_corte'] = df['nome_corte'].astype(str).str.upper().str.strip()
+    else:
+        df['nome_corte'] = 'CORTE'
     
-    val_venda_ouro = (df[df['qualidade'].str.upper() == 'OURO']['peso'] * df[df['qualidade'].str.upper() == 'OURO']['preco_venda']).sum()
-    val_venda_prata = (df[df['qualidade'].str.upper() == 'PRATA']['peso'] * df[df['qualidade'].str.upper() == 'PRATA']['preco_venda']).sum()
+    peso_ouro = df[df['qualidade'] == 'OURO']['peso'].sum()
+    peso_prata = df[df['qualidade'] == 'PRATA']['peso'].sum()
+    
+    val_venda_ouro = (df[df['qualidade'] == 'OURO']['peso'] * df[df['qualidade'] == 'OURO']['preco_venda']).sum()
+    val_venda_prata = (df[df['qualidade'] == 'PRATA']['peso'] * df[df['qualidade'] == 'PRATA']['preco_venda']).sum()
     total_vendas_geral = val_venda_ouro + val_venda_prata
     
     custo_total_efetivo = custo_total_animal / (1.0 - soma_percentuais_var) if (1.0 - soma_percentuais_var) > 0 else custo_total_animal
@@ -537,7 +563,6 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=10)
     
-    # Cabeçalho
     pdf.set_fill_color(30, 58, 138)
     pdf.rect(10, 8, 277, 12, "F")
     pdf.set_text_color(255, 255, 255)
@@ -550,7 +575,6 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.set_xy(10, 22)
     pdf.cell(277, 5, f"Empresa: {nome_empresa.upper()} | Data: {acao['data_acao']} | Tipo: {acao['tipo_animal']}", ln=1, align="C")
     
-    # Indicadores
     pdf.ln(2)
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(241, 245, 249)
@@ -563,7 +587,6 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.cell(93, 5, f"Markup: {ind['markup']*100:.2f}%", 1, 1, 'L', True)
     pdf.ln(3)
     
-    # Tabela de Cortes Completa
     pdf.set_font("Arial", style="B", size=7.5)
     cols = ['nome_corte', 'qualidade', 'peso', 'PREÇO CUSTO/KG', 'PREÇO/CUSTO', 'PREÇO VENDA/KG', 'VALOR TOTAL DE VENDAS', 'LUCRO BRUTO', 'PERCENTUAL/CORTES', 'CUSTO EFETIVO TOTAL']
     larguras = [35, 18, 18, 22, 22, 22, 28, 24, 22, 38]
@@ -813,6 +836,46 @@ else:
                     p_embalagens = st.number_input("Embalagens (%)", min_value=0.0, max_value=100.0, step=0.01, key=f"input_p_embalagens_{v_form}")
                     p_comissao = st.number_input("Comissão (%)", min_value=0.0, max_value=100.0, step=0.01, key=f"input_p_comissao_{v_form}")
 
+                st.markdown("---")
+                st.markdown("#### 📥 Opção de Adicionar Cortes: Manualmente ou por Upload de Ficheiro (CSV / XLSX)")
+                
+                # Uploader de Ficheiro baseado no modelo VACA_CASADA.csv
+                uploaded_cortes_file = st.file_uploader("Carregar Ficheiro de Cortes (CSV ou XLSX)", type=["csv", "xlsx"], key=f"uploader_cortes_lote_{v_form}")
+                if uploaded_cortes_file is not None:
+                    try:
+                        if uploaded_cortes_file.name.endswith('.csv'):
+                            df_up = pd.read_csv(uploaded_cortes_file, encoding='latin-1', sep=None, engine='python')
+                        else:
+                            df_up = pd.read_excel(uploaded_cortes_file)
+                        
+                        # Padronizar nomes das colunas
+                        col_map = {c: str(c).strip().lower().replace(" ", "_") for c in df_up.columns}
+                        df_up.rename(columns=col_map, inplace=True)
+                        
+                        if 'nom_corte' in df_up.columns and 'nome_corte' not in df_up.columns:
+                            df_up.rename(columns={'nom_corte': 'nome_corte'}, inplace=True)
+                        if 'preço_de_venda' in df_up.columns and 'preco_venda' not in df_up.columns:
+                            df_up.rename(columns={'preço_de_venda': 'preco_venda'}, inplace=True)
+                        
+                        if all(k in df_up.columns for k in ['nome_corte', 'qualidade', 'peso', 'preco_venda']):
+                            if st.button("⚡ Importar Cortes do Ficheiro para o Lote", key=f"btn_import_file_{v_form}"):
+                                st.session_state.cortes_temp = []
+                                for _, r in df_up.iterrows():
+                                    p_val = str(r['peso']).replace(',', '.')
+                                    pv_val = str(r['preco_venda']).replace('R$', '').replace(' ', '').replace(',', '.')
+                                    st.session_state.cortes_temp.append({
+                                        "nome_corte": str(r['nome_corte']).upper().strip(),
+                                        "qualidade": str(r['qualidade']).upper().strip(),
+                                        "peso": float(p_val) if pd.notnumeric(p_val) or float(p_val)>=0 else 0.0,
+                                        "preco_venda": float(pv_val) if pd.notnumeric(pv_val) or float(pv_val)>=0 else 0.0
+                                    })
+                                st.success("🎉 Cortes importados com sucesso do ficheiro!")
+                                st.rerun()
+                        else:
+                            st.error("❌ O ficheiro enviado não contém as colunas exigidas: nom_corte, qualidade, peso, preço_de_venda.")
+                    except Exception as e_up:
+                        st.error(f"Erro ao ler o ficheiro: {e_up}")
+
                 conn = get_connection()
                 is_postgres = "psycopg2" in str(type(conn))
                 if is_postgres:
@@ -834,7 +897,7 @@ else:
                     peso_corte = col_c3.number_input("Peso do Corte (KG)", min_value=0.0, step=0.001, format="%.3f", key=f"input_corte_peso_{v_form}")
                     preco_venda = col_c4.number_input("Preço de Venda (R$/KG)", min_value=0.0, step=0.01, key=f"input_corte_preco_{v_form}")
                     
-                    if st.form_submit_button("➕ Adicionar Corte") and nome_corte != "":
+                    if st.form_submit_button("➕ Adicionar Corte Manual") and nome_corte != "":
                         st.session_state.cortes_temp.append({
                             "nome_corte": nome_corte.upper(),
                             "qualidade": qualidade,
@@ -891,7 +954,6 @@ else:
             conn = get_connection()
             is_postgres = "psycopg2" in str(type(conn))
             
-            # Filtro por intervalo de datas
             col_f1, col_f2 = st.columns(2)
             data_inicio_filtro = col_f1.date_input("Data Início", datetime.date.today() - datetime.timedelta(days=30))
             data_fim_filtro = col_f2.date_input("Data Fim", datetime.date.today())
@@ -935,7 +997,7 @@ else:
                                 "CUSTO EFETIVO TOTAL": "R$ {:.2f}"
                             }), use_container_width=True)
                             
-                            pdf_bytes = gerar_pdf_relatorio_desossa(acao, df_res, ind, st.session_state.empresa_id_nome if 'empresa_id_nome' in st.session_state else st.session_state.empresa_nome)
+                            pdf_bytes = gerar_pdf_relatorio_desossa(acao, df_res, ind, st.session_state.empresa_nome if 'empresa_nome' in st.session_state else "Açougue")
                             st.download_button(
                                 label="📥 Baixar Relatório Completo em PDF",
                                 data=pdf_bytes,
