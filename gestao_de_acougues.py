@@ -597,22 +597,23 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.cell(277, 5, f"Empresa: {nome_empresa.upper()} | Data: {acao['data_acao']} | Tipo: {acao['tipo_animal']}", ln=1, align="C")
     pdf.ln(2)
 
+    # Replicando Quadros Fies da Aba SIMULACAO 21 07 no PDF
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(135, 5, "APURAÇÃO DOS PARÂMETROS DO ANIMAL", 1, 0, 'C', True)
     pdf.cell(7, 5, "", 0, 0)
-    pdf.cell(135, 5, "INDICADORES DA SIMULAÇÃO", 1, 1, 'C', True)
+    pdf.cell(135, 5, "INDICADORES DA SIMULAÇÃO (OURO / PRATA / TOTAL)", 1, 1, 'C', True)
 
     pdf.set_font("Arial", size=7.5)
     params_linhas = [
-        ("Peso Bruto / KG:", f"{ind['peso_bruto']:.3f} KG", f"Preço Total / Compra Sem Custos: R$ {ind['preco_total_compra_sem']:,.2f}"),
-        ("Ossos / Muxiba:", f"{ind['ossos']:.3f} KG", f"Preço Total / Venda: R$ {ind['preco_total_venda']:,.2f}"),
-        ("Quebra Não Identificada:", f"{ind['quebra']:.3f} KG", f"Peso Desossado: {ind['peso_desossado']:.3f} KG"),
+        ("Peso Bruto / KG:", f"{ind['peso_bruto']:.3f} KG", f"Preço Total Compra Sem Custos: R$ {ind['preco_total_compra_sem']:,.2f}"),
+        ("Ossos / Muxiba:", f"{ind['ossos']:.3f} KG", f"Preço Total Venda (Ouro: R$ {ind['val_venda_ouro']:,.2f} | Prata: R$ {ind['val_venda_prata']:,.2f})"),
+        ("Quebra Não Identificada:", f"{ind['quebra']:.3f} KG", f"Peso Desossado (Ouro: {ind['peso_ouro']:.3f} | Prata: {ind['peso_prata']:.3f})"),
         ("Exsudato / Escorrimento:", f"{ind['exsudato']:.3f} KG", f"Coeficiente Global: {ind['coeficiente']:.5f}"),
         ("Peso Final Desossado:", f"{ind['peso_final']:.3f} KG", f"Custo Efetivo Total: R$ {ind['custo_efetivo_total']:,.2f}"),
         ("Total de Quebra:", f"{(ind['ossos']+ind['quebra']+ind['exsudato']):.3f} KG", f"Margem de Contribuição: R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.2f}%)"),
-        ("", "", f"Markup: {ind['markup']*100:.2f}%"),
-        ("", "", f"Preço Médio de Venda/KG: R$ {ind['preco_medio_venda']:.2f}")
+        ("Taxas de Cartão (%):", f"{acao.get('p_cartao',0)}%", f"Markup: {ind['markup']*100:.2f}%"),
+        ("Impostos (%):", f"{acao.get('p_impostos',0)}%", f"Preço Médio de Venda/KG: R$ {ind['preco_medio_venda']:.2f}")
     ]
 
     for p_label, p_val, ind_val in params_linhas:
@@ -830,22 +831,60 @@ else:
     elif menu == "Capital de Giro (NCG)":
         render_modulo_ncg()
     elif menu == "Gerenciar Cadastro de Cortes":
-        st.header("🥩 Configurar e Gerenciar Tipos de Desossa e Cortes")
+        st.header("🥩 Configurar e Gerenciar Tipos de Desossa e Cortes Padrão")
         emp_id_ativo = st.session_state.empresa_id
         tipos_disponiveis = get_tipos_desossa(emp_id_ativo)
+        
         if tipos_disponiveis:
-            tipo_sel = st.selectbox("Selecione o Tipo de Desossa", tipos_disponiveis, key="tipo_sel_cortes")
+            tipo_sel = st.selectbox("Selecione o Tipo de Desossa", tipos_disponiveis, key="tipo_sel_config_cortes")
+            
+            with st.form("form_adicionar_corte_padrao"):
+                st.subheader(f"Adicionar Novo Corte Padrão para: {tipo_sel}")
+                novo_corte_nome = st.text_input("Nome do Corte Padrão")
+                if st.form_submit_button("Cadastrar Corte Padrão") and novo_corte_nome:
+                    conn = get_connection()
+                    cursor = conn.cursor()
+                    is_postgres = "psycopg2" in str(type(conn))
+                    try:
+                        if is_postgres:
+                            cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (%s, %s, %s)", (tipo_sel, novo_corte_nome.upper().strip(), emp_id_ativo if emp_id_ativo != 0 else None))
+                        else:
+                            cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", (tipo_sel, novo_corte_nome.upper().strip(), emp_id_ativo if emp_id_ativo != 0 else None))
+                        conn.commit()
+                        st.success(f"Corte '{novo_corte_nome.upper()}' cadastrado com sucesso!")
+                    except Exception as e:
+                        st.error(f"Erro ao cadastrar corte (pode já existir): {e}")
+                    conn.close()
+                    st.rerun()
+
             conn = get_connection()
             is_postgres = "psycopg2" in str(type(conn))
-            if st.session_state.e_admin:
-                df_padroes = pd.read_sql_query(f"SELECT id, nome_corte FROM cortes_padrao WHERE tipo_desossa = '{tipo_sel}' AND empresa_id IS NULL ORDER BY nome_corte ASC", conn)
+            if is_postgres:
+                df_padroes = pd.read_sql_query("SELECT id, tipo_desossa, nome_corte FROM cortes_padrao WHERE tipo_desossa = %s AND (empresa_id = %s OR empresa_id IS NULL) ORDER BY nome_corte ASC", conn, params=(tipo_sel, emp_id_ativo))
             else:
-                if is_postgres:
-                    df_padroes = pd.read_sql_query("SELECT id, nome_corte FROM cortes_padrao WHERE tipo_desossa = %s AND empresa_id = %s ORDER BY nome_corte ASC", conn, params=(tipo_sel, emp_id_ativo))
-                else:
-                    df_padroes = pd.read_sql_query("SELECT id, nome_corte FROM cortes_padrao WHERE tipo_desossa = ? AND empresa_id = ? ORDER BY nome_corte ASC", conn, params=(tipo_sel, emp_id_ativo))
+                df_padroes = pd.read_sql_query(f"SELECT id, tipo_desossa, nome_corte FROM cortes_padrao WHERE tipo_desossa = '{tipo_sel}' AND (empresa_id = {emp_id_ativo} OR empresa_id IS NULL) ORDER BY nome_corte ASC", conn)
             conn.close()
-            st.dataframe(df_padroes, use_container_width=True)
+
+            st.subheader(f"Cortes Cadastrados para '{tipo_sel}'")
+            if not df_padroes.empty:
+                for _, cp in df_padroes.iterrows():
+                    c_id = cp['id']
+                    c_nome = cp['nome_corte']
+                    col_n, col_d = st.columns([5, 1])
+                    col_n.write(f"• **{c_nome}**")
+                    if col_d.button("🗑️ Excluir", key=f"del_cp_{c_id}"):
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        if is_postgres:
+                            cursor.execute("DELETE FROM cortes_padrao WHERE id = %s", (c_id,))
+                        else:
+                            cursor.execute("DELETE FROM cortes_padrao WHERE id = ?", (c_id,))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"Corte '{c_nome}' removido!")
+                        st.rerun()
+            else:
+                st.info("Nenhum corte padrão cadastrado para este tipo de desossa.")
     else:
         emp_id_ativo = st.session_state.empresa_id
         v_form = st.session_state.form_version
@@ -1044,13 +1083,15 @@ else:
                                 st.write(f"• **Peso Final Desossado:** {ind['peso_final']:.3f} KG")
                                 st.write(f"• **Total de Quebra:** {(ind['ossos']+ind['quebra']+ind['exsudato']):.3f} KG")
                             with q_col2:
-                                st.markdown("###### Indicadores Financeiros")
+                                st.markdown("###### Indicadores Financeiros (Ouro / Prata / Total)")
                                 st.write(f"• **Custo Total Compra (Sem Custos):** R$ {ind['preco_total_compra_sem']:,.2f}")
-                                st.write(f"• **Preço Total Venda:** R$ {ind['preco_total_venda']:,.2f}")
+                                st.write(f"• **Preço Total Venda:** R$ {ind['preco_total_venda']:,.2f} (Ouro: R$ {ind['val_venda_ouro']:,.2f} | Prata: R$ {ind['val_venda_prata']:,.2f})")
+                                st.write(f"• **Peso Desossado:** {ind['peso_desossado']:.3f} KG (Ouro: {ind['peso_ouro']:.3f} | Prata: {ind['peso_prata']:.3f})")
+                                st.write(f"• **Coeficiente Global:** {ind['coeficiente']:.5f}")
                                 st.write(f"• **Custo Efetivo Total:** R$ {ind['custo_efetivo_total']:,.2f}")
                                 st.write(f"• **Margem de Contribuição:** R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.2f}%)")
                                 st.write(f"• **Markup:** {ind['markup']*100:.2f}%")
-                                st.write(f"• **Coeficiente Global:** {ind['coeficiente']:.5f}")
+                                st.write(f"• **Preço Médio Venda/KG:** R$ {ind['preco_medio_venda']:.2f}")
 
                             st.markdown("##### 🥩 Cortes Apurados")
                             st.dataframe(df_res.style.format({
