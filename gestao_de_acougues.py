@@ -5,16 +5,13 @@ import datetime
 import os
 import io
 import numpy as np
-from scipy.optimize import brentq
 from fpdf import FPDF
 
 # =========================================================================
-# 1. CONFIGURAÇÃO VISUAL E ESTILIZAÇÃO DA INTERFACE (UI/UX)
+# 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES (UI/UX)
 # =========================================================================
-# Define o título da página no navegador e ativa o modo largo (wide)
 st.set_page_config(page_title="Gestão de Açougues - Renato Frigotudo & Associados", layout="wide")
 
-# Injeção de CSS personalizado para padronizar cores, botões e campos de entrada
 st.markdown(
     """
     <style>
@@ -126,13 +123,9 @@ st.markdown(
 )
 
 # =========================================================================
-# 2. CONEXÃO E INICIALIZAÇÃO DA BASE DE DADOS HÍBRIDA
+# 2. CONEXÃO INTELIGENTE AO BANCO DE DADOS (SUPABASE / NUVEM OU LOCAL)
 # =========================================================================
 def get_connection():
-    """
-    Verifica se a aplicação está a rodar na nuvem com Supabase (DB_URL)
-    ou se deve conectar ao SQLite local.
-    """
     if "DB_URL" in st.secrets:
         import psycopg2
         url = st.secrets["DB_URL"]
@@ -143,7 +136,6 @@ def get_connection():
         return sqlite3.connect("desossa_db.db")
 
 def init_db():
-    """Cria as tabelas necessárias no banco de dados caso ainda não existam."""
     conn = get_connection()
     cursor = conn.cursor()
     is_postgres = "psycopg2" in str(type(conn))
@@ -207,30 +199,6 @@ def init_db():
             )
         """)
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS insumos_ficha (
-                id SERIAL PRIMARY KEY,
-                ficha_id INTEGER,
-                codigo TEXT,
-                produto_insumo TEXT NOT NULL,
-                qtd_bruta REAL DEFAULT 0.0,
-                unidade TEXT,
-                preco_bruto REAL DEFAULT 0.0,
-                rendimento REAL DEFAULT 100.0
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS insumos_nao_alimenticios_ficha (
-                id SERIAL PRIMARY KEY,
-                ficha_id INTEGER,
-                codigo TEXT,
-                produto_insumo TEXT NOT NULL,
-                qtd_bruta REAL DEFAULT 0.0,
-                unidade TEXT,
-                preco_bruto REAL DEFAULT 0.0,
-                rendimento REAL DEFAULT 100.0
-            )
-        """)
-        cursor.execute("""
             CREATE TABLE IF NOT EXISTS historico_ncg (
                 id SERIAL PRIMARY KEY,
                 empresa_id INTEGER,
@@ -322,30 +290,6 @@ def init_db():
             )
         """)
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS insumos_ficha (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ficha_id INTEGER,
-                codigo TEXT,
-                produto_insumo TEXT NOT NULL,
-                qtd_bruta REAL DEFAULT 0.0,
-                unidade TEXT,
-                preco_bruto REAL DEFAULT 0.0,
-                rendimento REAL DEFAULT 100.0
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS insumos_nao_alimenticios_ficha (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ficha_id INTEGER,
-                codigo TEXT,
-                produto_insumo TEXT NOT NULL,
-                qtd_bruta REAL DEFAULT 0.0,
-                unidade TEXT,
-                preco_bruto REAL DEFAULT 0.0,
-                rendimento REAL DEFAULT 100.0
-            )
-        """)
-        cursor.execute("""
             CREATE TABLE IF NOT EXISTS historico_ncg (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 empresa_id INTEGER,
@@ -379,7 +323,6 @@ def init_db():
             )
         """)
     
-    # Inserção de dados padrão de desossa na primeira inicialização
     cursor.execute("SELECT COUNT(*) FROM tipos_desossa")
     if cursor.fetchone()[0] == 0:
         tipos_iniciais = [
@@ -395,11 +338,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Executa a inicialização do banco de dados
 init_db()
 
 def get_tipos_desossa(empresa_id):
-    """Busca no banco os tipos de desossa cadastrados para a empresa ativa."""
     conn = get_connection()
     cursor = conn.cursor()
     is_postgres = "psycopg2" in str(type(conn))
@@ -416,7 +357,7 @@ def get_tipos_desossa(empresa_id):
     return tipos
 
 # =========================================================================
-# 3. GERENCIAMENTO DE ESTADO DA SESSÃO
+# 3. CONTROLE DE ESTADOS DO FORMULÁRIO
 # =========================================================================
 def init_form_states():
     if "form_version" not in st.session_state:
@@ -431,7 +372,7 @@ def reset_form_states():
     st.session_state.cortes_temp = []
 
 # =========================================================================
-# 4. ELEMENTOS DE CABEÇALHO E VISUAIS
+# 4. ELEMENTOS VISUAIS DE CABEÇALHO
 # =========================================================================
 def exibir_cabecalho(nome_empresa_usuaria=None):
     col_logo, col_info = st.columns([1, 4])
@@ -467,14 +408,190 @@ def exibir_cabecalho(nome_empresa_usuaria=None):
     st.markdown("<hr style='margin-top: 10px; margin-bottom: 20px; border-top: 3px solid #1E3A8A;'>", unsafe_allow_html=True)
 
 # =========================================================================
-# 5. MÓDULOS DE CÁLCULO
+# 5. MOTOR DE CÁLCULO DA DESOSSA (SIMULAÇÃO 21 07) & RELATÓRIO PDF
 # =========================================================================
-
-def render_modulo_financeiro():
-    """Módulo de Simulação de Financiamentos (Tabela Price e SAC)."""
-    st.header("🧮 Módulo de Cálculo Financeiro & Amortização")
-    st.write("Simule financiamentos e veja o cronograma de pagamentos.")
+def processar_calculos_desossa(acao, df_cortes):
+    peso_bruto = float(acao['peso_bruto'])
+    preco_animal_kg = float(acao['preco_animal_kg'])
+    custo_total_animal = peso_bruto * preco_animal_kg
     
+    ossos = float(acao['ossos_muxiba'])
+    quebra = float(acao['quebra_nao_identificada'])
+    exsudato = float(acao['exsudato_escorrimento'])
+    total_quebra = ossos + quebra + exsudato
+    peso_final = max(0.0, peso_bruto - total_quebra)
+    
+    p_cartao = float(acao.get('p_cartao', 0.0)) / 100.0
+    p_impostos = float(acao.get('p_impostos', 0.0)) / 100.0
+    p_embalagens = float(acao.get('p_embalagens', 0.0)) / 100.0
+    p_comissao = float(acao.get('p_comissao', 0.0)) / 100.0
+    soma_percentuais_var = p_cartao + p_impostos + p_embalagens + p_comissao
+    
+    coef_global = peso_final / peso_bruto if peso_bruto > 0 else 0.0
+    
+    if df_cortes.empty:
+        return pd.DataFrame(), {}
+
+    df = df_cortes.copy()
+    df['peso'] = pd.to_numeric(df['peso'], errors='coerce').fillna(0.0)
+    df['preco_venda'] = pd.to_numeric(df['preco_venda'], errors='coerce').fillna(0.0)
+    
+    peso_ouro = df[df['qualidade'].str.upper() == 'OURO']['peso'].sum()
+    peso_prata = df[df['qualidade'].str.upper() == 'PRATA']['peso'].sum()
+    
+    val_venda_ouro = (df[df['qualidade'].str.upper() == 'OURO']['peso'] * df[df['qualidade'].str.upper() == 'OURO']['preco_venda']).sum()
+    val_venda_prata = (df[df['qualidade'].str.upper() == 'PRATA']['peso'] * df[df['qualidade'].str.upper() == 'PRATA']['preco_venda']).sum()
+    total_vendas_geral = val_venda_ouro + val_venda_prata
+    
+    custo_total_efetivo = custo_total_animal / (1.0 - soma_percentuais_var) if (1.0 - soma_percentuais_var) > 0 else custo_total_animal
+    
+    custo_ouro = custo_total_efetivo * 0.56 if total_vendas_geral == 0 else custo_total_efetivo * (val_venda_ouro / total_vendas_geral)
+    custo_prata = custo_total_efetivo * 0.44 if total_vendas_geral == 0 else custo_total_efetivo * (val_venda_prata / total_vendas_geral)
+    
+    precos_custo_kg = []
+    precos_custo_total = []
+    valor_vendas = []
+    lucro_bruto = []
+    perc_cortes = []
+    t_cartao_val = []
+    t_imp_val = []
+    t_emb_val = []
+    t_com_val = []
+    custo_efetivo_kg_list = []
+    custo_efetivo_tot_list = []
+    
+    for _, row in df.iterrows():
+        p = row['peso']
+        pv = row['preco_venda']
+        qual = str(row['qualidade']).upper()
+        
+        vv = p * pv
+        valor_vendas.append(vv)
+        
+        pc_tot = (custo_ouro * (p / peso_ouro)) if (qual == 'OURO' and peso_ouro > 0) else ((custo_prata * (p / peso_prata)) if (qual == 'PRATA' and peso_prata > 0) else 0.0)
+        pc_kg = pc_tot / p if p > 0 else 0.0
+        precos_custo_kg.append(pc_kg)
+        precos_custo_total.append(pc_tot)
+        
+        lb = vv - pc_tot
+        lucro_bruto.append(lb)
+        
+        pcort = (vv / total_vendas_geral) if total_vendas_geral > 0 else 0.0
+        perc_cortes.append(pcort)
+        
+        t_cartao_val.append(vv * p_cartao)
+        t_imp_val.append(vv * p_impostos)
+        t_emb_val.append(vv * p_embalagens)
+        t_com_val.append(vv * p_comissao)
+        
+        ce_tot = pc_tot / (1.0 - soma_percentuais_var) if (1.0 - soma_percentuais_var) > 0 else pc_tot
+        ce_kg = ce_tot / p if p > 0 else 0.0
+        custo_efetivo_kg_list.append(ce_kg)
+        custo_efetivo_tot_list.append(ce_tot)
+
+    df['PREÇO CUSTO/KG'] = precos_custo_kg
+    df['PREÇO/CUSTO'] = precos_custo_total
+    df['PREÇO VENDA/KG'] = df['preco_venda']
+    df['VALOR TOTAL DE VENDAS'] = valor_vendas
+    df['LUCRO BRUTO'] = lucro_bruto
+    df['PERCENTUAL/CORTES'] = perc_cortes
+    df['TAXAS DE CARTÃO'] = t_cartao_val
+    df['IMPOSTOS'] = t_imp_val
+    df['EMBALAGENS'] = t_emb_val
+    df['COMISSÃO'] = t_com_val
+    df['CUSTO EFETIVO/KG'] = custo_efetivo_kg_list
+    df['CUSTO EFETIVO TOTAL'] = custo_efetivo_tot_list
+    
+    total_peso_cortes = df['peso'].sum()
+    margem_contrib_rs = total_vendas_geral - custo_total_efetivo
+    margem_contrib_pct = (margem_contrib_rs / total_vendas_geral) if total_vendas_geral > 0 else 0.0
+    markup = (total_vendas_geral / custo_total_efetivo - 1.0) if custo_total_efetivo > 0 else 0.0
+    
+    preco_medio_compra_sem = custo_total_animal / total_peso_cortes if total_peso_cortes > 0 else 0.0
+    preco_medio_compra_com = custo_total_efetivo / total_peso_cortes if total_peso_cortes > 0 else 0.0
+    preco_medio_venda = total_vendas_geral / total_peso_cortes if total_peso_cortes > 0 else 0.0
+
+    indicadores = {
+        "preco_total_compra_sem": custo_total_animal,
+        "preco_total_venda": total_vendas_geral,
+        "peso_desossado": total_peso_cortes,
+        "coeficiente": coef_global,
+        "custo_efetivo_total": custo_total_efetivo,
+        "margem_contribuicao_rs": margem_contrib_rs,
+        "margem_contribuicao_pct": margem_contrib_pct,
+        "markup": markup,
+        "preco_medio_compra_sem": preco_medio_compra_sem,
+        "preco_medio_compra_com": preco_medio_compra_com,
+        "preco_medio_venda": preco_medio_venda,
+        "peso_bruto": peso_bruto,
+        "ossos": ossos,
+        "quebra": quebra,
+        "exsudato": exsudato,
+        "peso_final": peso_final
+    }
+
+    return df, indicadores
+
+def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
+    pdf = FPDF(orientation='L', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=10)
+    
+    # Cabeçalho
+    pdf.set_fill_color(30, 58, 138)
+    pdf.rect(10, 8, 277, 12, "F")
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", style="B", size=10)
+    pdf.set_xy(10, 10)
+    pdf.cell(277, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - RELATÓRIO DE APURACAO DE DESOSSA", ln=1, align="C")
+    
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_font("Arial", style="B", size=9)
+    pdf.set_xy(10, 22)
+    pdf.cell(277, 5, f"Empresa: {nome_empresa.upper()} | Data: {acao['data_acao']} | Tipo: {acao['tipo_animal']}", ln=1, align="C")
+    
+    # Indicadores
+    pdf.ln(2)
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_fill_color(241, 245, 249)
+    pdf.cell(92, 5, f"Peso Bruto: {ind['peso_bruto']:.3f} KG", 1, 0, 'L', True)
+    pdf.cell(92, 5, f"Custo Efetivo Total: R$ {ind['custo_efetivo_total']:,.2f}", 1, 0, 'L', True)
+    pdf.cell(93, 5, f"Valor Total Vendas: R$ {ind['preco_total_venda']:,.2f}", 1, 1, 'L', True)
+    
+    pdf.cell(92, 5, f"Peso Final Desossado: {ind['peso_desossado']:.3f} KG", 1, 0, 'L', True)
+    pdf.cell(92, 5, f"Margem de Contribuição: R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.2f}%)", 1, 0, 'L', True)
+    pdf.cell(93, 5, f"Markup: {ind['markup']*100:.2f}%", 1, 1, 'L', True)
+    pdf.ln(3)
+    
+    # Tabela de Cortes Completa
+    pdf.set_font("Arial", style="B", size=7.5)
+    cols = ['nome_corte', 'qualidade', 'peso', 'PREÇO CUSTO/KG', 'PREÇO/CUSTO', 'PREÇO VENDA/KG', 'VALOR TOTAL DE VENDAS', 'LUCRO BRUTO', 'PERCENTUAL/CORTES', 'CUSTO EFETIVO TOTAL']
+    larguras = [35, 18, 18, 22, 22, 22, 28, 24, 22, 38]
+    
+    for i, col_name in enumerate(cols):
+        pdf.cell(larguras[i], 6, col_name.replace("_", " ").upper(), 1, 0, 'C', True)
+    pdf.ln()
+    
+    pdf.set_font("Arial", size=7)
+    for _, r in df_res.iterrows():
+        pdf.cell(larguras[0], 5, str(r['nome_corte']), 1, 0, 'L')
+        pdf.cell(larguras[1], 5, str(r['qualidade']), 1, 0, 'C')
+        pdf.cell(larguras[2], 5, f"{r['peso']:.3f}", 1, 0, 'R')
+        pdf.cell(larguras[3], 5, f"{r['PREÇO CUSTO/KG']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[4], 5, f"{r['PREÇO/CUSTO']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[5], 5, f"{r['PREÇO VENDA/KG']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[6], 5, f"{r['VALOR TOTAL DE VENDAS']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[7], 5, f"{r['LUCRO BRUTO']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[8], 5, f"{r['PERCENTUAL/CORTES']*100:.1f}%", 1, 0, 'R')
+        pdf.cell(larguras[9], 5, f"{r['CUSTO EFETIVO TOTAL']:.2f}", 1, 1, 'R')
+        
+    return pdf.output(dest='S').encode('latin1')
+
+# =========================================================================
+# 6. MÓDULOS DE SUPORTE (FINANCEIRO, FICHA TÉCNICA E NCG)
+# =========================================================================
+def render_modulo_financeiro():
+    st.header("🧮 Módulo de Cálculo Financeiro & Amortização")
     col1, col2, col3 = st.columns(3)
     with col1:
         pv = st.number_input("Valor Financiado / Empréstimo (R$)", min_value=0.0, value=100000.0, step=1000.0)
@@ -489,10 +606,7 @@ def render_modulo_financeiro():
         dados = []
         saldo_devedor = pv
         if "Price" in sistema:
-            if i > 0:
-                pmt = pv * (i * (1 + i)**n) / ((1 + i)**n - 1)
-            else:
-                pmt = pv / n
+            pmt = pv * (i * (1 + i)**n) / ((1 + i)**n - 1) if i > 0 else pv / n
             for mes in range(1, n + 1):
                 juros = saldo_devedor * i
                 amortizacao = pmt - juros
@@ -512,12 +626,10 @@ def render_modulo_financeiro():
         }), use_container_width=True)
 
 def render_modulo_ficha_tecnica():
-    """Módulo para Cadastro e Consulta de Fichas Técnicas."""
     st.header("📋 Módulo de Ficha Técnica & Precificação")
     emp_id_ativo = st.session_state.empresa_id
     
     with st.form("form_nova_ficha"):
-        st.subheader("Cadastrar Nova Ficha Técnica")
         produto_nome = st.text_input("Nome do Produto Preparado / Embutido")
         rendimento_kg = st.number_input("Rendimento Total Produzido (KG)", min_value=0.0, value=10.0, step=0.1)
         peso_unid = st.number_input("Peso por Unidade / Porção (KG)", min_value=0.0, value=0.5, step=0.05)
@@ -549,7 +661,6 @@ def render_modulo_ficha_tecnica():
         st.dataframe(df_fichas, use_container_width=True)
 
 def render_modulo_ncg():
-    """Módulo de Análise e Cálculo de Necessidade de Capital de Giro."""
     st.header("📈 Análise de Necessidade de Capital de Giro (NCG)")
     col1, col2 = st.columns(2)
     with col1:
@@ -568,7 +679,7 @@ def render_modulo_ncg():
         st.info(f"Ativo Cíclico: R$ {ac:,.2f} | Passivo Cíclico: R$ {pc:,.2f}")
 
 # =========================================================================
-# 6. AUTENTICAÇÃO E SESSÃO DO UTILIZADOR
+# 7. GERENCIAMENTO DE SESSÃO E LOGIN
 # =========================================================================
 if "logado" not in st.session_state:
     st.session_state.logado = False
@@ -625,7 +736,6 @@ if not st.session_state.logado:
                     st.error("Usuário ou senha incorretos.")
 
 else:
-    # Barra lateral de navegação quando o utilizador está autenticado
     st.sidebar.markdown(f"**🏢 Empresa Usuária:**\n`{st.session_state.empresa_nome.upper()}`")
     st.sidebar.markdown("---")
     st.sidebar.markdown("### ☁️ Banco de Dados em Nuvem")
@@ -651,7 +761,7 @@ else:
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
     # =========================================================================
-    # 7. EXECUÇÃO DAS PÁGINAS SELECIONADAS NO MENU
+    # 8. EXECUÇÃO DOS MÓDULOS DE TELA
     # =========================================================================
     if menu == "Cálculo Financeiro":
         render_modulo_financeiro()
@@ -737,9 +847,13 @@ else:
                 if st.session_state.cortes_temp:
                     st.markdown("##### 📋 Cortes Adicionados ao Lote:")
                     for idx, c in enumerate(st.session_state.cortes_temp):
-                        st.write(f"• **{c['nome_corte']}** ({c['qualidade']}) - {c['peso']:.3f} KG - R$ {c['preco_venda']:.2f}/KG")
+                        col_info_txt, col_del_btn = st.columns([5, 1])
+                        col_info_txt.write(f"• **{c['nome_corte']}** ({c['qualidade']}) - {c['peso']:.3f} KG - R$ {c['preco_venda']:.2f}/KG")
+                        if col_del_btn.button("🗑️ Remover", key=f"del_temp_{idx}"):
+                            st.session_state.cortes_temp.pop(idx)
+                            st.rerun()
 
-                if st.button("💾 Salvar Ação no Banco de Dados em Nuvem", key=f"btn_salvar_db_{v_form}"):
+                if st.button("💾 Salvar Ação Completa no Banco de Dados", key=f"btn_salvar_db_{v_form}"):
                     if not st.session_state.cortes_temp:
                         st.error("Adicione pelo menos um corte!")
                     else:
@@ -768,21 +882,78 @@ else:
                         
                         conn.commit()
                         conn.close()
-                        st.success("🎉 Lote salvo com sucesso na nuvem!")
+                        st.success("🎉 Desossa salva com sucesso!")
                         reset_form_states()
                         st.rerun()
 
         elif menu == "Histórico & Edição":
-            st.header("📂 Histórico & Edição de Desossas")
+            st.header("📂 Histórico, Filtro por Datas & Gestão de Desossas")
             conn = get_connection()
             is_postgres = "psycopg2" in str(type(conn))
+            
+            # Filtro por intervalo de datas
+            col_f1, col_f2 = st.columns(2)
+            data_inicio_filtro = col_f1.date_input("Data Início", datetime.date.today() - datetime.timedelta(days=30))
+            data_fim_filtro = col_f2.date_input("Data Fim", datetime.date.today())
+            
             if is_postgres:
-                df_acoes = pd.read_sql_query("SELECT * FROM acoes WHERE empresa_id = %s ORDER BY data_acao DESC", conn, params=(emp_id_ativo,))
+                df_acoes = pd.read_sql_query("SELECT * FROM acoes WHERE empresa_id = %s AND data_acao BETWEEN %s AND %s ORDER BY data_acao DESC", conn, params=(emp_id_ativo, str(data_inicio_filtro), str(data_fim_filtro)))
             else:
-                df_acoes = pd.read_sql_query(f"SELECT * FROM acoes WHERE empresa_id = {emp_id_ativo} ORDER BY data_acao DESC", conn)
-            conn.close()
+                df_acoes = pd.read_sql_query(f"SELECT * FROM acoes WHERE empresa_id = {emp_id_ativo} AND data_acao BETWEEN '{data_inicio_filtro}' AND '{data_fim_filtro}' ORDER BY data_acao DESC", conn)
             
             if df_acoes.empty:
-                st.warning("Nenhuma desossa cadastrada.")
+                st.warning("Nenhuma desossa encontrada no intervalo de datas selecionado.")
+                conn.close()
             else:
-                st.dataframe(df_acoes, use_container_width=True)
+                for _, acao in df_acoes.iterrows():
+                    acao_id = acao['id']
+                    with st.expander(f"🥩 Lote #{acao_id} - Data: {acao['data_acao']} | Tipo: {acao['tipo_animal']} | Peso Bruto: {acao['peso_bruto']} KG"):
+                        if is_postgres:
+                            df_c = pd.read_sql_query("SELECT * FROM cortes WHERE acao_id = %s", conn, params=(acao_id,))
+                        else:
+                            df_c = pd.read_sql_query(f"SELECT * FROM cortes WHERE acao_id = {acao_id}", conn)
+                        
+                        df_res, ind = processar_calculos_desossa(acao, df_c)
+                        
+                        if not df_res.empty:
+                            st.markdown("##### 📊 Indicadores da Simulação")
+                            cols_ind = st.columns(4)
+                            cols_ind[0].metric("Custo Efetivo Total", f"R$ {ind['custo_efetivo_total']:,.2f}")
+                            cols_ind[1].metric("Valor Total Vendas", f"R$ {ind['preco_total_venda']:,.2f}")
+                            cols_ind[2].metric("Margem Contribuição", f"R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.1f}%)")
+                            cols_ind[3].metric("Markup", f"{ind['markup']*100:.1f}%")
+                            
+                            st.markdown("##### 🥩 Cortes Apurados")
+                            st.dataframe(df_res.style.format({
+                                "peso": "{:.3f} KG",
+                                "PREÇO CUSTO/KG": "R$ {:.2f}",
+                                "PREÇO/CUSTO": "R$ {:.2f}",
+                                "PREÇO VENDA/KG": "R$ {:.2f}",
+                                "VALOR TOTAL DE VENDAS": "R$ {:.2f}",
+                                "LUCRO BRUTO": "R$ {:.2f}",
+                                "PERCENTUAL/CORTES": "{:.2%}",
+                                "CUSTO EFETIVO TOTAL": "R$ {:.2f}"
+                            }), use_container_width=True)
+                            
+                            pdf_bytes = gerar_pdf_relatorio_desossa(acao, df_res, ind, st.session_state.empresa_id_nome if 'empresa_id_nome' in st.session_state else st.session_state.empresa_nome)
+                            st.download_button(
+                                label="📥 Baixar Relatório Completo em PDF",
+                                data=pdf_bytes,
+                                file_name=f"desossa_lote_{acao_id}_{acao['data_acao']}.pdf",
+                                mime="application/pdf",
+                                key=f"pdf_lote_{acao_id}"
+                            )
+                        
+                        col_acao1, col_acao2 = st.columns(2)
+                        if col_acao1.button(f"🗑️ Excluir Lote Inteiro #{acao_id}", key=f"del_lote_{acao_id}"):
+                            cursor = conn.cursor()
+                            if is_postgres:
+                                cursor.execute("DELETE FROM cortes WHERE acao_id = %s", (acao_id,))
+                                cursor.execute("DELETE FROM acoes WHERE id = %s", (acao_id,))
+                            else:
+                                cursor.execute("DELETE FROM cortes WHERE acao_id = ?", (acao_id,))
+                                cursor.execute("DELETE FROM acoes WHERE id = ?", (acao_id,))
+                            conn.commit()
+                            st.success(f"Lote #{acao_id} excluído com sucesso!")
+                            st.rerun()
+                conn.close()
