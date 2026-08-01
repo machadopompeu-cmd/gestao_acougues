@@ -128,12 +128,15 @@ st.markdown(
 # =========================================================================
 def get_connection():
     """
-    Função unificada de conexão: Se houver DB_URL nas secrets do Streamlit Cloud,
-    conecta no PostgreSQL (Supabase). Caso contrário, usa o SQLite local para desenvolvimento.
+    Função unificada e aprimorada de conexão: Se houver DB_URL nas secrets do Streamlit Cloud,
+    conecta no PostgreSQL (Supabase) tratando a URL de forma segura. Caso contrário, usa o SQLite local.
     """
     if "DB_URL" in st.secrets:
         import psycopg2
-        return psycopg2.connect(st.secrets["DB_URL"])
+        url = st.secrets["DB_URL"]
+        if "?" in url:
+            url = url.split("?")[0]
+        return psycopg2.connect(url)
     else:
         return sqlite3.connect("desossa_db.db")
 
