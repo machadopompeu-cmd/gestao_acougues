@@ -9,10 +9,12 @@ from scipy.optimize import brentq
 from fpdf import FPDF
 
 # =========================================================================
-# 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES (UI/UX)
+# 1. CONFIGURAÇÃO VISUAL E ESTILIZAÇÃO DA INTERFACE (UI/UX)
 # =========================================================================
+# Define o título da página no navegador e ativa o modo largo (wide)
 st.set_page_config(page_title="Gestão de Açougues - Renato Frigotudo & Associados", layout="wide")
 
+# Injeção de CSS personalizado para padronizar cores, botões e campos de entrada
 st.markdown(
     """
     <style>
@@ -124,9 +126,13 @@ st.markdown(
 )
 
 # =========================================================================
-# 2. CONEXÃO INTELIGENTE AO BANCO DE DADOS (SUPABASE / NUVEM OU LOCAL)
+# 2. CONEXÃO E INICIALIZAÇÃO DA BASE DE DADOS HÍBRIDA
 # =========================================================================
 def get_connection():
+    """
+    Verifica se a aplicação está a rodar na nuvem com Supabase (DB_URL)
+    ou se deve conectar ao SQLite local.
+    """
     if "DB_URL" in st.secrets:
         import psycopg2
         url = st.secrets["DB_URL"]
@@ -137,6 +143,7 @@ def get_connection():
         return sqlite3.connect("desossa_db.db")
 
 def init_db():
+    """Cria as tabelas necessárias no banco de dados caso ainda não existam."""
     conn = get_connection()
     cursor = conn.cursor()
     is_postgres = "psycopg2" in str(type(conn))
@@ -372,6 +379,7 @@ def init_db():
             )
         """)
     
+    # Inserção de dados padrão de desossa na primeira inicialização
     cursor.execute("SELECT COUNT(*) FROM tipos_desossa")
     if cursor.fetchone()[0] == 0:
         tipos_iniciais = [
@@ -387,9 +395,11 @@ def init_db():
     conn.commit()
     conn.close()
 
+# Executa a inicialização do banco de dados
 init_db()
 
 def get_tipos_desossa(empresa_id):
+    """Busca no banco os tipos de desossa cadastrados para a empresa ativa."""
     conn = get_connection()
     cursor = conn.cursor()
     is_postgres = "psycopg2" in str(type(conn))
@@ -406,7 +416,7 @@ def get_tipos_desossa(empresa_id):
     return tipos
 
 # =========================================================================
-# 3. CONTROLE DE ESTADOS DO FORMULÁRIO
+# 3. GERENCIAMENTO DE ESTADO DA SESSÃO
 # =========================================================================
 def init_form_states():
     if "form_version" not in st.session_state:
@@ -421,7 +431,7 @@ def reset_form_states():
     st.session_state.cortes_temp = []
 
 # =========================================================================
-# 4. ELEMENTOS VISUAIS DE CABEÇALHO
+# 4. ELEMENTOS DE CABEÇALHO E VISUAIS
 # =========================================================================
 def exibir_cabecalho(nome_empresa_usuaria=None):
     col_logo, col_info = st.columns([1, 4])
@@ -456,39 +466,15 @@ def exibir_cabecalho(nome_empresa_usuaria=None):
         )
     st.markdown("<hr style='margin-top: 10px; margin-bottom: 20px; border-top: 3px solid #1E3A8A;'>", unsafe_allow_html=True)
 
-def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
-    logo_pdf = None
-    for lp in ["logo_renato.jpeg", "logo_renato.jpg", "LOGO FINALIZADA.jpeg", "logo_renato.png"]:
-        if os.path.exists(lp):
-            logo_pdf = lp
-            break
-            
-    if logo_pdf:
-        pdf.image(logo_pdf, x=10, y=8, w=18)
-
-    pdf.set_fill_color(30, 58, 138)
-    pdf.rect(30, 8, 257, 12, "F")
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", style="B", size=10)
-    pdf.set_xy(30, 10)
-    pdf.cell(257, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - {titulo_relatorio.upper()}", ln=1, align="C")
-    
-    pdf.set_text_color(15, 23, 42)
-    pdf.set_font("Arial", style="B", size=8.5)
-    pdf.set_xy(10, 22)
-    txt_empresa = f"Empresa Usuária: {nome_empresa_usuaria}"
-    pdf.cell(277, 5, txt_empresa.encode("latin1", "replace").decode("latin1"), ln=1, align="C")
-    
-    pdf.set_draw_color(30, 58, 138)
-    pdf.set_line_width(0.6)
-    pdf.line(10, 28, 287, 28)
-    pdf.set_xy(10, 31)
-
 # =========================================================================
-# 5. MÓDULOS COMPLETOS (FINANCEIRO, FICHA TÉCNICA E NCG)
+# 5. MÓDULOS DE CÁLCULO
 # =========================================================================
+
 def render_modulo_financeiro():
+    """Módulo de Simulação de Financiamentos (Tabela Price e SAC)."""
     st.header("🧮 Módulo de Cálculo Financeiro & Amortização")
+    st.write("Simule financiamentos e veja o cronograma de pagamentos.")
+    
     col1, col2, col3 = st.columns(3)
     with col1:
         pv = st.number_input("Valor Financiado / Empréstimo (R$)", min_value=0.0, value=100000.0, step=1000.0)
@@ -526,10 +512,12 @@ def render_modulo_financeiro():
         }), use_container_width=True)
 
 def render_modulo_ficha_tecnica():
+    """Módulo para Cadastro e Consulta de Fichas Técnicas."""
     st.header("📋 Módulo de Ficha Técnica & Precificação")
     emp_id_ativo = st.session_state.empresa_id
     
     with st.form("form_nova_ficha"):
+        st.subheader("Cadastrar Nova Ficha Técnica")
         produto_nome = st.text_input("Nome do Produto Preparado / Embutido")
         rendimento_kg = st.number_input("Rendimento Total Produzido (KG)", min_value=0.0, value=10.0, step=0.1)
         peso_unid = st.number_input("Peso por Unidade / Porção (KG)", min_value=0.0, value=0.5, step=0.05)
@@ -561,6 +549,7 @@ def render_modulo_ficha_tecnica():
         st.dataframe(df_fichas, use_container_width=True)
 
 def render_modulo_ncg():
+    """Módulo de Análise e Cálculo de Necessidade de Capital de Giro."""
     st.header("📈 Análise de Necessidade de Capital de Giro (NCG)")
     col1, col2 = st.columns(2)
     with col1:
@@ -579,7 +568,7 @@ def render_modulo_ncg():
         st.info(f"Ativo Cíclico: R$ {ac:,.2f} | Passivo Cíclico: R$ {pc:,.2f}")
 
 # =========================================================================
-# 6. GERENCIAMENTO DE SESSÃO E LOGIN
+# 6. AUTENTICAÇÃO E SESSÃO DO UTILIZADOR
 # =========================================================================
 if "logado" not in st.session_state:
     st.session_state.logado = False
@@ -636,6 +625,7 @@ if not st.session_state.logado:
                     st.error("Usuário ou senha incorretos.")
 
 else:
+    # Barra lateral de navegação quando o utilizador está autenticado
     st.sidebar.markdown(f"**🏢 Empresa Usuária:**\n`{st.session_state.empresa_nome.upper()}`")
     st.sidebar.markdown("---")
     st.sidebar.markdown("### ☁️ Banco de Dados em Nuvem")
@@ -661,7 +651,7 @@ else:
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
     # =========================================================================
-    # 7. EXEUÇÃO DOS MÓDULOS SELECIONADOS NO MENU
+    # 7. EXECUÇÃO DAS PÁGINAS SELECIONADAS NO MENU
     # =========================================================================
     if menu == "Cálculo Financeiro":
         render_modulo_financeiro()
