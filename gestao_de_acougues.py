@@ -543,6 +543,11 @@ def processar_calculos_desossa(acao, df_cortes):
     preco_medio_compra_com = custo_total_efetivo / total_peso_cortes if total_peso_cortes > 0 else 0.0
     preco_medio_venda = total_vendas_geral / total_peso_cortes if total_peso_cortes > 0 else 0.0
 
+    tot_cartao_val = sum(t_cartao_val)
+    tot_imp_val = sum(t_imp_val)
+    tot_emb_val = sum(t_emb_val)
+    tot_com_val = sum(t_com_val)
+
     indicadores = {
         "preco_total_compra_sem": custo_total_animal,
         "preco_total_venda": total_vendas_geral,
@@ -559,7 +564,17 @@ def processar_calculos_desossa(acao, df_cortes):
         "ossos": ossos,
         "quebra": quebra,
         "exsudato": exsudato,
-        "peso_final": peso_final
+        "peso_final": peso_final,
+        "val_venda_ouro": val_venda_ouro,
+        "val_venda_prata": val_venda_prata,
+        "peso_ouro": peso_ouro,
+        "peso_prata": peso_prata,
+        "custo_ouro": custo_ouro,
+        "custo_prata": custo_prata,
+        "p_cartao_val": tot_cartao_val,
+        "p_impostos_val": tot_imp_val,
+        "p_embalagens_val": tot_emb_val,
+        "p_comissao_val": tot_com_val
     }
 
     return df, indicadores
@@ -574,25 +589,41 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", style="B", size=10)
     pdf.set_xy(10, 10)
-    pdf.cell(277, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - RELATÓRIO DE APURACAO DE DESOSSA", ln=1, align="C")
+    pdf.cell(277, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - SIMULAÇÃO DE APURACAO DE DESOSSA", ln=1, align="C")
     
     pdf.set_text_color(15, 23, 42)
-    pdf.set_font("Arial", style="B", size=9)
+    pdf.set_font("Arial", style="B", size=8.5)
     pdf.set_xy(10, 22)
     pdf.cell(277, 5, f"Empresa: {nome_empresa.upper()} | Data: {acao['data_acao']} | Tipo: {acao['tipo_animal']}", ln=1, align="C")
-    
     pdf.ln(2)
+
     pdf.set_font("Arial", style="B", size=8)
-    pdf.set_fill_color(241, 245, 249)
-    pdf.cell(92, 5, f"Peso Bruto: {ind['peso_bruto']:.3f} KG", 1, 0, 'L', True)
-    pdf.cell(92, 5, f"Custo Efetivo Total: R$ {ind['custo_efetivo_total']:,.2f}", 1, 0, 'L', True)
-    pdf.cell(93, 5, f"Valor Total Vendas: R$ {ind['preco_total_venda']:,.2f}", 1, 1, 'L', True)
-    
-    pdf.cell(92, 5, f"Peso Final Desossado: {ind['peso_desossado']:.3f} KG", 1, 0, 'L', True)
-    pdf.cell(92, 5, f"Margem de Contribuição: R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.2f}%)", 1, 0, 'L', True)
-    pdf.cell(93, 5, f"Markup: {ind['markup']*100:.2f}%", 1, 1, 'L', True)
+    pdf.set_fill_color(226, 232, 240)
+    pdf.cell(135, 5, "APURAÇÃO DOS PARÂMETROS DO ANIMAL", 1, 0, 'C', True)
+    pdf.cell(7, 5, "", 0, 0)
+    pdf.cell(135, 5, "INDICADORES DA SIMULAÇÃO", 1, 1, 'C', True)
+
+    pdf.set_font("Arial", size=7.5)
+    params_linhas = [
+        ("Peso Bruto / KG:", f"{ind['peso_bruto']:.3f} KG", f"Preço Total / Compra Sem Custos: R$ {ind['preco_total_compra_sem']:,.2f}"),
+        ("Ossos / Muxiba:", f"{ind['ossos']:.3f} KG", f"Preço Total / Venda: R$ {ind['preco_total_venda']:,.2f}"),
+        ("Quebra Não Identificada:", f"{ind['quebra']:.3f} KG", f"Peso Desossado: {ind['peso_desossado']:.3f} KG"),
+        ("Exsudato / Escorrimento:", f"{ind['exsudato']:.3f} KG", f"Coeficiente Global: {ind['coeficiente']:.5f}"),
+        ("Peso Final Desossado:", f"{ind['peso_final']:.3f} KG", f"Custo Efetivo Total: R$ {ind['custo_efetivo_total']:,.2f}"),
+        ("Total de Quebra:", f"{(ind['ossos']+ind['quebra']+ind['exsudato']):.3f} KG", f"Margem de Contribuição: R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.2f}%)"),
+        ("", "", f"Markup: {ind['markup']*100:.2f}%"),
+        ("", "", f"Preço Médio de Venda/KG: R$ {ind['preco_medio_venda']:.2f}")
+    ]
+
+    for p_label, p_val, ind_val in params_linhas:
+        pdf.cell(75, 4.5, p_label, 1, 0, 'L')
+        pdf.cell(60, 4.5, p_val, 1, 0, 'R')
+        pdf.cell(7, 4.5, "", 0, 0)
+        pdf.cell(75, 4.5, ind_val.split(":")[0] + ":", 1, 0, 'L')
+        pdf.cell(60, 4.5, ind_val.split(":")[1] if ":" in ind_val else "", 1, 1, 'R')
+
     pdf.ln(3)
-    
+
     pdf.set_font("Arial", style="B", size=7.5)
     cols = ['nome_corte', 'qualidade', 'peso', 'PREÇO CUSTO/KG', 'PREÇO/CUSTO', 'PREÇO VENDA/KG', 'VALOR TOTAL DE VENDAS', 'LUCRO BRUTO', 'PERCENTUAL/CORTES', 'CUSTO EFETIVO TOTAL']
     larguras = [35, 18, 18, 22, 22, 22, 28, 24, 22, 38]
@@ -1001,13 +1032,26 @@ else:
                         df_res, ind = processar_calculos_desossa(acao, df_c)
                         
                         if not df_res.empty:
-                            st.markdown("##### 📊 Indicadores da Simulação")
-                            cols_ind = st.columns(4)
-                            cols_ind[0].metric("Custo Efetivo Total", f"R$ {ind['custo_efetivo_total']:,.2f}")
-                            cols_ind[1].metric("Valor Total Vendas", f"R$ {ind['preco_total_venda']:,.2f}")
-                            cols_ind[2].metric("Margem Contribuição", f"R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.1f}%)")
-                            cols_ind[3].metric("Markup", f"{ind['markup']*100:.1f}%")
+                            st.markdown("##### 🐂 Apuração dos Parâmetros & Indicadores da Simulação (Aba Simulação 21 07)")
                             
+                            q_col1, q_col2 = st.columns(2)
+                            with q_col1:
+                                st.markdown("###### Parâmetros da Desossa")
+                                st.write(f"• **Peso Bruto:** {ind['peso_bruto']:.3f} KG")
+                                st.write(f"• **Ossos / Muxiba:** {ind['ossos']:.3f} KG")
+                                st.write(f"• **Quebra Não Identificada:** {ind['quebra']:.3f} KG")
+                                st.write(f"• **Exsudato / Escorrimento:** {ind['exsudato']:.3f} KG")
+                                st.write(f"• **Peso Final Desossado:** {ind['peso_final']:.3f} KG")
+                                st.write(f"• **Total de Quebra:** {(ind['ossos']+ind['quebra']+ind['exsudato']):.3f} KG")
+                            with q_col2:
+                                st.markdown("###### Indicadores Financeiros")
+                                st.write(f"• **Custo Total Compra (Sem Custos):** R$ {ind['preco_total_compra_sem']:,.2f}")
+                                st.write(f"• **Preço Total Venda:** R$ {ind['preco_total_venda']:,.2f}")
+                                st.write(f"• **Custo Efetivo Total:** R$ {ind['custo_efetivo_total']:,.2f}")
+                                st.write(f"• **Margem de Contribuição:** R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.2f}%)")
+                                st.write(f"• **Markup:** {ind['markup']*100:.2f}%")
+                                st.write(f"• **Coeficiente Global:** {ind['coeficiente']:.5f}")
+
                             st.markdown("##### 🥩 Cortes Apurados")
                             st.dataframe(df_res.style.format({
                                 "peso": "{:.3f} KG",
@@ -1022,7 +1066,7 @@ else:
                             
                             pdf_bytes = gerar_pdf_relatorio_desossa(acao, df_res, ind, st.session_state.empresa_nome if 'empresa_nome' in st.session_state else "Açougue")
                             st.download_button(
-                                label="📥 Baixar Relatório Completo em PDF",
+                                label="📥 Baixar Relatório Completo em PDF (Replica aba Simulação 21 07)",
                                 data=pdf_bytes,
                                 file_name=f"desossa_lote_{acao_id}_{acao['data_acao']}.pdf",
                                 mime="application/pdf",
