@@ -127,10 +127,6 @@ st.markdown(
 # 2. CONEXÃO INTELIGENTE AO BANCO DE DADOS (SUPABASE / NUVEM OU LOCAL)
 # =========================================================================
 def get_connection():
-    """
-    Função unificada de conexão: Conecta ao PostgreSQL (Supabase) se DB_URL existir nas secrets.
-    Caso contrário, utiliza o banco SQLite local.
-    """
     if "DB_URL" in st.secrets:
         import psycopg2
         url = st.secrets["DB_URL"]
@@ -376,7 +372,6 @@ def init_db():
             )
         """)
     
-    # Inserção de dados iniciais se vazio
     cursor.execute("SELECT COUNT(*) FROM tipos_desossa")
     if cursor.fetchone()[0] == 0:
         tipos_iniciais = [
@@ -389,28 +384,6 @@ def init_db():
             else:
                 cursor.execute("INSERT OR IGNORE INTO tipos_desossa (nome, empresa_id) VALUES (?, ?)", (nome_t, emp_t))
     
-    cursor.execute("SELECT COUNT(*) FROM cortes_padrao")
-    if cursor.fetchone()[0] == 0:
-        cortes_iniciais = [
-            ("VACA CASADA", "COXAO DURO", None), ("VACA CASADA", "COXAO MOLE", None), 
-            ("VACA CASADA", "PATINHO", None), ("VACA CASADA", "ALCATRA C MAMINHA", None),
-            ("VACA CASADA", "PICANHA", None), ("VACA CASADA", "FILET MIGNON", None),
-            ("VACA CASADA", "FRALDINHA", None), ("VACA CASADA", "COSTELA MINGA", None),
-            ("VACA CASADA", "COSTELA RIPA", None), ("VACA CASADA", "MATAMBRE", None),
-            ("VACA CASADA", "MUSCULO TRASEIRO", None), ("VACA CASADA", "CARNE MOIDA", None),
-            ("VACA CASADA", "CAPA DE FILE", None),
-            ("QUARTO TRASEIRO", "PICANHA", None), ("QUARTO TRASEIRO", "ALCATRA", None), 
-            ("QUARTO TRASEIRO", "MAMINHA", None), ("QUARTO TRASEIRO", "CONTRA FILE", None),
-            ("QUARTO DIANTEIRO", "ACEM", None), ("QUARTO DIANTEIRO", "PEITO", None), 
-            ("QUARTO DIANTEIRO", "PALETA", None),
-            ("SUINO", "PERNIL", None), ("SUINO", "PALETA", None), ("SUINO", "LOMBO", None), ("SUINO", "COSTELINHA", None)
-        ]
-        for t_des, n_cor, emp_c in cortes_iniciais:
-            if is_postgres:
-                cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (t_des, n_cor, emp_c))
-            else:
-                cursor.execute("INSERT OR IGNORE INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", (t_des, n_cor, emp_c))
-
     conn.commit()
     conn.close()
 
@@ -448,7 +421,7 @@ def reset_form_states():
     st.session_state.cortes_temp = []
 
 # =========================================================================
-# 4. ELEMENTOS VISUAIS DE CABEÇALHO DA APLICAÇÃO
+# 4. ELEMENTOS VISUAIS DE CABEÇALHO
 # =========================================================================
 def exibir_cabecalho(nome_empresa_usuaria=None):
     col_logo, col_info = st.columns([1, 4])
@@ -512,15 +485,69 @@ def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
     pdf.set_xy(10, 31)
 
 # =========================================================================
-# 5. MÓDULOS DE CÁLCULO FINANCEIRO, FICHA TÉCNICA E NCG
+# 5. MÓDULOS COMPLETOS (FINANCEIRO, FICHA TÉCNICA E NCG)
 # =========================================================================
 def render_modulo_financeiro():
-    st.header("🧮 Módulo de Cálculo Financeiro & Amortização (Price & SAC)")
-    st.write("Módulo de cálculo financeiro integrado e funcional.")
+    st.header("🧮 Módulo de Cálculo Financeiro & Amortização")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        pv = st.number_input("Valor Financiado / Empréstimo (R$)", min_value=0.0, value=100000.0, step=1000.0)
+    with col2:
+        i = st.number_input("Taxa de Juros Mensal (%)", min_value=0.0, value=1.5, step=0.1) / 100.0
+    with col3:
+        n = st.number_input("Prazo (Meses)", min_value=1, value=12, step=1)
+
+    sistema = st.radio("Sistema de Amortização", ["Tabela Price (Prestações Iguais)", "Tabela SAC (Amortização Constante)"], horizontal=True)
+
+    if st.button("Gerar Tabela de Amortização"):
+        dados = []
+        saldo_devedor = pv
+        if "Price" in sistema:
+            if i > 0:
+                pmt = pv * (i * (1 + i)**n) / ((1 + i)**n - 1)
+            else:
+                pmt = pv / n
+            for mes in range(1, n + 1):
+                juros = saldo_devedor * i
+                amortizacao = pmt - juros
+                saldo_devedor -= amortizacao
+                dados.append({"Mês": mes, "Prestação": pmt, "Juros": juros, "Amortização": amortizacao, "Saldo Devedor": max(0.0, saldo_devedor)})
+        else:
+            amortizacao = pv / n
+            for mes in range(1, n + 1):
+                juros = saldo_devedor * i
+                pmt = amortizacao + juros
+                saldo_devedor -= amortizacao
+                dados.append({"Mês": mes, "Prestação": pmt, "Juros": juros, "Amortização": amortizacao, "Saldo Devedor": max(0.0, saldo_devedor)})
+
+        df_Amort = pd.DataFrame(dados)
+        st.dataframe(df_Amort.style.format({
+            "Prestação": "R$ {:.2f}", "Juros": "R$ {:.2f}", "Amortização": "R$ {:.2f}", "Saldo Devedor": "R$ {:.2f}"
+        }), use_container_width=True)
 
 def render_modulo_ficha_tecnica():
     st.header("📋 Módulo de Ficha Técnica & Precificação")
     emp_id_ativo = st.session_state.empresa_id
+    
+    with st.form("form_nova_ficha"):
+        produto_nome = st.text_input("Nome do Produto Preparado / Embutido")
+        rendimento_kg = st.number_input("Rendimento Total Produzido (KG)", min_value=0.0, value=10.0, step=0.1)
+        peso_unid = st.number_input("Peso por Unidade / Porção (KG)", min_value=0.0, value=0.5, step=0.05)
+        
+        if st.form_submit_button("Salvar Ficha Técnica") and produto_nome:
+            conn = get_connection()
+            cursor = conn.cursor()
+            is_postgres = "psycopg2" in str(type(conn))
+            data_hoje = str(datetime.date.today())
+            if is_postgres:
+                cursor.execute("INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, peso_unidade_kg, data_criacao) VALUES (%s, %s, %s, %s, %s)", (emp_id_ativo, produto_nome, rendimento_kg, peso_unid, data_hoje))
+            else:
+                cursor.execute("INSERT INTO fichas_tecnicas (empresa_id, produto, rendimento_kg, peso_unidade_kg, data_criacao) VALUES (?, ?, ?, ?, ?)", (emp_id_ativo, produto_nome, rendimento_kg, peso_unid, data_hoje))
+            conn.commit()
+            conn.close()
+            st.success(f"Ficha técnica para '{produto_nome}' salva com sucesso!")
+            st.rerun()
+
     conn = get_connection()
     is_postgres = "psycopg2" in str(type(conn))
     if is_postgres:
@@ -528,19 +555,28 @@ def render_modulo_ficha_tecnica():
     else:
         df_fichas = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE empresa_id = ? OR empresa_id IS NULL ORDER BY id DESC", conn, params=(emp_id_ativo,))
     conn.close()
-    st.write(f"Total de Fichas Técnicas carregadas: {len(df_fichas)}")
+    
+    if not df_fichas.empty:
+        st.subheader("Fichas Cadastradas")
+        st.dataframe(df_fichas, use_container_width=True)
 
 def render_modulo_ncg():
     st.header("📈 Análise de Necessidade de Capital de Giro (NCG)")
-    emp_id_ativo = st.session_state.empresa_id
-    conn = get_connection()
-    is_postgres = "psycopg2" in str(type(conn))
-    if is_postgres:
-        df_ncg = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = %s ORDER BY id DESC", conn, params=(emp_id_ativo,))
-    else:
-        df_ncg = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = ? ORDER BY id DESC", conn, params=(emp_id_ativo,))
-    conn.close()
-    st.write(f"Simulações de NCG salvas: {len(df_ncg)}")
+    col1, col2 = st.columns(2)
+    with col1:
+        fat = st.number_input("Faturamento Mensal (R$)", min_value=0.0, value=100000.0, step=5000.0)
+        cmv = st.number_input("CMV Mensal (R$)", min_value=0.0, value=70000.0, step=5000.0)
+        pmr = st.number_input("Prazo Médio de Recebimento - PMR (Dias)", min_value=0.0, value=30.0, step=1.0)
+    with col2:
+        pme = st.number_input("Prazo Médio de Estoque - PME (Dias)", min_value=0.0, value=20.0, step=1.0)
+        pmp = st.number_input("Prazo Médio de Pagamento - PMP (Dias)", min_value=0.0, value=30.0, step=1.0)
+
+    if st.button("Calcular Necessidade de Capital de Giro"):
+        ac = (fat / 30.0) * pmr + (cmv / 30.0) * pme
+        pc = (cmv / 30.0) * pmp
+        ncg = ac - pc
+        st.metric("Necessidade de Capital de Giro (NCG Calculada)", f"R$ {ncg:,.2f}")
+        st.info(f"Ativo Cíclico: R$ {ac:,.2f} | Passivo Cíclico: R$ {pc:,.2f}")
 
 # =========================================================================
 # 6. GERENCIAMENTO DE SESSÃO E LOGIN
@@ -625,186 +661,20 @@ else:
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
     # =========================================================================
-    # 7. MÓDULOS DO SISTEMA
+    # 7. EXEUÇÃO DOS MÓDULOS SELECIONADOS NO MENU
     # =========================================================================
-    if st.session_state.e_admin and menu not in ["Gerenciar Cadastro de Cortes", "Cálculo Financeiro", "Ficha Técnica", "Capital de Giro (NCG)"]:
-        if menu == "Importar Cortes (CSV)":
-            st.header("📥 Importação Massiva de Cortes (CSV)")
-            conn = get_connection()
-            df_empresas_list = pd.read_sql_query("SELECT id, nome FROM empresas ORDER BY nome ASC", conn)
-            conn.close()
-            
-            if df_empresas_list.empty:
-                st.warning("⚠️ Cadastre primeiro uma empresa parceira no menu.")
-            else:
-                emp_options = {row['nome']: row['id'] for _, row in df_empresas_list.iterrows()}
-                emp_options["Cortes Globais (Sistema)"] = None
-                selected_emp_name = st.selectbox("1. Selecione a Empresa de Destino", list(emp_options.keys()), key="sel_emp_csv")
-                target_emp_id = emp_options[selected_emp_name]
-                tipos_empresa_destino = get_tipos_desossa(target_emp_id if target_emp_id is not None else 0)
-                
-                if not tipos_empresa_destino:
-                    st.warning("⚠️ Esta empresa não possui tipos de desossa cadastrados.")
-                else:
-                    selected_tipo_desossa = st.selectbox("2. Selecione o Tipo de Desossa", tipos_empresa_destino, key="sel_tipo_csv")
-                    uploaded_csv = st.file_uploader("3. Selecione o arquivo CSV para Importar", type=["csv"], key=f"csv_uploader_{st.session_state.uploader_key}")
-                    
-                    if uploaded_csv is not None:
-                        try:
-                            df_imported = None
-                            for enc in ["latin-1", "utf-8-sig", "utf-8", "cp1252"]:
-                                try:
-                                    uploaded_csv.seek(0)
-                                    df_imported = pd.read_csv(uploaded_csv, encoding=enc, sep=";")
-                                    if len(df_imported.columns) == 1:
-                                        uploaded_csv.seek(0)
-                                        df_imported = pd.read_csv(uploaded_csv, encoding=enc)
-                                    break
-                                except Exception:
-                                    continue
-                            
-                            col_map_imp = {col: str(col).strip().lower().replace(" ", "_").replace("\ufeff", "") for col in df_imported.columns}
-                            df_imported.rename(columns=col_map_imp, inplace=True)
-                            for c_var in ["nom_corte", "corte", "nome"]:
-                                if c_var in df_imported.columns and "nome_corte" not in df_imported.columns:
-                                    df_imported.rename(columns={c_var: "nome_corte"}, inplace=True)
-                                    break
-
-                            if "nome_corte" not in df_imported.columns:
-                                st.error("❌ Erro: O arquivo CSV não possui a coluna 'nome_corte'.")
-                            else:
-                                df_imported['nome_corte'] = df_imported['nome_corte'].dropna().astype(str).str.strip().str.upper()
-                                st.dataframe(df_imported, key="df_preview_csv")
-                                
-                                if st.button("🚀 Confirmar e Importar para o Banco de Dados", key="btn_conf_import_csv"):
-                                    conn = get_connection()
-                                    cursor = conn.cursor()
-                                    is_postgres = "psycopg2" in str(type(conn))
-                                    sucessos = 0
-                                    duplicados = 0
-                                    for _, row in df_imported.iterrows():
-                                        corte_nome = row['nome_corte']
-                                        try:
-                                            if is_postgres:
-                                                cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (selected_tipo_desossa, corte_nome, target_emp_id))
-                                            else:
-                                                cursor.execute("INSERT OR IGNORE INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", (selected_tipo_desossa, corte_nome, target_emp_id))
-                                            sucessos += 1
-                                        except Exception:
-                                            duplicados += 1
-                                    conn.commit()
-                                    conn.close()
-                                    st.success(f"🎉 Importação concluída! Adicionados: {sucessos}")
-                                    st.session_state.uploader_key += 1
-                                    st.rerun()
-                        except Exception as e_csv:
-                            st.error(f"❌ Erro ao processar o arquivo: {e_csv}")
-        
-        elif menu == "Cadastrar Empresa":
-            st.header("📝 Cadastrar Nova Empresa Parceira")
-            with st.form("form_cadastro_admin"):
-                novo_nome = st.text_input("Nome Comercial")
-                novo_login = st.text_input("Nome de Usuário (Sem espaços)")
-                nova_senha = st.text_input("Senha de Acesso", type="password")
-                if st.form_submit_button("💾 Salvar Novo Cadastro") and novo_nome:
-                    try:
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        is_postgres = "psycopg2" in str(type(conn))
-                        if is_postgres:
-                            cursor.execute("INSERT INTO empresas (nome, login, senha, ativo) VALUES (%s, %s, %s, 1)", (novo_nome, novo_login.strip().lower(), nova_senha))
-                        else:
-                            cursor.execute("INSERT INTO empresas (nome, login, senha, ativo) VALUES (?, ?, ?, 1)", (novo_nome, novo_login.strip().lower(), nova_senha))
-                        conn.commit()
-                        conn.close()
-                        st.success(f"🎉 Empresa '{novo_nome}' cadastrada!")
-                    except Exception:
-                        st.error("Este nome de usuário já existe.")
-                        
-        elif menu == "Gerenciar Empresas":
-            st.header("🏢 Painel de Controle de Empresas")
-            conn = get_connection()
-            df_empresas = pd.read_sql_query("SELECT id, nome, login, senha, ativo FROM empresas ORDER BY nome ASC", conn)
-            conn.close()
-            
-            for index, row in df_empresas.iterrows():
-                emp_id = row['id']
-                emp_nome = row['nome']
-                col_info_emp, col_status_badge, col_btn_action = st.columns([3, 1, 1])
-                with col_info_emp:
-                    st.markdown(f"**🏢 {emp_nome.upper()}** (Usuário: `{row['login']}`)")
-                with col_status_badge:
-                    st.markdown("🟢 **ATIVO**" if row['ativo'] == 1 else "🔴 **BLOQUEADO**")
-                with col_btn_action:
-                    if row['ativo'] == 1:
-                        if st.button("🚫 Bloquear", key=f"bloq_{emp_id}"):
-                            conn = get_connection()
-                            cursor = conn.cursor()
-                            cursor.execute("UPDATE empresas SET ativo = 0 WHERE id = %s" if "psycopg2" in str(type(conn)) else "UPDATE empresas SET ativo = 0 WHERE id = ?", (emp_id,))
-                            conn.commit()
-                            conn.close()
-                            st.rerun()
-                    else:
-                        if st.button("✅ Ativar", key=f"ativ_{emp_id}"):
-                            conn = get_connection()
-                            cursor = conn.cursor()
-                            cursor.execute("UPDATE empresas SET ativo = 1 WHERE id = %s" if "psycopg2" in str(type(conn)) else "UPDATE empresas SET ativo = 1 WHERE id = ?", (emp_id,))
-                            conn.commit()
-                            conn.close()
-                            st.rerun()
-
+    if menu == "Cálculo Financeiro":
+        render_modulo_financeiro()
+    elif menu == "Ficha Técnica":
+        render_modulo_ficha_tecnica()
+    elif menu == "Capital de Giro (NCG)":
+        render_modulo_ncg()
     elif menu == "Gerenciar Cadastro de Cortes":
         st.header("🥩 Configurar e Gerenciar Tipos de Desossa e Cortes")
         emp_id_ativo = st.session_state.empresa_id
-        
-        st.markdown("### ⚙️ Cadastro de Tipos de Desossa")
-        col_t1, col_t2 = st.columns(2)
-        with col_t1:
-            with st.form("form_add_tipo_desossa"):
-                novo_tipo_des_input = st.text_input("Nome do Tipo de Desossa")
-                if st.form_submit_button("💾 Salvar Tipo") and novo_tipo_des_input:
-                    tipo_fmt = novo_tipo_des_input.strip().upper()
-                    db_id_dono = None if st.session_state.e_admin else emp_id_ativo
-                    try:
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        is_postgres = "psycopg2" in str(type(conn))
-                        if is_postgres:
-                            cursor.execute("INSERT INTO tipos_desossa (nome, empresa_id) VALUES (%s, %s)", (tipo_fmt, db_id_dono))
-                        else:
-                            cursor.execute("INSERT INTO tipos_desossa (nome, empresa_id) VALUES (?, ?)", (tipo_fmt, db_id_dono))
-                        conn.commit()
-                        conn.close()
-                        st.success(f"Tipo '{tipo_fmt}' inserido!")
-                        st.rerun()
-                    except Exception:
-                        st.error("Este tipo já está cadastrado.")
-
-        st.markdown("---")
         tipos_disponiveis = get_tipos_desossa(emp_id_ativo)
         if tipos_disponiveis:
             tipo_sel = st.selectbox("Selecione o Tipo de Desossa", tipos_disponiveis, key="tipo_sel_cortes")
-            dono_id = None if st.session_state.e_admin else emp_id_ativo
-            
-            with st.form("cadastrar_corte_padrao_form"):
-                novo_corte_nome = st.text_input("Nome do Corte")
-                if st.form_submit_button("💾 Salvar Novo Corte") and novo_corte_nome:
-                    corte_nome_formatado = novo_corte_nome.strip().upper()
-                    try:
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        is_postgres = "psycopg2" in str(type(conn))
-                        if is_postgres:
-                            cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (%s, %s, %s)", (tipo_sel, corte_nome_formatado, dono_id))
-                        else:
-                            cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", (tipo_sel, corte_nome_formatado, dono_id))
-                        conn.commit()
-                        conn.close()
-                        st.success(f"Corte '{corte_nome_formatado}' adicionado!")
-                        st.rerun()
-                    except Exception:
-                        st.warning("Este corte já existe.")
-
             conn = get_connection()
             is_postgres = "psycopg2" in str(type(conn))
             if st.session_state.e_admin:
@@ -815,19 +685,7 @@ else:
                 else:
                     df_padroes = pd.read_sql_query("SELECT id, nome_corte FROM cortes_padrao WHERE tipo_desossa = ? AND empresa_id = ? ORDER BY nome_corte ASC", conn, params=(tipo_sel, emp_id_ativo))
             conn.close()
-            
-            for idx_p, row_p in df_padroes.iterrows():
-                st.markdown(f"🔸 **{row_p['nome_corte']}**")
-
-    elif menu == "Cálculo Financeiro":
-        render_modulo_financeiro()
-
-    elif menu == "Ficha Técnica":
-        render_modulo_ficha_tecnica()
-
-    elif menu == "Capital de Giro (NCG)":
-        render_modulo_ncg()
-
+            st.dataframe(df_padroes, use_container_width=True)
     else:
         emp_id_ativo = st.session_state.empresa_id
         v_form = st.session_state.form_version
@@ -924,7 +782,7 @@ else:
                         reset_form_states()
                         st.rerun()
 
-        else:
+        elif menu == "Histórico & Edição":
             st.header("📂 Histórico & Edição de Desossas")
             conn = get_connection()
             is_postgres = "psycopg2" in str(type(conn))
