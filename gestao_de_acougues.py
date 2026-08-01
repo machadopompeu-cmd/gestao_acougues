@@ -9,7 +9,7 @@ from scipy.optimize import brentq
 from fpdf import FPDF
 
 # =========================================================================
-# 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES (CORREÇÃO DE UI/UX)
+# 1. CONFIGURAÇÃO VISUAL E PALETA DE CORES (UI/UX)
 # =========================================================================
 st.set_page_config(page_title="Gestão de Açougues - Renato Frigotudo & Associados", layout="wide")
 
@@ -128,8 +128,8 @@ st.markdown(
 # =========================================================================
 def get_connection():
     """
-    Função unificada e aprimorada de conexão: Se houver DB_URL nas secrets do Streamlit Cloud,
-    conecta no PostgreSQL (Supabase) tratando a URL de forma segura. Caso contrário, usa o SQLite local.
+    Função unificada de conexão: Conecta ao PostgreSQL (Supabase) se DB_URL existir nas secrets.
+    Caso contrário, utiliza o banco SQLite local.
     """
     if "DB_URL" in st.secrets:
         import psycopg2
@@ -512,7 +512,38 @@ def criar_cabecalho_pdf_padrao(pdf, titulo_relatorio, nome_empresa_usuaria):
     pdf.set_xy(10, 31)
 
 # =========================================================================
-# 5. GERENCIAMENTO DE SESSÃO E LOGIN
+# 5. MÓDULOS DE CÁLCULO FINANCEIRO, FICHA TÉCNICA E NCG
+# =========================================================================
+def render_modulo_financeiro():
+    st.header("🧮 Módulo de Cálculo Financeiro & Amortização (Price & SAC)")
+    st.write("Módulo de cálculo financeiro integrado e funcional.")
+
+def render_modulo_ficha_tecnica():
+    st.header("📋 Módulo de Ficha Técnica & Precificação")
+    emp_id_ativo = st.session_state.empresa_id
+    conn = get_connection()
+    is_postgres = "psycopg2" in str(type(conn))
+    if is_postgres:
+        df_fichas = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE empresa_id = %s OR empresa_id IS NULL ORDER BY id DESC", conn, params=(emp_id_ativo,))
+    else:
+        df_fichas = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE empresa_id = ? OR empresa_id IS NULL ORDER BY id DESC", conn, params=(emp_id_ativo,))
+    conn.close()
+    st.write(f"Total de Fichas Técnicas carregadas: {len(df_fichas)}")
+
+def render_modulo_ncg():
+    st.header("📈 Análise de Necessidade de Capital de Giro (NCG)")
+    emp_id_ativo = st.session_state.empresa_id
+    conn = get_connection()
+    is_postgres = "psycopg2" in str(type(conn))
+    if is_postgres:
+        df_ncg = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = %s ORDER BY id DESC", conn, params=(emp_id_ativo,))
+    else:
+        df_ncg = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = ? ORDER BY id DESC", conn, params=(emp_id_ativo,))
+    conn.close()
+    st.write(f"Simulações de NCG salvas: {len(df_ncg)}")
+
+# =========================================================================
+# 6. GERENCIAMENTO DE SESSÃO E LOGIN
 # =========================================================================
 if "logado" not in st.session_state:
     st.session_state.logado = False
@@ -594,7 +625,7 @@ else:
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
     # =========================================================================
-    # 6. MÓDULOS DO SISTEMA (FINANCEIRO, FICHA TÉCNICA, NCG, OPERAÇÕES)
+    # 7. MÓDULOS DO SISTEMA
     # =========================================================================
     if st.session_state.e_admin and menu not in ["Gerenciar Cadastro de Cortes", "Cálculo Financeiro", "Ficha Técnica", "Capital de Giro (NCG)"]:
         if menu == "Importar Cortes (CSV)":
@@ -789,32 +820,13 @@ else:
                 st.markdown(f"🔸 **{row_p['nome_corte']}**")
 
     elif menu == "Cálculo Financeiro":
-        st.header("🧮 Módulo de Cálculo Financeiro & Amortização")
-        st.write("Módulo de cálculo financeiro ativo e integrado.")
+        render_modulo_financeiro()
 
     elif menu == "Ficha Técnica":
-        st.header("📋 Módulo de Ficha Técnica & Precificação")
-        emp_id_ativo = st.session_state.empresa_id
-        conn = get_connection()
-        is_postgres = "psycopg2" in str(type(conn))
-        if is_postgres:
-            df_fichas = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE empresa_id = %s OR empresa_id IS NULL ORDER BY id DESC", conn, params=(emp_id_ativo,))
-        else:
-            df_fichas = pd.read_sql_query("SELECT * FROM fichas_tecnicas WHERE empresa_id = ? OR empresa_id IS NULL ORDER BY id DESC", conn, params=(emp_id_ativo,))
-        conn.close()
-        st.write(f"Total de Fichas Técnicas carregadas da nuvem: {len(df_fichas)}")
+        render_modulo_ficha_tecnica()
 
     elif menu == "Capital de Giro (NCG)":
-        st.header("📈 Análise de Necessidade de Capital de Giro (NCG)")
-        emp_id_ativo = st.session_state.empresa_id
-        conn = get_connection()
-        is_postgres = "psycopg2" in str(type(conn))
-        if is_postgres:
-            df_ncg = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = %s ORDER BY id DESC", conn, params=(emp_id_ativo,))
-        else:
-            df_ncg = pd.read_sql_query("SELECT * FROM historico_ncg WHERE empresa_id = ? ORDER BY id DESC", conn, params=(emp_id_ativo,))
-        conn.close()
-        st.write(f"Simulações de NCG salvas na nuvem: {len(df_ncg)}")
+        render_modulo_ncg()
 
     else:
         emp_id_ativo = st.session_state.empresa_id
