@@ -607,6 +607,7 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=10)
     
+    # Cabeçalho Principal do PDF
     pdf.set_fill_color(30, 58, 138)
     pdf.rect(10, 8, 277, 12, "F")
     pdf.set_text_color(255, 255, 255)
@@ -620,6 +621,7 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.cell(277, 5, f"Empresa: {nome_empresa.upper()} | Data: {acao['data_acao']} | Tipo: {acao['tipo_animal']}", ln=1, align="C")
     pdf.ln(2)
 
+    # Quadros Superiores (Apuração Bovina + Indicadores Ouro/Prata/Total)
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(90, 5, "APURAÇÃO DOS PARÂMETROS DO ANIMAL", 1, 0, 'C', True)
@@ -667,11 +669,13 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
         else:
             pdf.cell(182, 4.5, "", 1, 1)
 
-    pdf.ln(3)
+    pdf.ln(4)
 
-    pdf.set_font("Arial", style="B", size=7.5)
+    # Tabela Detalhada de Cortes Fiel ao Histórico & Edição (10 Colunas sem sobreposição)
+    pdf.set_font("Arial", style="B", size=7)
+    pdf.set_fill_color(226, 232, 240)
     cols = ['nome_corte', 'qualidade', 'peso', 'PREÇO CUSTO/KG', 'PREÇO/CUSTO', 'PREÇO VENDA/KG', 'VALOR TOTAL DE VENDAS', 'LUCRO BRUTO', 'PERCENTUAL/CORTES', 'CUSTO EFETIVO TOTAL']
-    larguras = [35, 18, 18, 22, 22, 22, 28, 24, 22, 38]
+    larguras = [38, 18, 16, 25, 22, 24, 28, 22, 22, 35] # Soma = 250mm (perfeitamente ajustado no A4 Paisagem)
     
     for i, col_name in enumerate(cols):
         pdf.cell(larguras[i], 6, col_name.replace("_", " ").upper(), 1, 0, 'C', True)
