@@ -543,38 +543,61 @@ def processar_calculos_desossa(acao, df_cortes):
     preco_medio_compra_com = custo_total_efetivo / total_peso_cortes if total_peso_cortes > 0 else 0.0
     preco_medio_venda = total_vendas_geral / total_peso_cortes if total_peso_cortes > 0 else 0.0
 
-    tot_cartao_val = sum(t_cartao_val)
-    tot_imp_val = sum(t_imp_val)
-    tot_emb_val = sum(t_emb_val)
-    tot_com_val = sum(t_com_val)
+    margem_contrib_ouro_rs = val_venda_ouro - custo_ouro
+    margem_contrib_prata_rs = val_venda_prata - custo_prata
+
+    preco_medio_compra_ouro = custo_ouro / peso_ouro if peso_ouro > 0 else 0.0
+    preco_medio_compra_prata = custo_prata / peso_prata if peso_prata > 0 else 0.0
+
+    preco_medio_venda_ouro = val_venda_ouro / peso_ouro if peso_ouro > 0 else 0.0
+    preco_medio_venda_prata = val_venda_prata / peso_prata if peso_prata > 0 else 0.0
 
     indicadores = {
-        "preco_total_compra_sem": custo_total_animal,
-        "preco_total_venda": total_vendas_geral,
-        "peso_desossado": total_peso_cortes,
-        "coeficiente": coef_global,
-        "custo_efetivo_total": custo_total_efetivo,
-        "margem_contribuicao_rs": margem_contrib_rs,
-        "margem_contribuicao_pct": margem_contrib_pct,
-        "markup": markup,
-        "preco_medio_compra_sem": preco_medio_compra_sem,
-        "preco_medio_compra_com": preco_medio_compra_com,
-        "preco_medio_venda": preco_medio_venda,
         "peso_bruto": peso_bruto,
         "ossos": ossos,
         "quebra": quebra,
         "exsudato": exsudato,
         "peso_final": peso_final,
-        "val_venda_ouro": val_venda_ouro,
-        "val_venda_prata": val_venda_prata,
-        "peso_ouro": peso_ouro,
-        "peso_prata": peso_prata,
-        "custo_ouro": custo_ouro,
-        "custo_prata": custo_prata,
-        "p_cartao_val": tot_cartao_val,
-        "p_impostos_val": tot_imp_val,
-        "p_embalagens_val": tot_emb_val,
-        "p_comissao_val": tot_com_val
+        
+        "ouro_preco_compra": custo_ouro,
+        "prata_preco_compra": custo_prata,
+        "total_preco_compra": custo_total_efetivo,
+        
+        "ouro_preco_venda": val_venda_ouro,
+        "prata_preco_venda": val_venda_prata,
+        "total_preco_venda": total_vendas_geral,
+        
+        "ouro_peso": peso_ouro,
+        "prata_peso": peso_prata,
+        "total_peso": total_peso_cortes,
+        
+        "ouro_coef": coef_global,
+        "prata_coef": coef_global,
+        "total_coef": coef_global,
+        
+        "ouro_custo_efetivo": custo_ouro,
+        "prata_custo_efetivo": custo_prata,
+        "total_custo_efetivo": custo_total_efetivo,
+        
+        "ouro_margem_rs": margem_contrib_ouro_rs,
+        "prata_margem_rs": margem_contrib_prata_rs,
+        "total_margem_rs": margem_contrib_rs,
+        
+        "ouro_margem_pct": margem_contrib_pct,
+        "prata_margem_pct": margem_contrib_pct,
+        "total_margem_pct": margem_contrib_pct,
+        
+        "ouro_markup": markup,
+        "prata_markup": markup,
+        "total_markup": markup,
+        
+        "ouro_pm_compra": preco_medio_compra_ouro,
+        "prata_pm_compra": preco_medio_compra_prata,
+        "total_pm_compra": preco_medio_compra_sem,
+        
+        "ouro_pm_venda": preco_medio_venda_ouro,
+        "prata_pm_venda": preco_medio_venda_prata,
+        "total_pm_venda": preco_medio_venda
     }
 
     return df, indicadores
@@ -597,31 +620,52 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.cell(277, 5, f"Empresa: {nome_empresa.upper()} | Data: {acao['data_acao']} | Tipo: {acao['tipo_animal']}", ln=1, align="C")
     pdf.ln(2)
 
-    # Replicando Quadros Fies da Aba SIMULACAO 21 07 no PDF
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
-    pdf.cell(135, 5, "APURAÇÃO DOS PARÂMETROS DO ANIMAL", 1, 0, 'C', True)
-    pdf.cell(7, 5, "", 0, 0)
-    pdf.cell(135, 5, "INDICADORES DA SIMULAÇÃO (OURO / PRATA / TOTAL)", 1, 1, 'C', True)
+    pdf.cell(90, 5, "APURAÇÃO DOS PARÂMETROS DO ANIMAL", 1, 0, 'C', True)
+    pdf.cell(5, 5, "", 0, 0)
+    pdf.cell(182, 5, "INDICADORES DA SIMULAÇÃO (OURO / PRATA / TOTAL)", 1, 1, 'C', True)
 
     pdf.set_font("Arial", size=7.5)
-    params_linhas = [
-        ("Peso Bruto / KG:", f"{ind['peso_bruto']:.3f} KG", f"Preço Total Compra Sem Custos: R$ {ind['preco_total_compra_sem']:,.2f}"),
-        ("Ossos / Muxiba:", f"{ind['ossos']:.3f} KG", f"Preço Total Venda (Ouro: R$ {ind['val_venda_ouro']:,.2f} | Prata: R$ {ind['val_venda_prata']:,.2f})"),
-        ("Quebra Não Identificada:", f"{ind['quebra']:.3f} KG", f"Peso Desossado (Ouro: {ind['peso_ouro']:.3f} | Prata: {ind['peso_prata']:.3f})"),
-        ("Exsudato / Escorrimento:", f"{ind['exsudato']:.3f} KG", f"Coeficiente Global: {ind['coeficiente']:.5f}"),
-        ("Peso Final Desossado:", f"{ind['peso_final']:.3f} KG", f"Custo Efetivo Total: R$ {ind['custo_efetivo_total']:,.2f}"),
-        ("Total de Quebra:", f"{(ind['ossos']+ind['quebra']+ind['exsudato']):.3f} KG", f"Margem de Contribuição: R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.2f}%)"),
-        ("Taxas de Cartão (%):", f"{acao.get('p_cartao',0)}%", f"Markup: {ind['markup']*100:.2f}%"),
-        ("Impostos (%):", f"{acao.get('p_impostos',0)}%", f"Preço Médio de Venda/KG: R$ {ind['preco_medio_venda']:.2f}")
+    ap_linhas = [
+        ("PESO BRUTO/KG", f"{ind['peso_bruto']:.3f}"),
+        ("OSSOS/MUXIBA", f"{ind['ossos']:.3f}"),
+        ("QUEBRA NÃO IDENTIF.", f"{ind['quebra']:.3f}"),
+        ("ESCORRIMENTO", f"{ind['exsudato']:.3f}"),
+        ("Peso Final", f"{ind['peso_final']:.3f}"),
+        ("TOTAL DE QUEBRA", f"{(ind['ossos']+ind['quebra']+ind['exsudato']):.3f}")
     ]
 
-    for p_label, p_val, ind_val in params_linhas:
-        pdf.cell(75, 4.5, p_label, 1, 0, 'L')
-        pdf.cell(60, 4.5, p_val, 1, 0, 'R')
-        pdf.cell(7, 4.5, "", 0, 0)
-        pdf.cell(75, 4.5, ind_val.split(":")[0] + ":", 1, 0, 'L')
-        pdf.cell(60, 4.5, ind_val.split(":")[1] if ":" in ind_val else "", 1, 1, 'R')
+    ind_tabela = [
+        ("PREÇO TOTAL/Compra Sem Custos", f"R$ {ind['ouro_preco_compra']:,.2f}", f"R$ {ind['prata_preco_compra']:,.2f}", f"R$ {ind['total_preco_compra']:,.2f}"),
+        ("PREÇO TOTAL/Venda", f"R$ {ind['ouro_preco_venda']:,.2f}", f"R$ {ind['prata_preco_venda']:,.2f}", f"R$ {ind['total_preco_venda']:,.2f}"),
+        ("Peso Desossado", f"{ind['ouro_peso']:.3f}", f"{ind['prata_peso']:.3f}", f"{ind['total_peso']:.3f}"),
+        ("COEFICIENTE", f"{ind['ouro_coef']:.5f}", f"{ind['prata_coef']:.5f}", f"{ind['total_coef']:.5f}"),
+        ("Custo Efetivo Total", f"R$ {ind['ouro_custo_efetivo']:,.2f}", f"R$ {ind['prata_custo_efetivo']:,.2f}", f"R$ {ind['total_custo_efetivo']:,.2f}"),
+        ("Margem de Contribuição R$", f"R$ {ind['ouro_margem_rs']:,.2f}", f"R$ {ind['prata_margem_rs']:,.2f}", f"R$ {ind['total_margem_rs']:,.2f}"),
+        ("Margem de Contribuição %", f"{ind['ouro_margem_pct']*100:.2f}%", f"{ind['prata_margem_pct']*100:.2f}%", f"{ind['total_margem_pct']*100:.2f}%"),
+        ("Markup", f"{ind['ouro_markup']*100:.2f}%", f"{ind['prata_markup']*100:.2f}%", f"{ind['total_markup']*100:.2f}%"),
+        ("Preço médio Compra/KG", f"R$ {ind['ouro_pm_compra']:.2f}", f"R$ {ind['prata_pm_compra']:.2f}", f"R$ {ind['total_pm_compra']:.2f}"),
+        ("Preço médio Venda/KG", f"R$ {ind['ouro_pm_venda']:.2f}", f"R$ {ind['prata_pm_venda']:.2f}", f"R$ {ind['total_pm_venda']:.2f}")
+    ]
+
+    max_linhas = max(len(ap_linhas), len(ind_tabela))
+    for idx in range(max_linhas):
+        if idx < len(ap_linhas):
+            pdf.cell(50, 4.5, ap_linhas[idx][0], 1, 0, 'L')
+            pdf.cell(40, 4.5, ap_linhas[idx][1], 1, 0, 'R')
+        else:
+            pdf.cell(90, 4.5, "", 1, 0)
+            
+        pdf.cell(5, 4.5, "", 0, 0)
+        
+        if idx < len(ind_tabela):
+            pdf.cell(74, 4.5, ind_tabela[idx][0], 1, 0, 'L')
+            pdf.cell(36, 4.5, ind_tabela[idx][1], 1, 0, 'R')
+            pdf.cell(36, 4.5, ind_tabela[idx][2], 1, 0, 'R')
+            pdf.cell(36, 4.5, ind_tabela[idx][3], 1, 1, 'R')
+        else:
+            pdf.cell(182, 4.5, "", 1, 1)
 
     pdf.ln(3)
 
@@ -1073,25 +1117,40 @@ else:
                         if not df_res.empty:
                             st.markdown("##### 🐂 Apuração dos Parâmetros & Indicadores da Simulação (Aba Simulação 21 07)")
                             
-                            q_col1, q_col2 = st.columns(2)
-                            with q_col1:
-                                st.markdown("###### Parâmetros da Desossa")
-                                st.write(f"• **Peso Bruto:** {ind['peso_bruto']:.3f} KG")
-                                st.write(f"• **Ossos / Muxiba:** {ind['ossos']:.3f} KG")
-                                st.write(f"• **Quebra Não Identificada:** {ind['quebra']:.3f} KG")
-                                st.write(f"• **Exsudato / Escorrimento:** {ind['exsudato']:.3f} KG")
-                                st.write(f"• **Peso Final Desossado:** {ind['peso_final']:.3f} KG")
-                                st.write(f"• **Total de Quebra:** {(ind['ossos']+ind['quebra']+ind['exsudato']):.3f} KG")
-                            with q_col2:
-                                st.markdown("###### Indicadores Financeiros (Ouro / Prata / Total)")
-                                st.write(f"• **Custo Total Compra (Sem Custos):** R$ {ind['preco_total_compra_sem']:,.2f}")
-                                st.write(f"• **Preço Total Venda:** R$ {ind['preco_total_venda']:,.2f} (Ouro: R$ {ind['val_venda_ouro']:,.2f} | Prata: R$ {ind['val_venda_prata']:,.2f})")
-                                st.write(f"• **Peso Desossado:** {ind['peso_desossado']:.3f} KG (Ouro: {ind['peso_ouro']:.3f} | Prata: {ind['peso_prata']:.3f})")
-                                st.write(f"• **Coeficiente Global:** {ind['coeficiente']:.5f}")
-                                st.write(f"• **Custo Efetivo Total:** R$ {ind['custo_efetivo_total']:,.2f}")
-                                st.write(f"• **Margem de Contribuição:** R$ {ind['margem_contribuicao_rs']:,.2f} ({ind['margem_contribuicao_pct']*100:.2f}%)")
-                                st.write(f"• **Markup:** {ind['markup']*100:.2f}%")
-                                st.write(f"• **Preço Médio Venda/KG:** R$ {ind['preco_medio_venda']:.2f}")
+                            col_p, col_i = st.columns([1, 2])
+                            with col_p:
+                                st.markdown("**Apuração Bovina**")
+                                df_apuracao = pd.DataFrame({
+                                    "Parâmetro": ["PESO BRUTO/KG", "OSSOS/MUXIBA", "QUEBRA NÃO IDENTIF.", "ESCORRIMENTO", "Peso Final", "TOTAL DE QUEBRA"],
+                                    "Valor": [f"{ind['peso_bruto']:.3f}", f"{ind['ossos']:.3f}", f"{ind['quebra']:.3f}", f"{ind['exsudato']:.3f}", f"{ind['peso_final']:.3f}", f"{(ind['ossos']+ind['quebra']+ind['exsudato']):.3f}"]
+                                })
+                                st.dataframe(df_apuracao, use_container_width=True, hide_index=True)
+
+                            with col_i:
+                                st.markdown("**INDICADORES (Classificação das Carnes)**")
+                                df_ind_tab = pd.DataFrame({
+                                    "INDICADORES": [
+                                        "PREÇO TOTAL/Compra Sem Custos", "PREÇO TOTAL/Venda", "Peso Desossado", 
+                                        "COEFICIENTE", "Custo Efetivo Total", "Margem de Contribuição R$", 
+                                        "Margem de Contribuição %", "Markup", "Preço médio Compra/KG", "Preço médio Venda/KG"
+                                    ],
+                                    "OURO": [
+                                        f"R$ {ind['ouro_preco_compra']:,.2f}", f"R$ {ind['ouro_preco_venda']:,.2f}", f"{ind['ouro_peso']:.3f}",
+                                        f"{ind['ouro_coef']:.5f}", f"R$ {ind['ouro_custo_efetivo']:,.2f}", f"R$ {ind['ouro_margem_rs']:,.2f}",
+                                        f"{ind['ouro_margem_pct']*100:.2f}%", f"{ind['ouro_markup']*100:.2f}%", f"R$ {ind['ouro_pm_compra']:.2f}", f"R$ {ind['ouro_pm_venda']:.2f}"
+                                    ],
+                                    "PRATA": [
+                                        f"R$ {ind['prata_preco_compra']:,.2f}", f"R$ {ind['prata_preco_venda']:,.2f}", f"{ind['prata_peso']:.3f}",
+                                        f"{ind['prata_coef']:.5f}", f"R$ {ind['prata_custo_efetivo']:,.2f}", f"R$ {ind['prata_margem_rs']:,.2f}",
+                                        f"{ind['prata_margem_pct']*100:.2f}%", f"{ind['prata_markup']*100:.2f}%", f"R$ {ind['prata_pm_compra']:.2f}", f"R$ {ind['prata_pm_venda']:.2f}"
+                                    ],
+                                    "Total": [
+                                        f"R$ {ind['total_preco_compra']:,.2f}", f"R$ {ind['total_preco_venda']:,.2f}", f"{ind['total_peso']:.3f}",
+                                        f"{ind['total_coef']:.5f}", f"R$ {ind['total_custo_efetivo']:,.2f}", f"R$ {ind['total_margem_rs']:,.2f}",
+                                        f"{ind['total_margem_pct']*100:.2f}%", f"{ind['total_markup']*100:.2f}%", f"R$ {ind['total_pm_compra']:.2f}", f"R$ {ind['total_pm_venda']:.2f}"
+                                    ]
+                                })
+                                st.dataframe(df_ind_tab, use_container_width=True, hide_index=True)
 
                             st.markdown("##### 🥩 Cortes Apurados")
                             st.dataframe(df_res.style.format({
