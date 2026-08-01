@@ -440,7 +440,6 @@ def processar_calculos_desossa(acao, df_cortes):
     else:
         df['peso'] = 0.0
         
-    # Identificar coluna de preço de venda (suporta preco_venda, preco_de_venda, preço_de_venda)
     col_preco_encontrada = None
     for c_p in ['preco_venda', 'preco_de_venda', 'preço_de_venda']:
         if c_p in df.columns:
@@ -458,7 +457,6 @@ def processar_calculos_desossa(acao, df_cortes):
     else:
         df['qualidade'] = df['qualidade'].astype(str).str.upper().str.strip()
         
-    # Identificar coluna de nome do corte (nome_corte ou nom_corte)
     col_nome_encontrada = None
     for c_n in ['nome_corte', 'nom_corte']:
         if c_n in df.columns:
@@ -847,7 +845,7 @@ else:
                 st.markdown("---")
                 st.markdown("#### 📥 Opção de Adicionar Cortes: Manualmente ou por Upload de Ficheiro (CSV / XLSX)")
                 
-                uploaded_cortes_file = st.file_uploader("Carregar Ficheiro de Cortes (CSV com separador ';' ou XLSX)", type=["csv", "xlsx"], key=f"uploader_cortes_lote_{v_form}")
+                uploaded_cortes_file = st.file_uploader("Carregar Ficheiro de Cortes (CSV ou XLSX)", type=["csv", "xlsx"], key=f"uploader_cortes_lote_{v_form}")
                 if uploaded_cortes_file is not None:
                     try:
                         if uploaded_cortes_file.name.endswith('.csv'):
@@ -861,7 +859,6 @@ else:
                         if 'nom_corte' in df_up.columns and 'nome_corte' not in df_up.columns:
                             df_up.rename(columns={'nom_corte': 'nome_corte'}, inplace=True)
                         
-                        # Mapear qualquer variação de preço de venda
                         col_preco_encontrada = None
                         for cp_cand in ['preco_venda', 'preco_de_venda', 'preço_de_venda']:
                             if cp_cand in df_up.columns:
@@ -876,13 +873,24 @@ else:
                             if st.button("⚡ Importar Cortes do Ficheiro para o Lote", key=f"btn_import_file_{v_form}"):
                                 st.session_state.cortes_temp = []
                                 for _, r in df_up.iterrows():
-                                    p_val = str(r['peso']).replace(',', '.')
-                                    pv_val = str(r['preco_venda']).replace('R$', '').replace(' ', '').replace(',', '.')
+                                    p_str = str(r['peso']).replace(',', '.')
+                                    pv_str = str(r['preco_venda']).replace('R$', '').replace(' ', '').replace(',', '.')
+                                    
+                                    try:
+                                        p_val = float(p_str)
+                                    except:
+                                        p_val = 0.0
+                                        
+                                    try:
+                                        pv_val = float(pv_str)
+                                    except:
+                                        pv_val = 0.0
+                                        
                                     st.session_state.cortes_temp.append({
                                         "nome_corte": str(r['nome_corte']).upper().strip(),
                                         "qualidade": str(r['qualidade']).upper().strip(),
-                                        "peso": float(p_val) if pd.notnumeric(p_val) or float(p_val)>=0 else 0.0,
-                                        "preco_venda": float(pv_val) if pd.notnumeric(pv_val) or float(pv_val)>=0 else 0.0
+                                        "peso": p_val,
+                                        "preco_venda": pv_val
                                     })
                                 st.success("🎉 Cortes importados com sucesso do ficheiro!")
                                 st.rerun()
