@@ -434,7 +434,6 @@ def processar_calculos_desossa(acao, df_cortes):
 
     df = df_cortes.copy()
     
-    # Tratamento robusto de colunas e dados numéricos vindos do DB ou CSV
     if 'peso' in df.columns:
         df['peso'] = df['peso'].astype(str).str.replace(',', '.', regex=True)
         df['peso'] = pd.to_numeric(df['peso'], errors='coerce').fillna(0.0)
@@ -839,16 +838,14 @@ else:
                 st.markdown("---")
                 st.markdown("#### 📥 Opção de Adicionar Cortes: Manualmente ou por Upload de Ficheiro (CSV / XLSX)")
                 
-                # Uploader de Ficheiro baseado no modelo VACA_CASADA.csv
-                uploaded_cortes_file = st.file_uploader("Carregar Ficheiro de Cortes (CSV ou XLSX)", type=["csv", "xlsx"], key=f"uploader_cortes_lote_{v_form}")
+                uploaded_cortes_file = st.file_uploader("Carregar Ficheiro de Cortes (CSV com separador ';' ou XLSX)", type=["csv", "xlsx"], key=f"uploader_cortes_lote_{v_form}")
                 if uploaded_cortes_file is not None:
                     try:
                         if uploaded_cortes_file.name.endswith('.csv'):
-                            df_up = pd.read_csv(uploaded_cortes_file, encoding='latin-1', sep=None, engine='python')
+                            df_up = pd.read_csv(uploaded_cortes_file, encoding='latin-1', sep=';')
                         else:
                             df_up = pd.read_excel(uploaded_cortes_file)
                         
-                        # Padronizar nomes das colunas
                         col_map = {c: str(c).strip().lower().replace(" ", "_") for c in df_up.columns}
                         df_up.rename(columns=col_map, inplace=True)
                         
@@ -872,7 +869,7 @@ else:
                                 st.success("🎉 Cortes importados com sucesso do ficheiro!")
                                 st.rerun()
                         else:
-                            st.error("❌ O ficheiro enviado não contém as colunas exigidas: nom_corte, qualidade, peso, preço_de_venda.")
+                            st.error(f"❌ O ficheiro enviado não contém as colunas exigidas. Colunas detetadas: {list(df_up.columns)}")
                     except Exception as e_up:
                         st.error(f"Erro ao ler o ficheiro: {e_up}")
 
