@@ -671,28 +671,58 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
 
     pdf.ln(4)
 
-    # Tabela Detalhada de Cortes Fiel ao Histórico & Edição (10 Colunas sem sobreposição)
-    pdf.set_font("Arial", style="B", size=7)
+    # Tabela Detalhada de Cortes Fiel ao Histórico & Edição (15 Colunas organizadas perfeitamente em A4 Paisagem - 277mm de largura)
+    pdf.set_font("Arial", style="B", size=5.5)
     pdf.set_fill_color(226, 232, 240)
-    cols = ['nome_corte', 'qualidade', 'peso', 'PREÇO CUSTO/KG', 'PREÇO/CUSTO', 'PREÇO VENDA/KG', 'VALOR TOTAL DE VENDAS', 'LUCRO BRUTO', 'PERCENTUAL/CORTES', 'CUSTO EFETIVO TOTAL']
-    larguras = [38, 18, 16, 25, 22, 24, 28, 22, 22, 35] # Soma = 250mm (perfeitamente ajustado no A4 Paisagem)
     
-    for i, col_name in enumerate(cols):
-        pdf.cell(larguras[i], 6, col_name.replace("_", " ").upper(), 1, 0, 'C', True)
+    # 15 colunas exatas da tabela de cortes calculada
+    cols = [
+        'nome_corte', 'qualidade', 'peso', 'PREÇO CUSTO/KG', 'PREÇO/CUSTO', 
+        'PREÇO VENDA/KG', 'VALOR TOTAL DE VENDAS', 'LUCRO BRUTO', 'PERCENTUAL/CORTES', 
+        'TAXAS DE CARTÃO', 'IMPOSTOS', 'EMBALAGENS', 'COMISSÃO', 'CUSTO EFETIVO/KG', 'CUSTO EFETIVO TOTAL'
+    ]
+    
+    # Cabeçalhos formatados para impressão otimizada
+    cols_display = [
+        'CORTE', 'QUAL.', 'PESO', 'P. CUSTO/KG', 'P. CUSTO', 
+        'P. VENDA/KG', 'VALOR VENDAS', 'LUCRO BRUTO', '% CORTES', 
+        'TX. CARTÃO', 'IMPOSTOS', 'EMBALAGENS', 'COMISSÃO', 'C. EFET/KG', 'CUSTO EFET. TOT'
+    ]
+    
+    # Larguras dimensionadas para totalizar 277mm (largura útil total da página A4 em formato paisagem)
+    larguras = [32, 12, 14, 18, 17, 18, 21, 18, 15, 17, 16, 17, 15, 18, 21] # Soma = 277mm
+    
+    for i, col_title in enumerate(cols_display):
+        pdf.cell(larguras[i], 6, col_title, 1, 0, 'C', True)
     pdf.ln()
     
-    pdf.set_font("Arial", size=7)
+    pdf.set_font("Arial", size=5.5)
     for _, r in df_res.iterrows():
-        pdf.cell(larguras[0], 5, str(r['nome_corte']), 1, 0, 'L')
-        pdf.cell(larguras[1], 5, str(r['qualidade']), 1, 0, 'C')
-        pdf.cell(larguras[2], 5, f"{r['peso']:.3f}", 1, 0, 'R')
-        pdf.cell(larguras[3], 5, f"{r['PREÇO CUSTO/KG']:.2f}", 1, 0, 'R')
-        pdf.cell(larguras[4], 5, f"{r['PREÇO/CUSTO']:.2f}", 1, 0, 'R')
-        pdf.cell(larguras[5], 5, f"{r['PREÇO VENDA/KG']:.2f}", 1, 0, 'R')
-        pdf.cell(larguras[6], 5, f"{r['VALOR TOTAL DE VENDAS']:.2f}", 1, 0, 'R')
-        pdf.cell(larguras[7], 5, f"{r['LUCRO BRUTO']:.2f}", 1, 0, 'R')
-        pdf.cell(larguras[8], 5, f"{r['PERCENTUAL/CORTES']*100:.1f}%", 1, 0, 'R')
-        pdf.cell(larguras[9], 5, f"{r['CUSTO EFETIVO TOTAL']:.2f}", 1, 1, 'R')
+        # Quebrar a página mantendo o cabeçalho se houver muitos cortes
+        if pdf.get_y() > 185:
+            pdf.add_page()
+            pdf.set_font("Arial", style="B", size=5.5)
+            pdf.set_fill_color(226, 232, 240)
+            for i, col_title in enumerate(cols_display):
+                pdf.cell(larguras[i], 6, col_title, 1, 0, 'C', True)
+            pdf.ln()
+            pdf.set_font("Arial", size=5.5)
+
+        pdf.cell(larguras[0], 4.5, str(r['nome_corte'])[:22], 1, 0, 'L')
+        pdf.cell(larguras[1], 4.5, str(r['qualidade']), 1, 0, 'C')
+        pdf.cell(larguras[2], 4.5, f"{r['peso']:.3f}", 1, 0, 'R')
+        pdf.cell(larguras[3], 4.5, f"{r['PREÇO CUSTO/KG']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[4], 4.5, f"{r['PREÇO/CUSTO']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[5], 4.5, f"{r['PREÇO VENDA/KG']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[6], 4.5, f"{r['VALOR TOTAL DE VENDAS']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[7], 4.5, f"{r['LUCRO BRUTO']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[8], 4.5, f"{r['PERCENTUAL/CORTES']*100:.1f}%", 1, 0, 'R')
+        pdf.cell(larguras[9], 4.5, f"{r['TAXAS DE CARTÃO']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[10], 4.5, f"{r['IMPOSTOS']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[11], 4.5, f"{r['EMBALAGENS']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[12], 4.5, f"{r['COMISSÃO']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[13], 4.5, f"{r['CUSTO EFETIVO/KG']:.2f}", 1, 0, 'R')
+        pdf.cell(larguras[14], 4.5, f"{r['CUSTO EFETIVO TOTAL']:.2f}", 1, 1, 'R')
         
     return pdf.output(dest='S').encode('latin1')
 
