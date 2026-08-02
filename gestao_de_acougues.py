@@ -408,7 +408,7 @@ def exibir_cabecalho(nome_empresa_usuaria=None):
     st.markdown("<hr style='margin-top: 10px; margin-bottom: 20px; border-top: 3px solid #1E3A8A;'>", unsafe_allow_html=True)
 
 # =========================================================================
-# 5. MOTOR DE CÁLCULO DA DESOSSA (SIMULAÇÃO 21 07) & RELATÓRIO PDF
+# 5. MOTOR DE CÁLCULO DA DESOSSA & RELATÓRIO PDF
 # =========================================================================
 def processar_calculos_desossa(acao, df_cortes):
     peso_bruto = float(acao['peso_bruto'])
@@ -621,7 +621,7 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.cell(277, 5, f"Empresa: {nome_empresa.upper()} | Data: {acao['data_acao']} | Tipo: {acao['tipo_animal']}", ln=1, align="C")
     pdf.ln(2)
 
-    # Quadros Superiores (Apuração Bovina + Indicadores Ouro/Prata/Total)
+    # Quadros Superiores
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(90, 5, "APURAÇÃO DOS PARÂMETROS DO ANIMAL", 1, 0, 'C', True)
@@ -671,26 +671,17 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
 
     pdf.ln(4)
 
-    # Tabela Detalhada de Cortes Fiel ao Histórico & Edição (15 Colunas organizadas perfeitamente em A4 Paisagem - 277mm de largura)
+    # Tabela Detalhada de Cortes Fiel ao Histórico (15 Colunas organizadas em A4 Paisagem - 277mm)
     pdf.set_font("Arial", style="B", size=5.5)
     pdf.set_fill_color(226, 232, 240)
     
-    # 15 colunas exatas da tabela de cortes calculada
-    cols = [
-        'nome_corte', 'qualidade', 'peso', 'PREÇO CUSTO/KG', 'PREÇO/CUSTO', 
-        'PREÇO VENDA/KG', 'VALOR TOTAL DE VENDAS', 'LUCRO BRUTO', 'PERCENTUAL/CORTES', 
-        'TAXAS DE CARTÃO', 'IMPOSTOS', 'EMBALAGENS', 'COMISSÃO', 'CUSTO EFETIVO/KG', 'CUSTO EFETIVO TOTAL'
-    ]
-    
-    # Cabeçalhos formatados para impressão otimizada
     cols_display = [
         'CORTE', 'QUAL.', 'PESO', 'P. CUSTO/KG', 'P. CUSTO', 
         'P. VENDA/KG', 'VALOR VENDAS', 'LUCRO BRUTO', '% CORTES', 
         'TX. CARTÃO', 'IMPOSTOS', 'EMBALAGENS', 'COMISSÃO', 'C. EFET/KG', 'CUSTO EFET. TOT'
     ]
     
-    # Larguras dimensionadas para totalizar 277mm (largura útil total da página A4 em formato paisagem)
-    larguras = [32, 12, 14, 18, 17, 18, 21, 18, 15, 17, 16, 17, 15, 18, 21] # Soma = 277mm
+    larguras = [32, 12, 14, 18, 17, 18, 21, 18, 15, 17, 16, 17, 15, 18, 21]
     
     for i, col_title in enumerate(cols_display):
         pdf.cell(larguras[i], 6, col_title, 1, 0, 'C', True)
@@ -698,7 +689,6 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     
     pdf.set_font("Arial", size=5.5)
     for _, r in df_res.iterrows():
-        # Quebrar a página mantendo o cabeçalho se houver muitos cortes
         if pdf.get_y() > 185:
             pdf.add_page()
             pdf.set_font("Arial", style="B", size=5.5)
@@ -892,7 +882,7 @@ else:
 
     if st.session_state.e_admin:
         st.sidebar.markdown("### 🛠️ Menu Administrativo")
-        menu = st.sidebar.radio("Selecione a Tela:", ["Gerenciar Empresas", "Cadastrar Empresa", "Gerenciar Cadastro de Cortes", "Importar Cortes (CSV)", "Cálculo Financeiro", "Ficha Técnica", "Capital de Giro (NCG)"], key="menu_admin")
+        menu = st.sidebar.radio("Selecione a Tela:", ["Gerenciar Empresas", "Cadastrar Empresa", "Gerenciar Cadastro de Cortes", "Cálculo Financeiro", "Ficha Técnica", "Capital de Giro (NCG)"], key="menu_admin")
     else:
         st.sidebar.markdown("### 🥩 Menu de Operações")
         menu = st.sidebar.radio("Selecione a Tela:", ["Nova Desossa", "Histórico & Edição", "Gerenciar Cadastro de Cortes", "Cálculo Financeiro", "Ficha Técnica", "Capital de Giro (NCG)"], key="menu_operacional")
@@ -902,55 +892,245 @@ else:
     # =========================================================================
     # 8. EXECUÇÃO DOS MÓDULOS DE TELA
     # =========================================================================
-    if menu == "Cálculo Financeiro":
-        render_modulo_financeiro()
-    elif menu == "Ficha Técnica":
-        render_modulo_ficha_tecnica()
-    elif menu == "Capital de Giro (NCG)":
-        render_modulo_ncg()
+    if menu == "Cadastrar Empresa":
+        st.header("🏢 Cadastrar Nova Empresa / Açougue")
+        with st.form("form_cadastrar_empresa"):
+            novo_nome = st.text_input("Nome da Empresa")
+            novo_login = st.text_input("Usuário / Login de Acesso")
+            nova_senha = st.text_input("Senha", type="password")
+            btn_salvar = st.form_submit_button("Salvar Cadastro")
+            
+            if btn_salvar:
+                if not novo_nome or not novo_login or not nova_senha:
+                    st.error("Preencha todos os campos obrigatoriamente.")
+                else:
+                    conn = get_connection()
+                    cursor = conn.cursor()
+                    is_postgres = "psycopg2" in str(type(conn))
+                    try:
+                        login_clean = novo_login.strip().lower()
+                        if is_postgres:
+                            cursor.execute("INSERT INTO empresas (nome, login, senha, ativo) VALUES (%s, %s, %s, 1)", (novo_nome.strip(), login_clean, nova_senha))
+                        else:
+                            cursor.execute("INSERT INTO empresas (nome, login, senha, ativo) VALUES (?, ?, ?, 1)", (novo_nome.strip(), login_clean, nova_senha))
+                        conn.commit()
+                        st.success(f"Empresa '{novo_nome}' cadastrada com sucesso!")
+                    except Exception as e:
+                        st.error(f"Erro ao cadastrar empresa (Login pode já existir): {e}")
+                    finally:
+                        conn.close()
+
+    elif menu == "Gerenciar Empresas":
+        st.header("🏢 Gerenciamento de Empresas Cadastradas")
+        conn = get_connection()
+        is_postgres = "psycopg2" in str(type(conn))
+        df_empresas = pd.read_sql_query("SELECT id, nome, login, senha, ativo FROM empresas ORDER BY nome ASC", conn)
+        conn.close()
+        
+        if df_empresas.empty:
+            st.info("Nenhuma empresa cadastrada no sistema.")
+        else:
+            for _, emp in df_empresas.iterrows():
+                e_id = emp['id']
+                e_nome = emp['nome']
+                e_login = emp['login']
+                e_senha = emp['senha']
+                e_ativo = emp['ativo']
+                
+                status_str = "🟢 Ativa" if e_ativo == 1 else "🔴 Bloqueada"
+                
+                with st.expander(f"🏢 {e_nome.upper()} ({status_str}) - Login: {e_login}"):
+                    with st.form(f"form_edit_emp_{e_id}"):
+                        edit_nome = st.text_input("Nome da Empresa", value=e_nome, key=f"edit_nome_{e_id}")
+                        edit_login = st.text_input("Login", value=e_login, key=f"edit_login_{e_id}")
+                        edit_senha = st.text_input("Senha", value=e_senha, type="password", key=f"edit_senha_{e_id}")
+                        
+                        col_b1, col_b2, col_b3 = st.columns(3)
+                        btn_salvar_edit = col_b1.form_submit_button("💾 Salvar Alterações")
+                        
+                        btn_label_block = "🔒 Bloquear Empresa" if e_ativo == 1 else "🔓 Desbloquear Empresa"
+                        btn_bloquear = col_b2.form_submit_button(btn_label_block)
+                        
+                        btn_excluir = col_b3.form_submit_button("🗑️ Excluir Empresa")
+                        
+                        if btn_salvar_edit:
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            if is_postgres:
+                                cursor.execute("UPDATE empresas SET nome = %s, login = %s, senha = %s WHERE id = %s", (edit_nome.strip(), edit_login.strip().lower(), edit_senha, e_id))
+                            else:
+                                cursor.execute("UPDATE empresas SET nome = ?, login = ?, senha = ? WHERE id = ?", (edit_nome.strip(), edit_login.strip().lower(), edit_senha, e_id))
+                            conn.commit()
+                            conn.close()
+                            st.success("Dados atualizados com sucesso!")
+                            st.rerun()
+                            
+                        if btn_bloquear:
+                            novo_status = 0 if e_ativo == 1 else 1
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            if is_postgres:
+                                cursor.execute("UPDATE empresas SET ativo = %s WHERE id = %s", (novo_status, e_id))
+                            else:
+                                cursor.execute("UPDATE empresas SET ativo = ? WHERE id = ?", (novo_status, e_id))
+                            conn.commit()
+                            conn.close()
+                            st.success(f"Status da empresa alterado!")
+                            st.rerun()
+
+                        if btn_excluir:
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            if is_postgres:
+                                cursor.execute("DELETE FROM empresas WHERE id = %s", (e_id,))
+                            else:
+                                cursor.execute("DELETE FROM empresas WHERE id = ?", (e_id,))
+                            conn.commit()
+                            conn.close()
+                            st.success("Empresa excluída com sucesso!")
+                            st.rerun()
+
     elif menu == "Gerenciar Cadastro de Cortes":
-        st.header("🥩 Configurar e Gerenciar Tipos de Desossa e Cortes Padrão")
+        st.header("🥩 Gerenciar Tipos de Desossa & Cortes Padrão")
         emp_id_ativo = st.session_state.empresa_id
+        
+        # --- SEÇÃO 1: CADASTRO E EDIÇÃO DE TIPOS DE DESOSSA ---
+        st.subheader("1. Tipos de Desossa (Ex: Quarto Traseiro, Vaca Casada)")
+        
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            with st.form("form_add_tipo_desossa"):
+                novo_tipo = st.text_input("Novo Tipo de Desossa")
+                if st.form_submit_button("➕ Cadastrar Tipo") and novo_tipo:
+                    conn = get_connection()
+                    cursor = conn.cursor()
+                    is_postgres = "psycopg2" in str(type(conn))
+                    try:
+                        emp_v = emp_id_ativo if emp_id_ativo != 0 else None
+                        if is_postgres:
+                            cursor.execute("INSERT INTO tipos_desossa (nome, empresa_id) VALUES (%s, %s)", (novo_tipo.upper().strip(), emp_v))
+                        else:
+                            cursor.execute("INSERT INTO tipos_desossa (nome, empresa_id) VALUES (?, ?)", (novo_tipo.upper().strip(), emp_v))
+                        conn.commit()
+                        st.success(f"Tipo '{novo_tipo.upper()}' cadastrado!")
+                    except Exception as e:
+                        st.error(f"Erro ao cadastrar: {e}")
+                    finally:
+                        conn.close()
+                        st.rerun()
+
+        with col_t2:
+            conn = get_connection()
+            is_postgres = "psycopg2" in str(type(conn))
+            if emp_id_ativo == 0:
+                df_tipos_db = pd.read_sql_query("SELECT id, nome FROM tipos_desossa ORDER BY nome ASC", conn)
+            else:
+                if is_postgres:
+                    df_tipos_db = pd.read_sql_query("SELECT id, nome FROM tipos_desossa WHERE empresa_id IS NULL OR empresa_id = %s ORDER BY nome ASC", conn, params=(emp_id_ativo,))
+                else:
+                    df_tipos_db = pd.read_sql_query(f"SELECT id, nome FROM tipos_desossa WHERE empresa_id IS NULL OR empresa_id = {emp_id_ativo} ORDER BY nome ASC", conn)
+            conn.close()
+
+            if not df_tipos_db.empty:
+                st.markdown("**Tipos Existentes (Edição / Exclusão):**")
+                for _, r_t in df_tipos_db.iterrows():
+                    tid = r_t['id']
+                    tnome = r_t['nome']
+                    c_n1, c_n2, c_n3 = st.columns([3, 1, 1])
+                    edit_t_val = c_n1.text_input("Nome", value=tnome, key=f"input_t_{tid}", label_visibility="collapsed")
+                    if c_n2.button("💾", key=f"save_t_{tid}", help="Salvar Alteração"):
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        if is_postgres:
+                            cursor.execute("UPDATE tipos_desossa SET nome = %s WHERE id = %s", (edit_t_val.upper().strip(), tid))
+                            cursor.execute("UPDATE cortes_padrao SET tipo_desossa = %s WHERE tipo_desossa = %s", (edit_t_val.upper().strip(), tnome))
+                        else:
+                            cursor.execute("UPDATE tipos_desossa SET nome = ? WHERE id = ?", (edit_t_val.upper().strip(), tid))
+                            cursor.execute("UPDATE cortes_padrao SET tipo_desossa = ? WHERE tipo_desossa = ?", (edit_t_val.upper().strip(), tnome))
+                        conn.commit()
+                        conn.close()
+                        st.success("Tipo atualizado!")
+                        st.rerun()
+                    if c_n3.button("🗑️", key=f"del_t_{tid}", help="Excluir Tipo"):
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        if is_postgres:
+                            cursor.execute("DELETE FROM tipos_desossa WHERE id = %s", (tid,))
+                            cursor.execute("DELETE FROM cortes_padrao WHERE tipo_desossa = %s", (tnome,))
+                        else:
+                            cursor.execute("DELETE FROM tipos_desossa WHERE id = ?", (tid,))
+                            cursor.execute("DELETE FROM cortes_padrao WHERE tipo_desossa = ?", (tnome,))
+                        conn.commit()
+                        conn.close()
+                        st.success("Tipo e cortes associados removidos!")
+                        st.rerun()
+
+        st.markdown("---")
+        
+        # --- SEÇÃO 2: GERENCIAMENTO DE CORTES PADRÃO ---
+        st.subheader("2. Cortes Padrão Associados")
         tipos_disponiveis = get_tipos_desossa(emp_id_ativo)
         
         if tipos_disponiveis:
-            tipo_sel = st.selectbox("Selecione o Tipo de Desossa", tipos_disponiveis, key="tipo_sel_config_cortes")
+            tipo_sel = st.selectbox("Selecione o Tipo de Desossa para ver e gerenciar os cortes", tipos_disponiveis, key="tipo_sel_config_cortes")
             
             with st.form("form_adicionar_corte_padrao"):
-                st.subheader(f"Adicionar Novo Corte Padrão para: {tipo_sel}")
-                novo_corte_nome = st.text_input("Nome do Corte Padrão")
+                st.markdown(f"**Adicionar Novo Corte Padrão para:** `{tipo_sel}`")
+                novo_corte_nome = st.text_input("Nome do Corte")
                 if st.form_submit_button("Cadastrar Corte Padrão") and novo_corte_nome:
                     conn = get_connection()
                     cursor = conn.cursor()
                     is_postgres = "psycopg2" in str(type(conn))
                     try:
+                        emp_v = emp_id_ativo if emp_id_ativo != 0 else None
                         if is_postgres:
-                            cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (%s, %s, %s)", (tipo_sel, novo_corte_nome.upper().strip(), emp_id_ativo if emp_id_ativo != 0 else None))
+                            cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (%s, %s, %s)", (tipo_sel, novo_corte_nome.upper().strip(), emp_v))
                         else:
-                            cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", (tipo_sel, novo_corte_nome.upper().strip(), emp_id_ativo if emp_id_ativo != 0 else None))
+                            cursor.execute("INSERT INTO cortes_padrao (tipo_desossa, nome_corte, empresa_id) VALUES (?, ?, ?)", (tipo_sel, novo_corte_nome.upper().strip(), emp_v))
                         conn.commit()
                         st.success(f"Corte '{novo_corte_nome.upper()}' cadastrado com sucesso!")
                     except Exception as e:
-                        st.error(f"Erro ao cadastrar corte (pode já existir): {e}")
-                    conn.close()
-                    st.rerun()
+                        st.error(f"Erro ao cadastrar corte: {e}")
+                    finally:
+                        conn.close()
+                        st.rerun()
 
             conn = get_connection()
             is_postgres = "psycopg2" in str(type(conn))
-            if is_postgres:
-                df_padroes = pd.read_sql_query("SELECT id, tipo_desossa, nome_corte FROM cortes_padrao WHERE tipo_desossa = %s AND (empresa_id = %s OR empresa_id IS NULL) ORDER BY nome_corte ASC", conn, params=(tipo_sel, emp_id_ativo))
+            if emp_id_ativo == 0:
+                if is_postgres:
+                    df_padroes = pd.read_sql_query("SELECT id, tipo_desossa, nome_corte FROM cortes_padrao WHERE tipo_desossa = %s ORDER BY nome_corte ASC", conn, params=(tipo_sel,))
+                else:
+                    df_padroes = pd.read_sql_query(f"SELECT id, tipo_desossa, nome_corte FROM cortes_padrao WHERE tipo_desossa = '{tipo_sel}' ORDER BY nome_corte ASC", conn)
             else:
-                df_padroes = pd.read_sql_query(f"SELECT id, tipo_desossa, nome_corte FROM cortes_padrao WHERE tipo_desossa = '{tipo_sel}' AND (empresa_id = {emp_id_ativo} OR empresa_id IS NULL) ORDER BY nome_corte ASC", conn)
+                if is_postgres:
+                    df_padroes = pd.read_sql_query("SELECT id, tipo_desossa, nome_corte FROM cortes_padrao WHERE tipo_desossa = %s AND (empresa_id = %s OR empresa_id IS NULL) ORDER BY nome_corte ASC", conn, params=(tipo_sel, emp_id_ativo))
+                else:
+                    df_padroes = pd.read_sql_query(f"SELECT id, tipo_desossa, nome_corte FROM cortes_padrao WHERE tipo_desossa = '{tipo_sel}' AND (empresa_id = {emp_id_ativo} OR empresa_id IS NULL) ORDER BY nome_corte ASC", conn)
             conn.close()
 
-            st.subheader(f"Cortes Cadastrados para '{tipo_sel}'")
+            st.markdown(f"**Cortes Cadastrados para `{tipo_sel}`:**")
             if not df_padroes.empty:
                 for _, cp in df_padroes.iterrows():
                     c_id = cp['id']
                     c_nome = cp['nome_corte']
-                    col_n, col_d = st.columns([5, 1])
-                    col_n.write(f"• **{c_nome}**")
-                    if col_d.button("🗑️ Excluir", key=f"del_cp_{c_id}"):
+                    
+                    col_cn1, col_cn2, col_cn3 = st.columns([4, 1, 1])
+                    val_c_edit = col_cn1.text_input("Corte", value=c_nome, key=f"edit_cp_val_{c_id}", label_visibility="collapsed")
+                    
+                    if col_cn2.button("💾", key=f"salv_cp_{c_id}", help="Salvar Alteração"):
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        if is_postgres:
+                            cursor.execute("UPDATE cortes_padrao SET nome_corte = %s WHERE id = %s", (val_c_edit.upper().strip(), c_id))
+                        else:
+                            cursor.execute("UPDATE cortes_padrao SET nome_corte = ? WHERE id = ?", (val_c_edit.upper().strip(), c_id))
+                        conn.commit()
+                        conn.close()
+                        st.success("Corte atualizado!")
+                        st.rerun()
+
+                    if col_cn3.button("🗑️", key=f"del_cp_{c_id}", help="Excluir Corte"):
                         conn = get_connection()
                         cursor = conn.cursor()
                         if is_postgres:
@@ -959,10 +1139,17 @@ else:
                             cursor.execute("DELETE FROM cortes_padrao WHERE id = ?", (c_id,))
                         conn.commit()
                         conn.close()
-                        st.success(f"Corte '{c_nome}' removido!")
+                        st.success("Corte removido!")
                         st.rerun()
             else:
                 st.info("Nenhum corte padrão cadastrado para este tipo de desossa.")
+
+    elif menu == "Cálculo Financeiro":
+        render_modulo_financeiro()
+    elif menu == "Ficha Técnica":
+        render_modulo_ficha_tecnica()
+    elif menu == "Capital de Giro (NCG)":
+        render_modulo_ncg()
     else:
         emp_id_ativo = st.session_state.empresa_id
         v_form = st.session_state.form_version
@@ -1149,7 +1336,7 @@ else:
                         df_res, ind = processar_calculos_desossa(acao, df_c)
                         
                         if not df_res.empty:
-                            st.markdown("##### 🐂 Apuração dos Parâmetros & Indicadores da Simulação (Aba Simulação 21 07)")
+                            st.markdown("##### 🐂 Apuração dos Parâmetros & Indicadores da Simulação")
                             
                             col_p, col_i = st.columns([1, 2])
                             with col_p:
@@ -1200,7 +1387,7 @@ else:
                             
                             pdf_bytes = gerar_pdf_relatorio_desossa(acao, df_res, ind, st.session_state.empresa_nome if 'empresa_nome' in st.session_state else "Açougue")
                             st.download_button(
-                                label="📥 Baixar Relatório Completo em PDF (Replica aba Simulação 21 07)",
+                                label="📥 Baixar Relatório Completo em PDF",
                                 data=pdf_bytes,
                                 file_name=f"desossa_lote_{acao_id}_{acao['data_acao']}.pdf",
                                 mime="application/pdf",
