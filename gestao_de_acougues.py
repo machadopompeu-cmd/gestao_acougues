@@ -4,6 +4,7 @@ import sqlite3
 import datetime
 import os
 import io
+import math
 import numpy as np
 from fpdf import FPDF
 
@@ -408,7 +409,7 @@ def exibir_cabecalho(nome_empresa_usuaria=None):
     st.markdown("<hr style='margin-top: 10px; margin-bottom: 20px; border-top: 3px solid #1E3A8A;'>", unsafe_allow_html=True)
 
 # =========================================================================
-# 5. MOTOR DE CÁLCULO DA DESOSSA & RELATÓRIO PDF
+# 5. MOTOR DE CÁLCULO DA DESOSSA & RELATÓRIO PDF DESOSSA
 # =========================================================================
 def processar_calculos_desossa(acao, df_cortes):
     peso_bruto = float(acao['peso_bruto'])
@@ -671,7 +672,7 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
 
     pdf.ln(4)
 
-    # Tabela Detalhada de Cortes Fiel ao Histórico (15 Colunas em A4 Paisagem - 277mm)
+    # Tabela Detalhada de Cortes Fiel ao Histórico (15 Colunas em A4 Paisagem)
     pdf.set_font("Arial", style="B", size=5.5)
     pdf.set_fill_color(226, 232, 240)
     
@@ -717,109 +718,251 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     return pdf.output(dest='S').encode('latin1')
 
 # =========================================================================
-# 6. MÓDULOS DE SUPORTE (FINANCEIRO, FICHA TÉCNICA E NCG)
+# 6. GERADOR DE RELATÓRIO PDF DO MÓDULO FINANCEIRO
+# =========================================================================
+def gerar_pdf_relatorio_financeiro(pv, i_mensal, n_parcelas, sistema, df_amort, total_pago, total_juros, nome_empresa, calculo_alvo):
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=12)
+    
+    # Cabeçalho
+    pdf.set_fill_color(30, 58, 138)
+    pdf.rect(10, 8, 190, 12, "F")
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", style="B", size=10)
+    pdf.set_xy(10, 10)
+    pdf.cell(190, 8, "RENATO FRIGOTUDO & ASSOCIADOS - RELATÓRIO FINANCEIRO & AMORTIZAÇÃO", ln=1, align="C")
+    
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_font("Arial", style="B", size=9)
+    pdf.set_xy(10, 22)
+    data_str = datetime.date.today().strftime("%d/%m/%Y")
+    pdf.cell(190, 5, f"Empresa: {nome_empresa.upper()} | Data de Emissão: {data_str} | Sistema: {sistema}", ln=1, align="C")
+    pdf.ln(3)
+
+    # Quadro Resumo da Operação
+    pdf.set_font("Arial", style="B", size=9)
+    pdf.set_fill_color(226, 232, 240)
+    pdf.cell(190, 6, "QUADRO RESUMO DA OPERAÇÃO DE FINANCIAMENTO", 1, 1, 'C', True)
+
+    pdf.set_font("Arial", size=8)
+    quadro = [
+        ("Objetivo do Cálculo:", calculo_alvo),
+        ("Valor Financiado (PV):", f"R$ {pv:,.2f}"),
+        ("Taxa de Juros Mensal Equivalente:", f"{i_mensal * 100:.4f}% a.m."),
+        ("Prazo Total (Parcelas Mensais):", f"{n_parcelas} meses"),
+        ("Total de Juros Pagos:", f"R$ {total_juros:,.2f}"),
+        ("Custo Total do Contrato:", f"R$ {total_pago:,.2f}"),
+        ("Primeira Prestação:", f"R$ {df_amort['Prestação'].iloc[0]:,.2f}"),
+        ("Última Prestação:", f"R$ {df_amort['Prestação'].iloc[-1]:,.2f}")
+    ]
+
+    for label, val in quadro:
+        pdf.cell(95, 5, label, 1, 0, 'L')
+        pdf.cell(95, 5, val, 1, 1, 'R')
+
+    pdf.ln(5)
+
+    # Tabela de Amortização
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_fill_color(226, 232, 240)
+    
+    cols = ['Mês', 'Prestação', 'Juros', 'Amortização', 'Saldo Devedor']
+    larguras = [20, 42.5, 42.5, 42.5, 42.5]
+    
+    for i, col_title in enumerate(cols):
+        pdf.cell(larguras[i], 6, col_title, 1, 0, 'C', True)
+    pdf.ln()
+
+    pdf.set_font("Arial", size=7.5)
+    for _, row in df_amort.iterrows():
+        if pdf.get_y() > 270:
+            pdf.add_page()
+            pdf.set_font("Arial", style="B", size=8)
+            pdf.set_fill_color(226, 232, 240)
+            for i, col_title in enumerate(cols):
+                pdf.cell(larguras[i], 6, col_title, 1, 0, 'C', True)
+            pdf.ln()
+            pdf.set_font("Arial", size=7.5)
+
+        pdf.cell(larguras[0], 4.5, str(int(row['Mês'])), 1, 0, 'C')
+        pdf.cell(larguras[1], 4.5, f"R$ {row['Prestação']:,.2f}", 1, 0, 'R')
+        pdf.cell(larguras[2], 4.5, f"R$ {row['Juros']:,.2f}", 1, 0, 'R')
+        pdf.cell(larguras[3], 4.5, f"R$ {row['Amortização']:,.2f}", 1, 0, 'R')
+        pdf.cell(larguras[4], 4.5, f"R$ {row['Saldo Devedor']:,.2f}", 1, 1, 'R')
+
+    return pdf.output(dest='S').encode('latin1')
+
+# =========================================================================
+# 7. MÓDULOS DE SUPORTE (FINANCEIRO COMPLETO, FICHA TÉCNICA E NCG)
 # =========================================================================
 def render_modulo_financeiro():
-    st.header("🧮 Módulo de Cálculo Financeiro & Amortização")
-    st.markdown("Calcule o financiamento com conversão de **Taxas Equivalentes** (Juros Compostos) e escolha o tempo nas unidades desejadas.")
+    st.header("🧮 Módulo de Cálculo Financeiro & Amortização Bidirecional")
+    st.markdown("Calcule qualquer parâmetro do empréstimo (Prestação, Valor Financiado, Prazo ou Taxa) e gere a tabela de amortização com taxas equivalentes.")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        pv = st.number_input("Valor Financiado / Empréstimo (R$)", min_value=0.0, value=100000.0, step=1000.0)
-    
-    with col2:
-        sistema = st.radio("Sistema de Amortização", ["Tabela Price (Prestações Iguais)", "Tabela SAC (Amortização Constante)"], horizontal=True)
+    # Seleção da variável a ser calculada
+    calculo_opcao = st.radio(
+        "🎯 O que você deseja calcular?",
+        ["Prestação (PMT)", "Valor Financiado (PV)", "Prazo (n)", "Taxa de Juros (i)"],
+        horizontal=True
+    )
 
+    sistema = st.selectbox("Sistema de Amortização", ["Tabela Price (Prestações Iguais)", "Tabela SAC (Amortização Constante)"])
     st.markdown("---")
-    st.subheader("⚙️ Configuração de Taxa e Prazo (Taxas Equivalentes)")
-    
-    c_taxa1, c_taxa2 = st.columns([2, 2])
-    with c_taxa1:
-        taxa_informada = st.number_input("Taxa de Juros (%)", min_value=0.0, value=1.5, step=0.1)
-    with c_taxa2:
-        unidade_taxa = st.selectbox("Unidade da Taxa", ["Ao Mês (% a.m.)", "Ao Ano (% a.a.)", "Ao Dia (% a.d.)"])
 
-    c_tempo1, c_tempo2 = st.columns([2, 2])
-    with c_tempo1:
-        prazo_informado = st.number_input("Prazo Total", min_value=1, value=12, step=1)
-    with c_tempo2:
-        unidade_tempo = st.selectbox("Unidade do Prazo", ["Meses", "Anos", "Dias"])
+    col_a, col_b = st.columns(2)
 
-    # --- CÁLCULO DE TAXA EQUIVALENTE MENSAL (i_m) E CONVERSÃO DO PRAZO PARA MESES (n) ---
-    i_raw = taxa_informada / 100.0
+    # Entradas condicionais dependendo da opção escolhida
+    with col_a:
+        if calculo_opcao != "Valor Financiado (PV)":
+            pv_input = st.number_input("Valor Financiado / Empréstimo - PV (R$)", min_value=0.0, value=100000.0, step=1000.0)
+        else:
+            pv_input = None
 
-    # Conversão de Taxa Equivalente (Juros Compostos) para Mês
-    if unidade_taxa == "Ao Mês (% a.m.)":
-        i_mensal = i_raw
-    elif unidade_taxa == "Ao Ano (% a.a.)":
-        i_mensal = ((1.0 + i_raw) ** (1.0 / 12.0)) - 1.0
-    else:  # Ao Dia (% a.d.)
-        i_mensal = ((1.0 + i_raw) ** 30.0) - 1.0
+        if calculo_opcao != "Prestação (PMT)":
+            pmt_input = st.number_input("Valor da Prestação - PMR / PMT (R$)", min_value=0.0, value=9168.0, step=100.0)
+        else:
+            pmt_input = None
 
-    # Conversão do Prazo para quantidade de Meses (n)
-    if unidade_tempo == "Meses":
-        n_meses = float(prazo_informado)
-    elif unidade_tempo == "Anos":
-        n_meses = float(prazo_informado * 12)
-    else:  # Dias
-        n_meses = float(prazo_informado) / 30.0
+    with col_b:
+        if calculo_opcao != "Taxa de Juros (i)":
+            c_i1, c_i2 = st.columns([2, 1])
+            taxa_val = c_i1.number_input("Taxa de Juros", min_value=0.0, value=1.5, step=0.1)
+            taxa_unid = c_i2.selectbox("Periodicidade", ["% a.m.", "% a.a.", "% a.d."])
+        else:
+            taxa_val, taxa_unid = None, "% a.m."
 
-    n_parcelas = int(round(n_meses))
-    if n_parcelas < 1:
-        n_parcelas = 1
+        if calculo_opcao != "Prazo (n)":
+            c_n1, c_n2 = st.columns([2, 1])
+            prazo_val = c_n1.number_input("Prazo Total", min_value=1, value=12, step=1)
+            prazo_unid = c_n2.selectbox("Unidade do Tempo", ["Meses", "Anos", "Dias"])
+        else:
+            prazo_val, prazo_unid = None, "Meses"
 
-    # Exibição dos indicadores de equivalência calculados
-    st.info(f"💡 **Taxa Mensal Equivalente Calculada:** `{i_mensal * 100:.4f}% a.m.` | **Total de Parcelas Mensais:** `{n_parcelas} parcelas`")
+    # Funções de conversão para equivalência mensal
+    def converter_para_taxa_mensal(val, unid):
+        i_r = val / 100.0
+        if unid == "% a.m.":
+            return i_r
+        elif unid == "% a.a.":
+            return ((1.0 + i_r) ** (1.0 / 12.0)) - 1.0
+        else:  # % a.d.
+            return ((1.0 + i_r) ** 30.0) - 1.0
 
-    if st.button("📊 Gerar Tabela de Amortização"):
+    def converter_para_meses(val, unid):
+        if unid == "Meses":
+            return float(val)
+        elif unid == "Anos":
+            return float(val * 12)
+        else:  # Dias
+            return float(val) / 30.0
+
+    pv_calc, pmt_calc, i_m_calc, n_calc = 0.0, 0.0, 0.0, 0
+
+    try:
+        # LÓGICA DE RESOLUÇÃO DA VARIÁVEL FALTANTE
+        if calculo_opcao == "Prestação (PMT)":
+            pv_calc = pv_input
+            i_m_calc = converter_para_taxa_mensal(taxa_val, taxa_unid)
+            n_calc = int(round(converter_para_meses(prazo_val, prazo_unid)))
+            
+            if "Price" in sistema:
+                pmt_calc = pv_calc * (i_m_calc * (1 + i_m_calc)**n_calc) / ((1 + i_m_calc)**n_calc - 1) if i_m_calc > 0 else pv_calc / n_calc
+            else:  # SAC (1ª parcela)
+                pmt_calc = (pv_calc / n_calc) + (pv_calc * i_m_calc)
+
+        elif calculo_opcao == "Valor Financiado (PV)":
+            pmt_calc = pmt_input
+            i_m_calc = converter_para_taxa_mensal(taxa_val, taxa_unid)
+            n_calc = int(round(converter_para_meses(prazo_val, prazo_unid)))
+            
+            if "Price" in sistema:
+                pv_calc = pmt_calc * (((1 + i_m_calc)**n_calc - 1) / (i_m_calc * (1 + i_m_calc)**n_calc)) if i_m_calc > 0 else pmt_calc * n_calc
+            else:  # Aproximação SAC
+                pv_calc = (pmt_calc * n_calc) / (1 + i_m_calc * (n_calc + 1) / 2.0)
+
+        elif calculo_opcao == "Prazo (n)":
+            pv_calc = pv_input
+            pmt_calc = pmt_input
+            i_m_calc = converter_para_taxa_mensal(taxa_val, taxa_unid)
+            
+            if pmt_calc <= pv_calc * i_m_calc:
+                st.error("A prestação informada é menor ou igual aos juros da primeira parcela. O empréstimo seria perpétuo!")
+                return
+            
+            n_exact = math.log(pmt_calc / (pmt_calc - i_m_calc * pv_calc)) / math.log(1 + i_m_calc)
+            n_calc = max(1, int(round(n_exact)))
+
+        elif calculo_opcao == "Taxa de Juros (i)":
+            pv_calc = pv_input
+            pmt_calc = pmt_input
+            n_calc = int(round(converter_para_meses(prazo_val, prazo_unid)))
+            
+            # Solução via método numérico Newton-Raphson para Price
+            rate = 0.01
+            for _ in range(100):
+                f = pv_calc * (rate * (1 + rate)**n_calc) / ((1 + rate)**n_calc - 1) - pmt_calc
+                df = pv_calc * ((1 + rate)**n_calc * ((1 + rate)**n_calc - rate * n_calc - 1)) / (((1 + rate)**n_calc - 1)**2)
+                if abs(df) < 1e-7:
+                    break
+                rate_next = rate - f / df
+                if abs(rate_next - rate) < 1e-6:
+                    break
+                rate = rate_next
+            i_m_calc = max(0.0, rate)
+
+        st.markdown("---")
+        st.subheader("📌 Quadro Resumo dos Resultados")
+        q1, q2, q3, q4 = st.columns(4)
+        q1.metric("Valor Financiado (PV)", f"R$ {pv_calc:,.2f}")
+        q2.metric("Prestação Base (PMT)", f"R$ {pmt_calc:,.2f}")
+        q3.metric("Taxa Mensal Equivalente", f"{i_m_calc * 100:.4f}% a.m.")
+        q4.metric("Prazo (Parcelas)", f"{n_calc} meses")
+
+        # CONSTRUÇÃO DA TABELA DE AMORTIZAÇÃO
         dados = []
-        saldo_devedor = pv
+        saldo_devedor = pv_calc
         
         if "Price" in sistema:
-            if i_mensal > 0:
-                pmt = pv * (i_mensal * (1 + i_mensal)**n_parcelas) / ((1 + i_mensal)**n_parcelas - 1)
-            else:
-                pmt = pv / n_parcelas
-                
-            for mes in range(1, n_parcelas + 1):
-                juros = saldo_devedor * i_mensal
-                amortizacao = pmt - juros
+            pmt_fixo = pv_calc * (i_m_calc * (1 + i_m_calc)**n_calc) / ((1 + i_m_calc)**n_calc - 1) if i_m_calc > 0 else pv_calc / n_calc
+            for mes in range(1, n_calc + 1):
+                juros = saldo_devedor * i_m_calc
+                amortizacao = pmt_fixo - juros
                 saldo_devedor -= amortizacao
-                dados.append({
-                    "Mês": mes, 
-                    "Prestação": pmt, 
-                    "Juros": juros, 
-                    "Amortização": amortizacao, 
-                    "Saldo Devedor": max(0.0, saldo_devedor)
-                })
-        else:  # SAC
-            amortizacao = pv / n_parcelas
-            for mes in range(1, n_parcelas + 1):
-                juros = saldo_devedor * i_mensal
-                pmt = amortizacao + juros
+                dados.append({"Mês": mes, "Prestação": pmt_fixo, "Juros": juros, "Amortização": amortizacao, "Saldo Devedor": max(0.0, saldo_devedor)})
+        else:
+            amortizacao = pv_calc / n_calc
+            for mes in range(1, n_calc + 1):
+                juros = saldo_devedor * i_m_calc
+                pmt_var = amortizacao + juros
                 saldo_devedor -= amortizacao
-                dados.append({
-                    "Mês": mes, 
-                    "Prestação": pmt, 
-                    "Juros": juros, 
-                    "Amortização": amortizacao, 
-                    "Saldo Devedor": max(0.0, saldo_devedor)
-                })
+                dados.append({"Mês": mes, "Prestação": pmt_var, "Juros": juros, "Amortização": amortizacao, "Saldo Devedor": max(0.0, saldo_devedor)})
 
-        df_Amort = pd.DataFrame(dados)
-        
-        # Resumo Financeiro
-        total_pago = df_Amort["Prestação"].sum()
-        total_juros = df_Amort["Juros"].sum()
-        
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Total Financiado", f"R$ {pv:,.2f}")
-        m2.metric("Total de Juros Pago", f"R$ {total_juros:,.2f}")
-        m3.metric("Custo Total do Contrato", f"R$ {total_pago:,.2f}")
+        df_amort = pd.DataFrame(dados)
+        total_pago = df_amort["Prestação"].sum()
+        total_juros = df_amort["Juros"].sum()
 
-        st.dataframe(df_Amort.style.format({
+        st.markdown("##### 📈 Tabela Completa de Amortização")
+        st.dataframe(df_amort.style.format({
             "Prestação": "R$ {:.2f}", "Juros": "R$ {:.2f}", "Amortização": "R$ {:.2f}", "Saldo Devedor": "R$ {:.2f}"
         }), use_container_width=True)
+
+        # Emissão do Relatório PDF
+        pdf_bytes_fin = gerar_pdf_relatorio_financeiro(
+            pv_calc, i_m_calc, n_calc, sistema, df_amort, total_pago, total_juros, 
+            st.session_state.empresa_nome if 'empresa_nome' in st.session_state else "Açougue", calculo_opcao
+        )
+        
+        st.download_button(
+            label="📥 Baixar Relatório Financeiro Completo em PDF",
+            data=pdf_bytes_fin,
+            file_name=f"relatorio_financeiro_{datetime.date.today()}.pdf",
+            mime="application/pdf",
+            key="btn_pdf_financeiro"
+        )
+
+    except Exception as err:
+        st.error(f"Erro ao calcular parâmetros do empréstimo: {err}")
 
 def render_modulo_ficha_tecnica():
     st.header("📋 Módulo de Ficha Técnica & Precificação")
@@ -875,7 +1018,7 @@ def render_modulo_ncg():
         st.info(f"Ativo Cíclico: R$ {ac:,.2f} | Passivo Cíclico: R$ {pc:,.2f}")
 
 # =========================================================================
-# 7. GERENCIAMENTO DE SESSÃO E LOGIN
+# 8. GERENCIAMENTO DE SESSÃO E LOGIN
 # =========================================================================
 if "logado" not in st.session_state:
     st.session_state.logado = False
@@ -957,7 +1100,7 @@ else:
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
     # =========================================================================
-    # 8. EXECUÇÃO DOS MÓDULOS DE TELA
+    # 9. EXECUÇÃO DOS MÓDULOS DE TELA
     # =========================================================================
     if menu == "Cadastrar Empresa":
         st.header("🏢 Cadastrar Nova Empresa / Açougue")
@@ -1430,7 +1573,7 @@ else:
                                     "PRATA": [
                                         f"R$ {ind['prata_preco_compra']:,.2f}", f"R$ {ind['prata_preco_venda']:,.2f}", f"{ind['prata_peso']:.3f}",
                                         f"{ind['prata_coef']:.5f}", f"R$ {ind['prata_custo_efetivo']:,.2f}", f"R$ {ind['prata_margem_rs']:,.2f}",
-                                        f"{ind['prata_margem_pct']*100:.2f}%", f"{ind['prata_margem_pct']*100:.2f}%", f"R$ {ind['prata_pm_compra']:.2f}", f"R$ {ind['prata_pm_venda']:.2f}"
+                                        f"{ind['prata_margem_pct']*100:.2f}%", f"{ind['prata_markup']*100:.2f}%", f"R$ {ind['prata_pm_compra']:.2f}", f"R$ {ind['prata_pm_venda']:.2f}"
                                     ],
                                     "Total": [
                                         f"R$ {ind['total_preco_compra']:,.2f}", f"R$ {ind['total_preco_venda']:,.2f}", f"{ind['total_peso']:.3f}",
