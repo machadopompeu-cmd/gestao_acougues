@@ -287,7 +287,9 @@ def init_db():
             )
         """)
 
-    # Migração segura de colunas na tabela fichas_tecnicas (caso exista versão anterior)
+    conn.commit()
+
+    # Migração segura de colunas na tabela fichas_tecnicas (com rollback caso haja erro)
     cols_check = [
         ("referencia", "TEXT DEFAULT 'Produto Processado'"),
         ("insumos_ali_json", "TEXT"),
@@ -297,8 +299,9 @@ def init_db():
     for col_n, col_t in cols_check:
         try:
             cursor.execute(f"ALTER TABLE fichas_tecnicas ADD COLUMN {col_n} {col_t}")
+            conn.commit()
         except Exception:
-            pass
+            conn.rollback()
 
     # Inicialização de Tipos de Desossa
     cursor.execute("SELECT COUNT(*) FROM tipos_desossa")
@@ -313,11 +316,11 @@ def init_db():
             else:
                 cursor.execute("INSERT OR IGNORE INTO tipos_desossa (nome, empresa_id) VALUES (?, ?)", (nome_t, emp_t))
 
-    # Inicialização da Ficha Técnica padrão COSTELA ASSADA (se a tabela estiver vazia)
+    # Inicialização da Ficha Técnica padrão CARNE ASSADA (se a tabela estiver vazia)
     cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas")
     if cursor.fetchone()[0] == 0:
         ins_ali_default = json.dumps([
-            {"cod": "001", "produto": "COSTELA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
+            {"cod": "001", "produto": "CARNE BOVINA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
             {"cod": "002", "produto": "PAPRICA DEFUMADA", "qtd_bruta": 0.2, "unidade": "KG", "preco_bruto": 29.00, "rendimento": 1.0},
             {"cod": "003", "produto": "SAL GROSSO", "qtd_bruta": 0.3, "unidade": "KG", "preco_bruto": 6.00, "rendimento": 1.0},
             {"cod": "004", "produto": "AMACIANTE DE CARNES", "qtd_bruta": 0.4, "unidade": "KG", "preco_bruto": 19.00, "rendimento": 1.0}
@@ -345,7 +348,7 @@ def init_db():
                     peso_unidade_kg, qtd_por_pacote, unidades_produzidas, perda_pct,
                     insumos_ali_json, insumos_nao_ali_json, precificacao_json, data_criacao
                 ) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, ("COSTELA ASSADA", "Produto Processado", 21.9, 14.226, 0.118, 1.0, 185.0, 0.3504, ins_ali_default, ins_nao_ali_default, precif_default, str(datetime.date.today())))
+            """, ("CARNE ASSADA", "Produto Processado", 21.9, 14.226, 0.118, 1.0, 185.0, 0.3504, ins_ali_default, ins_nao_ali_default, precif_default, str(datetime.date.today())))
         else:
             cursor.execute("""
                 INSERT INTO fichas_tecnicas (
@@ -353,7 +356,7 @@ def init_db():
                     peso_unidade_kg, qtd_por_pacote, unidades_produzidas, perda_pct,
                     insumos_ali_json, insumos_nao_ali_json, precificacao_json, data_criacao
                 ) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, ("COSTELA ASSADA", "Produto Processado", 21.9, 14.226, 0.118, 1.0, 185.0, 0.3504, ins_ali_default, ins_nao_ali_default, precif_default, str(datetime.date.today())))
+            """, ("CARNE ASSADA", "Produto Processado", 21.9, 14.226, 0.118, 1.0, 185.0, 0.3504, ins_ali_default, ins_nao_ali_default, precif_default, str(datetime.date.today())))
 
     conn.commit()
     conn.close()
@@ -937,7 +940,7 @@ def gerar_pdf_relatorio_ficha_tecnica(
 
     pdf.ln(3)
 
-    # Precificação por KG (PRECIFIC COST ASSADA-KG)
+    # Precificação por KG
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(190, 5, f"PRECIFICAÇÃO DA {produto.upper()} (POR KG)", 1, 1, 'C', True)
@@ -1144,7 +1147,7 @@ def render_modulo_financeiro():
         st.error(f"Erro ao calcular parâmetros do empréstimo: {err}")
 
 def render_modulo_ficha_tecnica():
-    st.header("📋 Módulo de Ficha Técnica & Precificação (COSTELA ASSADA & PRECIFIC COST ASSADA-KG)")
+    st.header("📋 Módulo de Ficha Técnica & Precificação (PRODUTO ASSADO)")
     emp_id_ativo = st.session_state.empresa_id
 
     conn = get_connection()
@@ -1240,9 +1243,9 @@ def render_modulo_ficha_tecnica():
             st.success(f"Ficha Técnica #{ft_id} ({row_ft['produto']}) carregada com sucesso!")
             st.rerun()
 
-    # Se não houver valores na session state, definir padrões da Costela Assada
+    # Se não houver valores na session state, definir padrões genéricos para Carne Assada
     if "ft_produto" not in st.session_state:
-        st.session_state.ft_produto = "COSTELA ASSADA"
+        st.session_state.ft_produto = "CARNE ASSADA"
         st.session_state.ft_ref = "Produto Processado"
         st.session_state.ft_rend_crua = 21.9
         st.session_state.ft_rend_assada = 14.226
@@ -1250,7 +1253,7 @@ def render_modulo_ficha_tecnica():
         st.session_state.ft_unid_prod = 185.0
         st.session_state.ft_qtd_pacote = 1.0
         st.session_state.ft_items_ali = [
-            {"cod": "001", "produto": "COSTELA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
+            {"cod": "001", "produto": "CARNE BOVINA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
             {"cod": "002", "produto": "PAPRICA DEFUMADA", "qtd_bruta": 0.2, "unidade": "KG", "preco_bruto": 29.00, "rendimento": 1.0},
             {"cod": "003", "produto": "SAL GROSSO", "qtd_bruta": 0.3, "unidade": "KG", "preco_bruto": 6.00, "rendimento": 1.0},
             {"cod": "004", "produto": "AMACIANTE DE CARNES", "qtd_bruta": 0.4, "unidade": "KG", "preco_bruto": 19.00, "rendimento": 1.0}
@@ -1267,7 +1270,7 @@ def render_modulo_ficha_tecnica():
     st.markdown("---")
     
     # Aba 1: Ficha Técnica / Ordem de Produção | Aba 2: Precificação por KG
-    tab_ft, tab_prec = st.tabs(["🍖 Ficha Técnica / Ordem de Produção", "💲 Precificação da Costela Assada (Por KG)"])
+    tab_ft, tab_prec = st.tabs(["🍖 Ficha Técnica / Ordem de Produção", "💲 Precificação do Produto (Por KG)"])
 
     # --- ABA 1: FICHA TÉCNICA / ORDEM DE PRODUÇÃO ---
     with tab_ft:
@@ -1417,7 +1420,7 @@ def render_modulo_ficha_tecnica():
         m5.metric("Custo do Pacote", f"R$ {custo_pacote:,.2f}")
         m6.metric("Custo da Peça", f"R$ {custo_peca:,.2f}")
 
-    # --- ABA 2: PRECIFICAÇÃO POR KG (PRECIFIC COST ASSADA-KG) ---
+    # --- ABA 2: PRECIFICAÇÃO POR KG ---
     with tab_prec:
         st.subheader("💲 Formação do Preço de Venda por KG")
         st.markdown(f"**Custo de Aquisição / Produção por KG Assada (CER):** `R$ {custo_kg_assada:,.2f} / KG`")
@@ -1470,7 +1473,7 @@ def render_modulo_ficha_tecnica():
         lucro_desc = pv_desc - (custo_kg_assada + f_imp + f_cart + f_com + f_outros + f_fixas)
 
         st.markdown("---")
-        st.subheader("📈 Tabela de Composição do Preço de Venda (Replicada do Excel)")
+        st.subheader("📈 Tabela de Composição do Preço de Venda")
         
         df_precif_tab = pd.DataFrame([
             {"Componente": "Custo de Aquisição (CER)", "Alíquota (%)": f"{cer_pct:.2f}%", "Venda Normal (R$/KG)": f"R$ {custo_kg_assada:,.2f}", "c/ Desconto (R$/KG)": f"R$ {custo_kg_assada:,.2f}"},
