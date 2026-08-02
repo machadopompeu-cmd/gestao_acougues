@@ -67,7 +67,6 @@ st.markdown(
     form button:hover,
     div.stFormSubmitButton > button:hover {
         background-color: #1D4ED8 !important;
-        color: #FFFFFF !important;
     }
     h1, h2, h3, h4 {
         color: #0F172A !important; 
@@ -842,7 +841,7 @@ def gerar_pdf_relatorio_ficha_tecnica(
     pdf.cell(190, 5, f"Empresa: {nome_empresa.upper()} | Produto: {produto.upper()} | Ref: {referencia} | Data: {data_str}", ln=1, align="C")
     pdf.ln(3)
 
-    # 5. TODOS OS QUADROS E TABELAS NO PDF
+    # TODOS OS QUADROS E TABELAS NO PDF
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(92, 5, "PARÂMETROS DE PRODUÇÃO", 1, 0, 'C', True)
@@ -1148,7 +1147,6 @@ def render_modulo_financeiro():
         st.error(f"Erro ao calcular parâmetros do empréstimo: {err}")
 
 def render_modulo_ficha_tecnica():
-    # 2. SEM O TERMO "(PRODUTO ASSADO)" NO TÍTULO
     st.header("📋 Módulo de Ficha Técnica & Precificação")
     emp_id_ativo = st.session_state.empresa_id
 
@@ -1281,8 +1279,6 @@ def render_modulo_ficha_tecnica():
         
         ft_produto = col_f1.text_input("Nome do Produto Processado", value=st.session_state.ft_produto)
         ft_ref = col_f2.text_input("Referência", value=st.session_state.ft_ref)
-        
-        # 4. PARÂMETROS DA IMAGEM
         ft_rend_crua = col_f3.number_input("Rendimento kg", min_value=0.001, value=st.session_state.ft_rend_crua, step=0.1, format="%.3f")
 
         col_f4, col_f5, col_f6, col_f7 = st.columns(4)
@@ -1424,7 +1420,7 @@ def render_modulo_ficha_tecnica():
     with tab_prec:
         st.subheader("💲 Formação do Preço de Venda por KG")
         
-        # 3. ESCOLHA AUTOMÁTICA DO CUSTO CER BUSCADO DA IMAGEM/XLSX
+        # ESCOLHA AUTOMÁTICA DO CUSTO CER BUSCADO DO RESUMO DE CUSTOS
         precif_dict = st.session_state.ft_precif
         opcao_salva_cer = precif_dict.get("opcao_cer", "Custo/kg Total Depois de Assada")
 
@@ -1436,7 +1432,6 @@ def render_modulo_ficha_tecnica():
             "Outro Valor Manual": (0.0, "Inserir Outro Custo Manualmente")
         }
 
-        # Obter o índice para seleção padrão
         keys_lista = list(opcoes_cer_dict.keys())
         index_def = keys_lista.index(opcao_salva_cer) if opcao_salva_cer in keys_lista else 0
 
@@ -1466,7 +1461,6 @@ def render_modulo_ficha_tecnica():
 
         p_desconto_simulado = st.number_input("Simulação de Desconto para Venda (%)", min_value=0.0, max_value=100.0, value=float(precif_dict.get("desconto_simulado_pct", 5.0)), step=0.5)
 
-        # Atualização do session state com a opção de CER escolhida
         st.session_state.ft_precif = {
             "imposto_pct": p_imp, "tx_cartao_pct": p_cart, "comissao_pct": p_com,
             "outros_custos_var_pct": p_outros, "desp_fixas_pct": p_fixas,
