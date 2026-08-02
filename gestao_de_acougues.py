@@ -671,7 +671,7 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
 
     pdf.ln(4)
 
-    # Tabela Detalhada de Cortes Fiel ao Histórico (15 Colunas organizadas em A4 Paisagem - 277mm)
+    # Tabela Detalhada de Cortes Fiel ao Histórico (15 Colunas em A4 Paisagem - 277mm)
     pdf.set_font("Arial", style="B", size=5.5)
     pdf.set_fill_color(226, 232, 240)
     
@@ -721,35 +721,102 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
 # =========================================================================
 def render_modulo_financeiro():
     st.header("🧮 Módulo de Cálculo Financeiro & Amortização")
-    col1, col2, col3 = st.columns(3)
+    st.markdown("Calcule o financiamento com conversão de **Taxas Equivalentes** (Juros Compostos) e escolha o tempo nas unidades desejadas.")
+    
+    col1, col2 = st.columns(2)
     with col1:
         pv = st.number_input("Valor Financiado / Empréstimo (R$)", min_value=0.0, value=100000.0, step=1000.0)
+    
     with col2:
-        i = st.number_input("Taxa de Juros Mensal (%)", min_value=0.0, value=1.5, step=0.1) / 100.0
-    with col3:
-        n = st.number_input("Prazo (Meses)", min_value=1, value=12, step=1)
+        sistema = st.radio("Sistema de Amortização", ["Tabela Price (Prestações Iguais)", "Tabela SAC (Amortização Constante)"], horizontal=True)
 
-    sistema = st.radio("Sistema de Amortização", ["Tabela Price (Prestações Iguais)", "Tabela SAC (Amortização Constante)"], horizontal=True)
+    st.markdown("---")
+    st.subheader("⚙️ Configuração de Taxa e Prazo (Taxas Equivalentes)")
+    
+    c_taxa1, c_taxa2 = st.columns([2, 2])
+    with c_taxa1:
+        taxa_informada = st.number_input("Taxa de Juros (%)", min_value=0.0, value=1.5, step=0.1)
+    with c_taxa2:
+        unidade_taxa = st.selectbox("Unidade da Taxa", ["Ao Mês (% a.m.)", "Ao Ano (% a.a.)", "Ao Dia (% a.d.)"])
 
-    if st.button("Gerar Tabela de Amortização"):
+    c_tempo1, c_tempo2 = st.columns([2, 2])
+    with c_tempo1:
+        prazo_informado = st.number_input("Prazo Total", min_value=1, value=12, step=1)
+    with c_tempo2:
+        unidade_tempo = st.selectbox("Unidade do Prazo", ["Meses", "Anos", "Dias"])
+
+    # --- CÁLCULO DE TAXA EQUIVALENTE MENSAL (i_m) E CONVERSÃO DO PRAZO PARA MESES (n) ---
+    i_raw = taxa_informada / 100.0
+
+    # Conversão de Taxa Equivalente (Juros Compostos) para Mês
+    if unidade_taxa == "Ao Mês (% a.m.)":
+        i_mensal = i_raw
+    elif unidade_taxa == "Ao Ano (% a.a.)":
+        i_mensal = ((1.0 + i_raw) ** (1.0 / 12.0)) - 1.0
+    else:  # Ao Dia (% a.d.)
+        i_mensal = ((1.0 + i_raw) ** 30.0) - 1.0
+
+    # Conversão do Prazo para quantidade de Meses (n)
+    if unidade_tempo == "Meses":
+        n_meses = float(prazo_informado)
+    elif unidade_tempo == "Anos":
+        n_meses = float(prazo_informado * 12)
+    else:  # Dias
+        n_meses = float(prazo_informado) / 30.0
+
+    n_parcelas = int(round(n_meses))
+    if n_parcelas < 1:
+        n_parcelas = 1
+
+    # Exibição dos indicadores de equivalência calculados
+    st.info(f"💡 **Taxa Mensal Equivalente Calculada:** `{i_mensal * 100:.4f}% a.m.` | **Total de Parcelas Mensais:** `{n_parcelas} parcelas`")
+
+    if st.button("📊 Gerar Tabela de Amortização"):
         dados = []
         saldo_devedor = pv
+        
         if "Price" in sistema:
-            pmt = pv * (i * (1 + i)**n) / ((1 + i)**n - 1) if i > 0 else pv / n
-            for mes in range(1, n + 1):
-                juros = saldo_devedor * i
+            if i_mensal > 0:
+                pmt = pv * (i_mensal * (1 + i_mensal)**n_parcelas) / ((1 + i_mensal)**n_parcelas - 1)
+            else:
+                pmt = pv / n_parcelas
+                
+            for mes in range(1, n_parcelas + 1):
+                juros = saldo_devedor * i_mensal
                 amortizacao = pmt - juros
                 saldo_devedor -= amortizacao
-                dados.append({"Mês": mes, "Prestação": pmt, "Juros": juros, "Amortização": amortizacao, "Saldo Devedor": max(0.0, saldo_devedor)})
-        else:
-            amortizacao = pv / n
-            for mes in range(1, n + 1):
-                juros = saldo_devedor * i
+                dados.append({
+                    "Mês": mes, 
+                    "Prestação": pmt, 
+                    "Juros": juros, 
+                    "Amortização": amortizacao, 
+                    "Saldo Devedor": max(0.0, saldo_devedor)
+                })
+        else:  # SAC
+            amortizacao = pv / n_parcelas
+            for mes in range(1, n_parcelas + 1):
+                juros = saldo_devedor * i_mensal
                 pmt = amortizacao + juros
                 saldo_devedor -= amortizacao
-                dados.append({"Mês": mes, "Prestação": pmt, "Juros": juros, "Amortização": amortizacao, "Saldo Devedor": max(0.0, saldo_devedor)})
+                dados.append({
+                    "Mês": mes, 
+                    "Prestação": pmt, 
+                    "Juros": juros, 
+                    "Amortização": amortizacao, 
+                    "Saldo Devedor": max(0.0, saldo_devedor)
+                })
 
         df_Amort = pd.DataFrame(dados)
+        
+        # Resumo Financeiro
+        total_pago = df_Amort["Prestação"].sum()
+        total_juros = df_Amort["Juros"].sum()
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total Financiado", f"R$ {pv:,.2f}")
+        m2.metric("Total de Juros Pago", f"R$ {total_juros:,.2f}")
+        m3.metric("Custo Total do Contrato", f"R$ {total_pago:,.2f}")
+
         st.dataframe(df_Amort.style.format({
             "Prestação": "R$ {:.2f}", "Juros": "R$ {:.2f}", "Amortização": "R$ {:.2f}", "Saldo Devedor": "R$ {:.2f}"
         }), use_container_width=True)
@@ -1363,7 +1430,7 @@ else:
                                     "PRATA": [
                                         f"R$ {ind['prata_preco_compra']:,.2f}", f"R$ {ind['prata_preco_venda']:,.2f}", f"{ind['prata_peso']:.3f}",
                                         f"{ind['prata_coef']:.5f}", f"R$ {ind['prata_custo_efetivo']:,.2f}", f"R$ {ind['prata_margem_rs']:,.2f}",
-                                        f"{ind['prata_margem_pct']*100:.2f}%", f"{ind['prata_markup']*100:.2f}%", f"R$ {ind['prata_pm_compra']:.2f}", f"R$ {ind['prata_pm_venda']:.2f}"
+                                        f"{ind['prata_margem_pct']*100:.2f}%", f"{ind['prata_margem_pct']*100:.2f}%", f"R$ {ind['prata_pm_compra']:.2f}", f"R$ {ind['prata_pm_venda']:.2f}"
                                     ],
                                     "Total": [
                                         f"R$ {ind['total_preco_compra']:,.2f}", f"R$ {ind['total_preco_venda']:,.2f}", f"{ind['total_peso']:.3f}",
