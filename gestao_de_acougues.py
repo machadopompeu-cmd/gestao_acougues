@@ -289,7 +289,7 @@ def init_db():
 
     conn.commit()
 
-    # Migração segura de colunas na tabela fichas_tecnicas (com rollback caso haja erro)
+    # Migração segura de colunas na tabela fichas_tecnicas
     cols_check = [
         ("referencia", "TEXT DEFAULT 'Produto Processado'"),
         ("insumos_ali_json", "TEXT"),
@@ -316,11 +316,11 @@ def init_db():
             else:
                 cursor.execute("INSERT OR IGNORE INTO tipos_desossa (nome, empresa_id) VALUES (?, ?)", (nome_t, emp_t))
 
-    # Inicialização da Ficha Técnica padrão CARNE ASSADA (se a tabela estiver vazia)
+    # Inicialização da Ficha Técnica padrão COSTELA ASSADA
     cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas")
     if cursor.fetchone()[0] == 0:
         ins_ali_default = json.dumps([
-            {"cod": "001", "produto": "CARNE BOVINA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
+            {"cod": "001", "produto": "COSTELA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
             {"cod": "002", "produto": "PAPRICA DEFUMADA", "qtd_bruta": 0.2, "unidade": "KG", "preco_bruto": 29.00, "rendimento": 1.0},
             {"cod": "003", "produto": "SAL GROSSO", "qtd_bruta": 0.3, "unidade": "KG", "preco_bruto": 6.00, "rendimento": 1.0},
             {"cod": "004", "produto": "AMACIANTE DE CARNES", "qtd_bruta": 0.4, "unidade": "KG", "preco_bruto": 19.00, "rendimento": 1.0}
@@ -338,7 +338,8 @@ def init_db():
             "outros_custos_var_pct": 1.0,
             "desp_fixas_pct": 2.0,
             "margem_lucro_pct": 31.6724,
-            "desconto_simulado_pct": 5.0
+            "desconto_simulado_pct": 5.0,
+            "opcao_cer": "Custo/kg Total Depois de Assada"
         })
         
         if is_postgres:
@@ -348,7 +349,7 @@ def init_db():
                     peso_unidade_kg, qtd_por_pacote, unidades_produzidas, perda_pct,
                     insumos_ali_json, insumos_nao_ali_json, precificacao_json, data_criacao
                 ) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, ("CARNE ASSADA", "Produto Processado", 21.9, 14.226, 0.118, 1.0, 185.0, 0.3504, ins_ali_default, ins_nao_ali_default, precif_default, str(datetime.date.today())))
+            """, ("COSTELA ASSADA", "Produto Processado", 21.9, 14.226, 0.118, 1.0, 185.0, 0.3504, ins_ali_default, ins_nao_ali_default, precif_default, str(datetime.date.today())))
         else:
             cursor.execute("""
                 INSERT INTO fichas_tecnicas (
@@ -356,7 +357,7 @@ def init_db():
                     peso_unidade_kg, qtd_por_pacote, unidades_produzidas, perda_pct,
                     insumos_ali_json, insumos_nao_ali_json, precificacao_json, data_criacao
                 ) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, ("CARNE ASSADA", "Produto Processado", 21.9, 14.226, 0.118, 1.0, 185.0, 0.3504, ins_ali_default, ins_nao_ali_default, precif_default, str(datetime.date.today())))
+            """, ("COSTELA ASSADA", "Produto Processado", 21.9, 14.226, 0.118, 1.0, 185.0, 0.3504, ins_ali_default, ins_nao_ali_default, precif_default, str(datetime.date.today())))
 
     conn.commit()
     conn.close()
@@ -826,13 +827,13 @@ def gerar_pdf_relatorio_ficha_tecnica(
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=10)
 
-    # Header
+    # 1. TÍTULO DO RELATÓRIO CONFORME O NOME DO PRODUTO NA FICHA TÉCNICA
     pdf.set_fill_color(30, 58, 138)
     pdf.rect(10, 8, 190, 12, "F")
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", style="B", size=10)
     pdf.set_xy(10, 10)
-    pdf.cell(190, 8, "RENATO FRIGOTUDO & ASSOCIADOS - FICHA TÉCNICA E PRECIFICAÇÃO", ln=1, align="C")
+    pdf.cell(190, 8, f"RENATO FRIGOTUDO & ASSOCIADOS - FICHA TÉCNICA DA {produto.upper()}", ln=1, align="C")
 
     pdf.set_text_color(15, 23, 42)
     pdf.set_font("Arial", style="B", size=8.5)
@@ -841,7 +842,7 @@ def gerar_pdf_relatorio_ficha_tecnica(
     pdf.cell(190, 5, f"Empresa: {nome_empresa.upper()} | Produto: {produto.upper()} | Ref: {referencia} | Data: {data_str}", ln=1, align="C")
     pdf.ln(3)
 
-    # Quadro 1 & 2: Produção e Resumo de Custos
+    # 5. TODOS OS QUADROS E TABELAS NO PDF
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(92, 5, "PARÂMETROS DE PRODUÇÃO", 1, 0, 'C', True)
@@ -853,23 +854,23 @@ def gerar_pdf_relatorio_ficha_tecnica(
     pacotes = unid_prod / qtd_pacote if qtd_pacote > 0 else 0.0
 
     prod_rows = [
-        ("Rendimento Crua (KG)", f"{rend_crua:.3f}"),
-        ("Rendimento Assada (KG)", f"{rend_assada:.3f}"),
+        ("Rendimento kg", f"{rend_crua:.3f}"),
+        ("Rendimento Depois de Assada kg", f"{rend_assada:.3f}"),
         ("Perda %", f"{perda_pct:.2f}%"),
-        ("Peso da Unidade (KG)", f"{peso_unid:.3f}"),
+        ("Peso da Unidade KG", f"{peso_unid:.3f}"),
         ("Unidades Produzidas", f"{int(unid_prod)}"),
-        ("Quant. no Pacote", f"{int(qtd_pacote)}"),
-        ("Pacotes Produzidos", f"{pacotes:.1f}")
+        ("PACOTE", f"{int(qtd_pacote)}"),
+        ("PEÇA", f"{pacotes:.1f}")
     ]
 
     custo_rows = [
         ("Custo Total Insumos Alimentícios", f"R$ {calc_res['tot_ali_custo']:,.2f}"),
         ("Custo Total Não Alimentícios", f"R$ {calc_res['tot_nao_ali_custo']:,.2f}"),
         ("CUSTO TOTAL DA ORDEM", f"R$ {calc_res['custo_total']:,.2f}"),
-        ("Custo / KG Crua", f"R$ {calc_res['custo_kg_crua']:,.2f}"),
-        ("Custo / KG Assada (CER)", f"R$ {calc_res['custo_kg_assada']:,.2f}"),
+        ("Custo/Kg Crua", f"R$ {calc_res['custo_kg_crua']:,.2f}"),
+        ("Custo/kg Total Depois de Assada", f"R$ {calc_res['custo_kg_assada']:,.2f}"),
         ("Custo da Unidade", f"R$ {calc_res['custo_unidade']:,.2f}"),
-        ("Custo da Peça / Pacote", f"R$ {calc_res['custo_peca']:,.2f}")
+        ("PACOTE / PEÇA", f"R$ {calc_res['custo_peca']:,.2f}")
     ]
 
     for i in range(len(prod_rows)):
@@ -1147,7 +1148,8 @@ def render_modulo_financeiro():
         st.error(f"Erro ao calcular parâmetros do empréstimo: {err}")
 
 def render_modulo_ficha_tecnica():
-    st.header("📋 Módulo de Ficha Técnica & Precificação (PRODUTO ASSADO)")
+    # 2. SEM O TERMO "(PRODUTO ASSADO)" NO TÍTULO
+    st.header("📋 Módulo de Ficha Técnica & Precificação")
     emp_id_ativo = st.session_state.empresa_id
 
     conn = get_connection()
@@ -1179,7 +1181,7 @@ def render_modulo_ficha_tecnica():
 
     ficha_selecionada = st.selectbox("Selecione a Ficha para Editar ou Visualizar", opcoes_fichas)
 
-    # Inicializar Session State para itens da ficha técnica se necessário
+    # Inicializar Session State para itens da ficha técnica
     if "ft_items_ali" not in st.session_state:
         st.session_state.ft_items_ali = []
     if "ft_items_nao_ali" not in st.session_state:
@@ -1187,23 +1189,23 @@ def render_modulo_ficha_tecnica():
     if "ft_id_carregada" not in st.session_state:
         st.session_state.ft_id_carregada = None
 
-    # Botão para carregar dados da ficha selecionada
+    # Carregamento da Ficha Técnica Selecionada
     if col_search2.button("📥 Carregar Ficha"):
         if ficha_selecionada == "➕ Criar Nova Ficha Técnica":
             st.session_state.ft_id_carregada = None
             st.session_state.ft_items_ali = []
             st.session_state.ft_items_nao_ali = []
-            st.session_state.ft_produto = "NOVO PRODUTO ASSADO"
+            st.session_state.ft_produto = "NOVO PRODUTO"
             st.session_state.ft_ref = "Produto Processado"
-            st.session_state.ft_rend_crua = 20.0
-            st.session_state.ft_rend_assada = 14.0
-            st.session_state.ft_peso_unid = 0.12
-            st.session_state.ft_unid_prod = 100.0
+            st.session_state.ft_rend_crua = 21.900
+            st.session_state.ft_rend_assada = 14.226
+            st.session_state.ft_peso_unid = 0.118
+            st.session_state.ft_unid_prod = 185.0
             st.session_state.ft_qtd_pacote = 1.0
             st.session_state.ft_precif = {
                 "imposto_pct": 5.0, "tx_cartao_pct": 5.0, "comissao_pct": 3.51,
-                "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 30.0,
-                "desconto_simulado_pct": 5.0
+                "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 31.6724,
+                "desconto_simulado_pct": 5.0, "opcao_cer": "Custo/kg Total Depois de Assada"
             }
             st.success("Nova Ficha Técnica iniciada!")
             st.rerun()
@@ -1219,7 +1221,6 @@ def render_modulo_ficha_tecnica():
             st.session_state.ft_unid_prod = float(row_ft['unidades_produzidas'])
             st.session_state.ft_qtd_pacote = float(row_ft['qtd_por_pacote'])
 
-            # Carregar Insumos JSON
             try:
                 st.session_state.ft_items_ali = json.loads(row_ft['insumos_ali_json']) if row_ft['insumos_ali_json'] else []
             except Exception:
@@ -1233,27 +1234,28 @@ def render_modulo_ficha_tecnica():
             try:
                 st.session_state.ft_precif = json.loads(row_ft['precificacao_json']) if row_ft['precificacao_json'] else {
                     "imposto_pct": 5.0, "tx_cartao_pct": 5.0, "comissao_pct": 3.51,
-                    "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 30.0, "desconto_simulado_pct": 5.0
+                    "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 31.6724,
+                    "desconto_simulado_pct": 5.0, "opcao_cer": "Custo/kg Total Depois de Assada"
                 }
             except Exception:
                 st.session_state.ft_precif = {
                     "imposto_pct": 5.0, "tx_cartao_pct": 5.0, "comissao_pct": 3.51,
-                    "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 30.0, "desconto_simulado_pct": 5.0
+                    "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 31.6724,
+                    "desconto_simulado_pct": 5.0, "opcao_cer": "Custo/kg Total Depois de Assada"
                 }
             st.success(f"Ficha Técnica #{ft_id} ({row_ft['produto']}) carregada com sucesso!")
             st.rerun()
 
-    # Se não houver valores na session state, definir padrões genéricos para Carne Assada
     if "ft_produto" not in st.session_state:
-        st.session_state.ft_produto = "CARNE ASSADA"
+        st.session_state.ft_produto = "COSTELA ASSADA"
         st.session_state.ft_ref = "Produto Processado"
-        st.session_state.ft_rend_crua = 21.9
+        st.session_state.ft_rend_crua = 21.900
         st.session_state.ft_rend_assada = 14.226
         st.session_state.ft_peso_unid = 0.118
         st.session_state.ft_unid_prod = 185.0
         st.session_state.ft_qtd_pacote = 1.0
         st.session_state.ft_items_ali = [
-            {"cod": "001", "produto": "CARNE BOVINA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
+            {"cod": "001", "produto": "COSTELA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
             {"cod": "002", "produto": "PAPRICA DEFUMADA", "qtd_bruta": 0.2, "unidade": "KG", "preco_bruto": 29.00, "rendimento": 1.0},
             {"cod": "003", "produto": "SAL GROSSO", "qtd_bruta": 0.3, "unidade": "KG", "preco_bruto": 6.00, "rendimento": 1.0},
             {"cod": "004", "produto": "AMACIANTE DE CARNES", "qtd_bruta": 0.4, "unidade": "KG", "preco_bruto": 19.00, "rendimento": 1.0}
@@ -1264,12 +1266,12 @@ def render_modulo_ficha_tecnica():
         ]
         st.session_state.ft_precif = {
             "imposto_pct": 5.0, "tx_cartao_pct": 5.0, "comissao_pct": 3.51,
-            "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 31.6724, "desconto_simulado_pct": 5.0
+            "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 31.6724,
+            "desconto_simulado_pct": 5.0, "opcao_cer": "Custo/kg Total Depois de Assada"
         }
 
     st.markdown("---")
     
-    # Aba 1: Ficha Técnica / Ordem de Produção | Aba 2: Precificação por KG
     tab_ft, tab_prec = st.tabs(["🍖 Ficha Técnica / Ordem de Produção", "💲 Precificação do Produto (Por KG)"])
 
     # --- ABA 1: FICHA TÉCNICA / ORDEM DE PRODUÇÃO ---
@@ -1279,13 +1281,15 @@ def render_modulo_ficha_tecnica():
         
         ft_produto = col_f1.text_input("Nome do Produto Processado", value=st.session_state.ft_produto)
         ft_ref = col_f2.text_input("Referência", value=st.session_state.ft_ref)
-        ft_rend_crua = col_f3.number_input("Rendimento Crua (KG)", min_value=0.001, value=st.session_state.ft_rend_crua, step=0.1, format="%.3f")
+        
+        # 4. PARÂMETROS DA IMAGEM
+        ft_rend_crua = col_f3.number_input("Rendimento kg", min_value=0.001, value=st.session_state.ft_rend_crua, step=0.1, format="%.3f")
 
         col_f4, col_f5, col_f6, col_f7 = st.columns(4)
-        ft_rend_assada = col_f4.number_input("Rendimento Depois de Assada (KG)", min_value=0.001, value=st.session_state.ft_rend_assada, step=0.1, format="%.3f")
-        ft_peso_unid = col_f5.number_input("Peso da Unidade (KG)", min_value=0.001, value=st.session_state.ft_peso_unid, step=0.005, format="%.3f")
+        ft_rend_assada = col_f4.number_input("Rendimento Depois de Assada kg", min_value=0.001, value=st.session_state.ft_rend_assada, step=0.1, format="%.3f")
+        ft_peso_unid = col_f5.number_input("Peso da Unidade KG", min_value=0.001, value=st.session_state.ft_peso_unid, step=0.005, format="%.3f")
         ft_unid_prod = col_f6.number_input("Unidades Produzidas", min_value=1.0, value=st.session_state.ft_unid_prod, step=1.0)
-        ft_qtd_pacote = col_f7.number_input("Quant. no Pacote", min_value=1.0, value=st.session_state.ft_qtd_pacote, step=1.0)
+        ft_qtd_pacote = col_f7.number_input("PACOTE", min_value=1.0, value=st.session_state.ft_qtd_pacote, step=1.0)
 
         perda_pct = (1.0 - (ft_rend_assada / ft_rend_crua)) * 100.0 if ft_rend_crua > 0 else 0.0
         pacotes = ft_unid_prod / ft_qtd_pacote if ft_qtd_pacote > 0 else 0.0
@@ -1295,7 +1299,6 @@ def render_modulo_ficha_tecnica():
         st.markdown("---")
         st.subheader("1. Insumos Alimentícios")
         
-        # Adicionar item alimentício
         with st.expander("➕ Adicionar Novo Insumo Alimentício"):
             with st.form("form_add_insumo_ali"):
                 c_i1, c_i2, c_i3, c_i4, c_i5 = st.columns([3, 1.5, 1.5, 2, 1.5])
@@ -1317,7 +1320,6 @@ def render_modulo_ficha_tecnica():
                     st.success(f"Insumo '{add_ali_nome}' adicionado!")
                     st.rerun()
 
-        # Tabela Insumos Alimentícios
         if st.session_state.ft_items_ali:
             rows_ali = []
             for idx, item in enumerate(st.session_state.ft_items_ali):
@@ -1339,7 +1341,6 @@ def render_modulo_ficha_tecnica():
                 "Qtd Líquida": "{:.3f}", "Preço Líquido (R$)": "R$ {:.2f}"
             }), use_container_width=True)
 
-            # Exclusão de itens alimentícios
             col_del_ali, _ = st.columns([2, 3])
             idx_del_ali = col_del_ali.selectbox("Excluir Item Alimentício", range(len(st.session_state.ft_items_ali)), format_func=lambda i: f"{st.session_state.ft_items_ali[i]['produto']}")
             if col_del_ali.button("🗑️ Remover Item Selecionado", key="btn_del_ali"):
@@ -1370,7 +1371,6 @@ def render_modulo_ficha_tecnica():
                     st.success(f"Insumo '{add_nali_nome}' adicionado!")
                     st.rerun()
 
-        # Tabela Insumos Não Alimentícios
         if st.session_state.ft_items_nao_ali:
             rows_nao_ali = []
             for idx, item in enumerate(st.session_state.ft_items_nao_ali):
@@ -1398,7 +1398,7 @@ def render_modulo_ficha_tecnica():
                 st.session_state.ft_items_nao_ali.pop(idx_del_nao_ali)
                 st.rerun()
 
-        # CÁLCULOS DO RESUMO DE CUSTOS DA FICHA TÉCNICA
+        # CÁLCULOS AUTOMÁTICOS DO QUADRO DE CUSTOS (BUSCADOS DIRETAMENTE DA FICHA)
         tot_ali_custo = sum(item['qtd_bruta'] * item['rendimento'] * item['preco_bruto'] for item in st.session_state.ft_items_ali)
         tot_ali_qtd = sum(item['qtd_bruta'] * item['rendimento'] for item in st.session_state.ft_items_ali)
         tot_nao_ali_custo = sum(item['qtd_bruta'] * item['rendimento'] * item['preco_bruto'] for item in st.session_state.ft_items_nao_ali)
@@ -1406,26 +1406,53 @@ def render_modulo_ficha_tecnica():
         custo_total = tot_ali_custo + tot_nao_ali_custo
         custo_kg_crua = custo_total / ft_rend_crua if ft_rend_crua > 0 else 0.0
         custo_kg_assada = custo_total / ft_rend_assada if ft_rend_assada > 0 else 0.0
-        custo_unidade = custo_total * ft_peso_unid
+        custo_unidade = custo_total / ft_unid_prod if ft_unid_prod > 0 else 0.0
         custo_pacote = custo_total / pacotes if pacotes > 0 else 0.0
-        custo_peca = custo_total / ft_unid_prod if ft_unid_prod > 0 else 0.0
+        custo_peca = custo_pacote
 
         st.markdown("---")
-        st.subheader("📊 Resumo de Custos (Ficha Técnica / Ordem de Produção)")
+        st.subheader("📊 Resumo de Custos (Conforme Tabela de Referência)")
         m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Custo Total (R$)", f"R$ {custo_total:,.2f}")
-        m2.metric("Custo / KG Crua", f"R$ {custo_kg_crua:,.2f}")
-        m3.metric("Custo / KG Assada (CER)", f"R$ {custo_kg_assada:,.2f}")
+        m1.metric("Custo Total", f"R$ {custo_total:,.2f}")
+        m2.metric("Custo/Kg Crua", f"R$ {custo_kg_crua:,.2f}")
+        m3.metric("Custo/kg Total Depois de Assada", f"R$ {custo_kg_assada:,.2f}")
         m4.metric("Custo da Unidade", f"R$ {custo_unidade:,.2f}")
-        m5.metric("Custo do Pacote", f"R$ {custo_pacote:,.2f}")
-        m6.metric("Custo da Peça", f"R$ {custo_peca:,.2f}")
+        m5.metric("PACOTE", f"R$ {custo_pacote:,.2f}")
+        m6.metric("PEÇA", f"R$ {custo_peca:,.2f}")
 
     # --- ABA 2: PRECIFICAÇÃO POR KG ---
     with tab_prec:
         st.subheader("💲 Formação do Preço de Venda por KG")
-        st.markdown(f"**Custo de Aquisição / Produção por KG Assada (CER):** `R$ {custo_kg_assada:,.2f} / KG`")
         
+        # 3. ESCOLHA AUTOMÁTICA DO CUSTO CER BUSCADO DA IMAGEM/XLSX
         precif_dict = st.session_state.ft_precif
+        opcao_salva_cer = precif_dict.get("opcao_cer", "Custo/kg Total Depois de Assada")
+
+        opcoes_cer_dict = {
+            "Custo/kg Total Depois de Assada": (custo_kg_assada, f"Custo/kg Total Depois de Assada (R$ {custo_kg_assada:,.2f} / KG)"),
+            "Custo/Kg Crua": (custo_kg_crua, f"Custo/Kg Crua (R$ {custo_kg_crua:,.2f} / KG)"),
+            "Custo da Unidade": (custo_unidade, f"Custo da Unidade (R$ {custo_unidade:,.2f} / Unid)"),
+            "PACOTE / PEÇA": (custo_peca, f"PACOTE / PEÇA (R$ {custo_peca:,.2f} / Pacote)"),
+            "Outro Valor Manual": (0.0, "Inserir Outro Custo Manualmente")
+        }
+
+        # Obter o índice para seleção padrão
+        keys_lista = list(opcoes_cer_dict.keys())
+        index_def = keys_lista.index(opcao_salva_cer) if opcao_salva_cer in keys_lista else 0
+
+        selecao_cer_chave = st.selectbox(
+            "📌 Escolha o Custo Base (CER) extraído da Ficha Técnica para a Precificação:",
+            options=keys_lista,
+            index=index_def,
+            format_func=lambda k: opcoes_cer_dict[k][1]
+        )
+
+        if selecao_cer_chave == "Outro Valor Manual":
+            cer_efetivo = st.number_input("Digite o Custo de Aquisição / Produção por KG (R$)", min_value=0.0, value=custo_kg_assada, step=0.1)
+        else:
+            cer_efetivo = opcoes_cer_dict[selecao_cer_chave][0]
+
+        st.info(f"💡 **Custo Base Selecionado para Precificação (CER):** `R$ {cer_efetivo:,.2f}`")
         
         c_p1, c_p2, c_p3 = st.columns(3)
         p_imp = c_p1.number_input("Imposto (%)", min_value=0.0, value=float(precif_dict.get("imposto_pct", 5.0)), step=0.1)
@@ -1439,18 +1466,19 @@ def render_modulo_ficha_tecnica():
 
         p_desconto_simulado = st.number_input("Simulação de Desconto para Venda (%)", min_value=0.0, max_value=100.0, value=float(precif_dict.get("desconto_simulado_pct", 5.0)), step=0.5)
 
-        # Atualizar dicionário de precificação na session_state
+        # Atualização do session state com a opção de CER escolhida
         st.session_state.ft_precif = {
             "imposto_pct": p_imp, "tx_cartao_pct": p_cart, "comissao_pct": p_com,
             "outros_custos_var_pct": p_outros, "desp_fixas_pct": p_fixas,
-            "margem_lucro_pct": p_lucro, "desconto_simulado_pct": p_desconto_simulado
+            "margem_lucro_pct": p_lucro, "desconto_simulado_pct": p_desconto_simulado,
+            "opcao_cer": selecao_cer_chave
         }
 
-        # CÁLCULOS DA TABELA DE PRECIFICAÇÃO POR KG
+        # CÁLCULOS COM O CER SELECIONADO AUTOMATICAMENTE
         soma_aliquotas = (p_imp + p_cart + p_com + p_outros + p_fixas + p_lucro) / 100.0
-        pv = custo_kg_assada / (1.0 - soma_aliquotas) if (1.0 - soma_aliquotas) > 0 else 0.0
+        pv = cer_efetivo / (1.0 - soma_aliquotas) if (1.0 - soma_aliquotas) > 0 else 0.0
 
-        cer_pct = (custo_kg_assada / pv) * 100.0 if pv > 0 else 0.0
+        cer_pct = (cer_efetivo / pv) * 100.0 if pv > 0 else 0.0
         val_imp = pv * (p_imp / 100.0)
         val_cart = pv * (p_cart / 100.0)
         val_com = pv * (p_com / 100.0)
@@ -1458,9 +1486,9 @@ def render_modulo_ficha_tecnica():
         val_fixas = pv * (p_fixas / 100.0)
         val_lucro = pv * (p_lucro / 100.0)
 
-        margem_contrib_rs = pv - (custo_kg_assada + val_imp + val_cart + val_com + val_outros)
+        margem_contrib_rs = pv - (cer_efetivo + val_imp + val_cart + val_com + val_outros)
         margem_contrib_pct = (margem_contrib_rs / pv) * 100.0 if pv > 0 else 0.0
-        markup = (pv / custo_kg_assada) - 1.0 if custo_kg_assada > 0 else 0.0
+        markup = (pv / cer_efetivo) - 1.0 if cer_efetivo > 0 else 0.0
 
         pv_desc = pv * (1.0 - (p_desconto_simulado / 100.0))
         f_imp = pv_desc * (p_imp / 100.0)
@@ -1469,14 +1497,14 @@ def render_modulo_ficha_tecnica():
         f_outros = pv_desc * (p_outros / 100.0)
         f_fixas = pv_desc * (p_fixas / 100.0)
 
-        margem_contrib_desc = pv_desc - (custo_kg_assada + f_imp + f_cart + f_com + f_outros)
-        lucro_desc = pv_desc - (custo_kg_assada + f_imp + f_cart + f_com + f_outros + f_fixas)
+        margem_contrib_desc = pv_desc - (cer_efetivo + f_imp + f_cart + f_com + f_outros)
+        lucro_desc = pv_desc - (cer_efetivo + f_imp + f_cart + f_com + f_outros + f_fixas)
 
         st.markdown("---")
         st.subheader("📈 Tabela de Composição do Preço de Venda")
         
         df_precif_tab = pd.DataFrame([
-            {"Componente": "Custo de Aquisição (CER)", "Alíquota (%)": f"{cer_pct:.2f}%", "Venda Normal (R$/KG)": f"R$ {custo_kg_assada:,.2f}", "c/ Desconto (R$/KG)": f"R$ {custo_kg_assada:,.2f}"},
+            {"Componente": f"Custo de Aquisição (CER - {selecao_cer_chave})", "Alíquota (%)": f"{cer_pct:.2f}%", "Venda Normal (R$/KG)": f"R$ {cer_efetivo:,.2f}", "c/ Desconto (R$/KG)": f"R$ {cer_efetivo:,.2f}"},
             {"Componente": "Imposto", "Alíquota (%)": f"{p_imp:.2f}%", "Venda Normal (R$/KG)": f"R$ {val_imp:,.2f}", "c/ Desconto (R$/KG)": f"R$ {f_imp:,.2f}"},
             {"Componente": "Tx. de Cartão e Antecipação", "Alíquota (%)": f"{p_cart:.2f}%", "Venda Normal (R$/KG)": f"R$ {val_cart:,.2f}", "c/ Desconto (R$/KG)": f"R$ {f_cart:,.2f}"},
             {"Componente": "Comissão", "Alíquota (%)": f"{p_com:.2f}%", "Venda Normal (R$/KG)": f"R$ {val_com:,.2f}", "c/ Desconto (R$/KG)": f"R$ {f_com:,.2f}"},
@@ -1499,11 +1527,10 @@ def render_modulo_ficha_tecnica():
 
     col_btn1, col_btn2, col_btn3 = st.columns(3)
 
-    # Dicionário acumulador de resultados de cálculo para o PDF
     calc_res_pdf = {
         'tot_ali_custo': tot_ali_custo, 'tot_ali_qtd': tot_ali_qtd, 'tot_nao_ali_custo': tot_nao_ali_custo,
         'custo_total': custo_total, 'custo_kg_crua': custo_kg_crua, 'custo_kg_assada': custo_kg_assada,
-        'custo_unidade': custo_unidade, 'custo_peca': custo_peca, 'cer': custo_kg_assada, 'cer_pct': cer_pct,
+        'custo_unidade': custo_unidade, 'custo_peca': custo_peca, 'cer': cer_efetivo, 'cer_pct': cer_pct,
         'val_imp': val_imp, 'f_imp': f_imp, 'val_cart': val_cart, 'f_cart': f_cart,
         'val_com': val_com, 'f_com': f_com, 'val_outros': val_outros, 'f_outros': f_outros,
         'margem_contrib_pct': margem_contrib_pct, 'margem_contrib_rs': margem_contrib_rs, 'margem_contrib_desc': margem_contrib_desc,
@@ -1519,7 +1546,6 @@ def render_modulo_ficha_tecnica():
         data_hoje = str(datetime.date.today())
 
         if st.session_state.ft_id_carregada is not None:
-            # Atualizar Ficha Existente
             if is_postgres:
                 cursor.execute("""
                     UPDATE fichas_tecnicas SET
@@ -1539,7 +1565,6 @@ def render_modulo_ficha_tecnica():
             conn.commit()
             st.success(f"Ficha Técnica '{ft_produto.upper()}' atualizada no banco de dados!")
         else:
-            # Inserir Nova Ficha
             emp_v = emp_id_ativo if emp_id_ativo != 0 else None
             if is_postgres:
                 cursor.execute("""
