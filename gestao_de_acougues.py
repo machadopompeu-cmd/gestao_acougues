@@ -630,7 +630,6 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=10)
     
-    # Cabeçalho Principal do PDF
     pdf.set_fill_color(30, 58, 138)
     pdf.rect(10, 8, 277, 12, "F")
     pdf.set_text_color(255, 255, 255)
@@ -644,7 +643,6 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.cell(277, 5, f"Empresa: {nome_empresa.upper()} | Data: {acao['data_acao']} | Tipo: {acao['tipo_animal']}", ln=1, align="C")
     pdf.ln(2)
 
-    # Quadros Superiores
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(90, 5, "APURAÇÃO DOS PARÂMETROS DO ANIMAL", 1, 0, 'C', True)
@@ -694,7 +692,6 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
 
     pdf.ln(4)
 
-    # Tabela Detalhada de Cortes Fiel ao Histórico
     pdf.set_font("Arial", style="B", size=5.5)
     pdf.set_fill_color(226, 232, 240)
     
@@ -747,7 +744,6 @@ def gerar_pdf_relatorio_financeiro(pv, i_mensal, n_parcelas, sistema, df_amort, 
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=12)
     
-    # Cabeçalho
     pdf.set_fill_color(30, 58, 138)
     pdf.rect(10, 8, 190, 12, "F")
     pdf.set_text_color(255, 255, 255)
@@ -762,7 +758,6 @@ def gerar_pdf_relatorio_financeiro(pv, i_mensal, n_parcelas, sistema, df_amort, 
     pdf.cell(190, 5, f"Empresa: {nome_empresa.upper()} | Data de Emissão: {data_str} | Sistema: {sistema}", ln=1, align="C")
     pdf.ln(3)
 
-    # Quadro Resumo da Operação
     pdf.set_font("Arial", style="B", size=9)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(190, 6, "QUADRO RESUMO DA OPERAÇÃO DE FINANCIAMENTO", 1, 1, 'C', True)
@@ -785,7 +780,6 @@ def gerar_pdf_relatorio_financeiro(pv, i_mensal, n_parcelas, sistema, df_amort, 
 
     pdf.ln(5)
 
-    # Tabela de Amortização
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     
@@ -826,7 +820,6 @@ def gerar_pdf_relatorio_ficha_tecnica(
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=10)
 
-    # 1. TÍTULO DO RELATÓRIO CONFORME O NOME DO PRODUTO NA FICHA TÉCNICA
     pdf.set_fill_color(30, 58, 138)
     pdf.rect(10, 8, 190, 12, "F")
     pdf.set_text_color(255, 255, 255)
@@ -841,7 +834,6 @@ def gerar_pdf_relatorio_ficha_tecnica(
     pdf.cell(190, 5, f"Empresa: {nome_empresa.upper()} | Produto: {produto.upper()} | Ref: {referencia} | Data: {data_str}", ln=1, align="C")
     pdf.ln(3)
 
-    # TODOS OS QUADROS E TABELAS NO PDF
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(92, 5, "PARÂMETROS DE PRODUÇÃO", 1, 0, 'C', True)
@@ -881,7 +873,6 @@ def gerar_pdf_relatorio_ficha_tecnica(
 
     pdf.ln(3)
 
-    # Tabela 1: Insumos Alimentícios
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(190, 5, "INSUMOS ALIMENTÍCIOS", 1, 1, 'C', True)
@@ -912,7 +903,6 @@ def gerar_pdf_relatorio_ficha_tecnica(
 
     pdf.ln(3)
 
-    # Tabela 2: Insumos Não Alimentícios
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(190, 5, "INSUMOS NÃO ALIMENTÍCIOS", 1, 1, 'C', True)
@@ -940,7 +930,6 @@ def gerar_pdf_relatorio_ficha_tecnica(
 
     pdf.ln(3)
 
-    # Precificação por KG
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(190, 5, f"PRECIFICAÇÃO DA {produto.upper()} (POR KG)", 1, 1, 'C', True)
@@ -983,7 +972,154 @@ def gerar_pdf_relatorio_ficha_tecnica(
     return pdf.output(dest='S').encode('latin1')
 
 # =========================================================================
-# 8. MÓDULOS DE SUPORTE (FINANCEIRO, FICHA TÉCNICA COMPLETA E NCG)
+# 8. GERADOR DE RELATÓRIO PDF DO MÓDULO NECESSIDADE DE CAPITAL DE GIRO (NCG)
+# =========================================================================
+def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, diag):
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=10)
+
+    # 1. Cabeçalho Principal
+    pdf.set_fill_color(30, 58, 138)
+    pdf.rect(10, 8, 190, 12, "F")
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", style="B", size=10)
+    pdf.set_xy(10, 10)
+    pdf.cell(190, 8, "RENATO FRIGOTUDO & ASSOCIADOS - ANÁLISE DE NECESSIDADE DE CAPITAL DE GIRO", ln=1, align="C")
+
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_font("Arial", style="B", size=8.5)
+    pdf.set_xy(10, 22)
+    data_str = datetime.date.today().strftime("%d/%m/%Y")
+    pdf.cell(190, 5, f"Empresa: {nome_empresa.upper()} | Data de Emissão: {data_str}", ln=1, align="C")
+    pdf.ln(3)
+
+    # 2. Seção 1: Dados Financeiros
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_fill_color(226, 232, 240)
+    pdf.cell(190, 5, "1. DADOS FINANCEIROS DA EMPRESA (ENTRADA)", 1, 1, 'C', True)
+
+    pdf.set_font("Arial", style="B", size=7.5)
+    pdf.cell(90, 4.5, "Descrição", 1, 0, 'L', True)
+    pdf.cell(40, 4.5, "Valor (R$)", 1, 0, 'R', True)
+    pdf.cell(60, 4.5, "Observação", 1, 1, 'L', True)
+
+    pdf.set_font("Arial", size=7.5)
+    dfin_rows = [
+        ("Faturamento Bruto Mensal", f"R$ {dados_fin['fat']:,.2f}", "Receita total das vendas no mês"),
+        ("Custo da Mercadoria Vendida (CMV)", f"R$ {dados_fin['cmv']:,.2f}", "Custo total das mercadorias vendidas"),
+        ("Contas a Receber Acumuladas", f"R$ {dados_fin['receber']:,.2f}", "Valores a receber de clientes"),
+        ("Estoque Atual", f"R$ {dados_fin['estoque']:,.2f}", "Valor do estoque disponível"),
+        ("Contas a Pagar (Fornecedores)", f"R$ {dados_fin['pagar']:,.2f}", "Dívidas com fornecedores"),
+        ("Reserva Financeira (Caixa)", f"R$ {dados_fin['caixa']:,.2f}", "Dinheiro disponível em conta")
+    ]
+    for desc, val, obs in dfin_rows:
+        pdf.cell(90, 4.2, desc, 1, 0, 'L')
+        pdf.cell(40, 4.2, val, 1, 0, 'R')
+        pdf.cell(60, 4.2, obs, 1, 1, 'L')
+
+    pdf.ln(3)
+
+    # 3. Seção 2: Prazos Médios Operacionais
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.cell(190, 5, "2. PRAZOS MÉDIOS OPERACIONAIS (EM DIAS)", 1, 1, 'C', True)
+
+    pdf.set_font("Arial", style="B", size=7.5)
+    pdf.cell(70, 4.5, "Descrição", 1, 0, 'L', True)
+    pdf.cell(30, 4.5, "Cenário Atual", 1, 0, 'C', True)
+    pdf.cell(30, 4.5, "Cenário Proposto", 1, 0, 'C', True)
+    pdf.cell(60, 4.5, "Observação", 1, 1, 'L', True)
+
+    pdf.set_font("Arial", size=7.5)
+    prazos_rows = [
+        ("Prazo Médio de Estoque (PME)", f"{prazos['pme_atual']:.1f} dias", f"{prazos['pme_prop']:.1f} dias", "Dias que o estoque fica parado"),
+        ("Prazo Médio de Recebimento (PMR)", f"{prazos['pmr_atual']:.1f} dias", f"{prazos['pmr_prop']:.1f} dias", "Dias para receber das vendas"),
+        ("Prazo Médio de Pagamento (PMP)", f"{prazos['pmp_atual']:.1f} dias", f"{prazos['pmp_prop']:.1f} dias", "Dias para pagar fornecedores")
+    ]
+    for desc, ca, cp, obs in prazos_rows:
+        pdf.cell(70, 4.2, desc, 1, 0, 'L')
+        pdf.cell(30, 4.2, ca, 1, 0, 'C')
+        pdf.cell(30, 4.2, cp, 1, 0, 'C')
+        pdf.cell(60, 4.2, obs, 1, 1, 'L')
+
+    pdf.ln(3)
+
+    # 4. Seção 3: Cálculos Automáticos
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.cell(190, 5, "3. CÁLCULOS AUTOMÁTICOS & CICLO FINANCEIRO", 1, 1, 'C', True)
+
+    pdf.set_font("Arial", style="B", size=7.5)
+    pdf.cell(70, 4.5, "Indicador", 1, 0, 'L', True)
+    pdf.cell(30, 4.5, "Cenário Atual", 1, 0, 'R', True)
+    pdf.cell(30, 4.5, "Cenário Proposto", 1, 0, 'R', True)
+    pdf.cell(60, 4.5, "Fórmula / Observação", 1, 1, 'L', True)
+
+    pdf.set_font("Arial", size=7.5)
+    calcs_rows = [
+        ("Margem Bruta (R$)", f"R$ {calcs['margem_bruta_rs']:,.2f}", f"R$ {calcs['margem_bruta_rs']:,.2f}", "Faturamento - CMV"),
+        ("Margem Bruta (%)", f"{calcs['margem_bruta_pct']*100:.2f}%", f"{calcs['margem_bruta_pct']*100:.2f}%", "(Margem / Faturamento) x 100"),
+        ("CMV Diário (R$)", f"R$ {calcs['cmv_diario']:,.2f}", f"R$ {calcs['cmv_diario']:,.2f}", "CMV / 30 dias"),
+        ("Faturamento Diário (R$)", f"R$ {calcs['fat_diario']:,.2f}", f"R$ {calcs['fat_diario']:,.2f}", "Faturamento / 30 dias"),
+        ("CICLO FINANCEIRO (dias)", f"{calcs['ciclo_atual']:.1f} dias", f"{calcs['ciclo_prop']:.1f} dias", "PME + PMR - PMP"),
+        ("NCG - Necessidade Capital Giro (R$)", f"R$ {calcs['ncg_atual']:,.2f}", f"R$ {calcs['ncg_prop']:,.2f}", "CMV Diário x Ciclo Financeiro")
+    ]
+    for desc, ca, cp, obs in calcs_rows:
+        pdf.cell(70, 4.2, desc, 1, 0, 'L')
+        pdf.cell(30, 4.2, ca, 1, 0, 'R')
+        pdf.cell(30, 4.2, cp, 1, 0, 'R')
+        pdf.cell(60, 4.2, obs, 1, 1, 'L')
+
+    pdf.ln(3)
+
+    # 5. Seção 4: Análise de Liquidez e Risco
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.cell(190, 5, "4. ANÁLISE DE LIQUIDEZ E RISCO", 1, 1, 'C', True)
+
+    pdf.set_font("Arial", style="B", size=7.5)
+    pdf.cell(70, 4.5, "Indicador", 1, 0, 'L', True)
+    pdf.cell(30, 4.5, "Cenário Atual", 1, 0, 'R', True)
+    pdf.cell(30, 4.5, "Cenário Proposto", 1, 0, 'R', True)
+    pdf.cell(60, 4.5, "Fórmula / Observação", 1, 1, 'L', True)
+
+    pdf.set_font("Arial", size=7.5)
+    liq_rows = [
+        ("Déficit / Superávit Imediato (R$)", f"R$ {liquidez['deficit_imed']:,.2f}", f"R$ {liquidez['deficit_imed']:,.2f}", "Contas a Receber - Contas a Pagar + Caixa"),
+        ("Entradas previstas conf. PMP", f"R$ {liquidez['entradas_atual']:,.2f}", f"R$ {liquidez['entradas_prop']:,.2f}", "Faturamento Diário x dias úteis"),
+        ("Novo Saldo após Ciclo Financeiro", f"R$ {liquidez['saldo_ciclo_atual']:,.2f}", f"R$ {liquidez['saldo_ciclo_prop']:,.2f}", "Entradas + Receber - Pagar"),
+        ("Economia de NCG c/ mudança (R$)", "-", f"R$ {liquidez['economia_ncg']:,.2f}", "NCG Atual - NCG Proposto")
+    ]
+    for desc, ca, cp, obs in liq_rows:
+        pdf.cell(70, 4.2, desc, 1, 0, 'L')
+        pdf.cell(30, 4.2, ca, 1, 0, 'R')
+        pdf.cell(30, 4.2, cp, 1, 0, 'R')
+        pdf.cell(60, 4.2, obs, 1, 1, 'L')
+
+    pdf.ln(3)
+
+    # 6. Seção 5: Diagnóstico Automático
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.cell(190, 5, "5. DIAGNÓSTICO AUTOMÁTICO", 1, 1, 'C', True)
+
+    pdf.set_font("Arial", style="B", size=7.5)
+    pdf.cell(60, 4.5, "Indicador", 1, 0, 'L', True)
+    pdf.cell(65, 4.5, "Resultado", 1, 0, 'C', True)
+    pdf.cell(65, 4.5, "Interpretação", 1, 1, 'L', True)
+
+    pdf.set_font("Arial", size=7.5)
+    diag_rows = [
+        ("Ciclo Financeiro Atual", diag['res_ciclo'], diag['interp_ciclo']),
+        ("Situação de Liquidez", diag['res_liq'], diag['interp_liq']),
+        ("Recomendação Principal", diag['res_rec'], diag['interp_rec'])
+    ]
+    for desc, res, interp in diag_rows:
+        pdf.cell(60, 4.2, desc, 1, 0, 'L')
+        pdf.cell(65, 4.2, res, 1, 0, 'C')
+        pdf.cell(65, 4.2, interp, 1, 1, 'L')
+
+    return pdf.output(dest='S').encode('latin1')
+
+# =========================================================================
+# 9. MÓDULOS DE SUPORTE (FINANCEIRO, FICHA TÉCNICA E NCG REESTRUTURADO)
 # =========================================================================
 def render_modulo_financeiro():
     st.header("🧮 Módulo de Cálculo Financeiro & Amortização Bidirecional")
@@ -1153,7 +1289,6 @@ def render_modulo_ficha_tecnica():
     conn = get_connection()
     is_postgres = "psycopg2" in str(type(conn))
 
-    # --- 1. BUSCA E SELEÇÃO DE FICHAS ARMAZENADAS ---
     st.subheader("🔍 Buscar ou Selecionar Ficha Técnica Armazenada")
     col_search1, col_search2 = st.columns([3, 1])
     
@@ -1179,7 +1314,6 @@ def render_modulo_ficha_tecnica():
 
     ficha_selecionada = st.selectbox("Selecione a Ficha para Editar ou Visualizar", opcoes_fichas)
 
-    # Inicializar Session State para itens da ficha técnica
     if "ft_items_ali" not in st.session_state:
         st.session_state.ft_items_ali = []
     if "ft_items_nao_ali" not in st.session_state:
@@ -1187,7 +1321,6 @@ def render_modulo_ficha_tecnica():
     if "ft_id_carregada" not in st.session_state:
         st.session_state.ft_id_carregada = None
 
-    # Carregamento da Ficha Técnica Selecionada
     if col_search2.button("📥 Carregar Ficha"):
         if ficha_selecionada == "➕ Criar Nova Ficha Técnica":
             st.session_state.ft_id_carregada = None
@@ -1272,7 +1405,6 @@ def render_modulo_ficha_tecnica():
     
     tab_ft, tab_prec = st.tabs(["🍖 Ficha Técnica / Ordem de Produção", "💲 Precificação do Produto (Por KG)"])
 
-    # --- ABA 1: FICHA TÉCNICA / ORDEM DE PRODUÇÃO ---
     with tab_ft:
         st.subheader("📌 Parâmetros de Produção & Rendimentos")
         col_f1, col_f2, col_f3 = st.columns(3)
@@ -1394,7 +1526,6 @@ def render_modulo_ficha_tecnica():
                 st.session_state.ft_items_nao_ali.pop(idx_del_nao_ali)
                 st.rerun()
 
-        # CÁLCULOS AUTOMÁTICOS DO QUADRO DE CUSTOS (BUSCADOS DIRETAMENTE DA FICHA)
         tot_ali_custo = sum(item['qtd_bruta'] * item['rendimento'] * item['preco_bruto'] for item in st.session_state.ft_items_ali)
         tot_ali_qtd = sum(item['qtd_bruta'] * item['rendimento'] for item in st.session_state.ft_items_ali)
         tot_nao_ali_custo = sum(item['qtd_bruta'] * item['rendimento'] * item['preco_bruto'] for item in st.session_state.ft_items_nao_ali)
@@ -1416,11 +1547,9 @@ def render_modulo_ficha_tecnica():
         m5.metric("PACOTE", f"R$ {custo_pacote:,.2f}")
         m6.metric("PEÇA", f"R$ {custo_peca:,.2f}")
 
-    # --- ABA 2: PRECIFICAÇÃO POR KG ---
     with tab_prec:
         st.subheader("💲 Formação do Preço de Venda por KG")
         
-        # ESCOLHA AUTOMÁTICA DO CUSTO CER BUSCADO DO RESUMO DE CUSTOS
         precif_dict = st.session_state.ft_precif
         opcao_salva_cer = precif_dict.get("opcao_cer", "Custo/kg Total Depois de Assada")
 
@@ -1468,7 +1597,6 @@ def render_modulo_ficha_tecnica():
             "opcao_cer": selecao_cer_chave
         }
 
-        # CÁLCULOS COM O CER SELECIONADO AUTOMATICAMENTE
         soma_aliquotas = (p_imp + p_cart + p_com + p_outros + p_fixas + p_lucro) / 100.0
         pv = cer_efetivo / (1.0 - soma_aliquotas) if (1.0 - soma_aliquotas) > 0 else 0.0
 
@@ -1515,7 +1643,6 @@ def render_modulo_ficha_tecnica():
         res3.metric("MARKUP (%)", f"{markup*100:.2f}%")
         res4.metric(f"Lucro c/ Desconto ({p_desconto_simulado:.1f}%)", f"R$ {lucro_desc:,.2f} / KG")
 
-    # --- SALVAMENTO, EXCLUSÃO E EMISSÃO DO RELATÓRIO PDF ---
     st.markdown("---")
     st.subheader("💾 Operações na Base de Dados & Relatório PDF")
 
@@ -1612,24 +1739,123 @@ def render_modulo_ficha_tecnica():
 
 def render_modulo_ncg():
     st.header("📈 Análise de Necessidade de Capital de Giro (NCG)")
-    col1, col2 = st.columns(2)
-    with col1:
-        fat = st.number_input("Faturamento Mensal (R$)", min_value=0.0, value=100000.0, step=5000.0)
-        cmv = st.number_input("CMV Mensal (R$)", min_value=0.0, value=70000.0, step=5000.0)
-        pmr = st.number_input("Prazo Médio de Recebimento - PMR (Dias)", min_value=0.0, value=30.0, step=1.0)
-    with col2:
-        pme = st.number_input("Prazo Médio de Estoque - PME (Dias)", min_value=0.0, value=20.0, step=1.0)
-        pmp = st.number_input("Prazo Médio de Pagamento - PMP (Dias)", min_value=0.0, value=30.0, step=1.0)
+    st.markdown("Insira os dados financeiros e operacionais da sua empresa para calcular dinamicamente a NCG, simular cenários e gerar o relatório completo em PDF.")
 
-    if st.button("Calcular Necessidade de Capital de Giro"):
-        ac = (fat / 30.0) * pmr + (cmv / 30.0) * pme
-        pc = (cmv / 30.0) * pmp
-        ncg = ac - pc
-        st.metric("Necessidade de Capital de Giro (NCG Calculada)", f"R$ {ncg:,.2f}")
-        st.info(f"Ativo Cíclico: R$ {ac:,.2f} | Passivo Cíclico: R$ {pc:,.2f}")
+    st.markdown("---")
+    st.subheader("1. Dados Financeiros da Empresa (Entrada)")
+    c1, c2, c3 = st.columns(3)
+    fat = c1.number_input("Faturamento Bruto Mensal (R$)", min_value=0.0, value=157399.10, step=1000.0)
+    cmv = c2.number_input("Custo da Mercadoria Vendida - CMV (R$)", min_value=0.0, value=98409.78, step=1000.0)
+    receber = c3.number_input("Contas a Receber Acumuladas (R$)", min_value=0.0, value=1193.67, step=100.0)
+
+    c4, c5, c6 = st.columns(3)
+    estoque = c4.number_input("Estoque Atual (R$)", min_value=0.0, value=18700.00, step=1000.0)
+    pagar = c5.number_input("Contas a Pagar / Fornecedores (R$)", min_value=0.0, value=50971.32, step=1000.0)
+    caixa = c6.number_input("Reserva Financeira / Caixa (R$)", min_value=0.0, value=0.00, step=100.0)
+
+    st.markdown("---")
+    st.subheader("2. Prazos Médios Operacionais (em dias)")
+    col_p1, col_p2 = st.columns(2)
+
+    with col_p1:
+        st.markdown("**Cenário Atual**")
+        pme_atual = st.number_input("Prazo Médio de Estoque - PME (Dias) [Atual]", min_value=0.0, value=8.5, step=0.5)
+        pmr_atual = st.number_input("Prazo Médio de Recebimento - PMR (Dias) [Atual]", min_value=0.0, value=1.0, step=0.5)
+        pmp_atual = st.number_input("Prazo Médio de Pagamento - PMP (Dias) [Atual]", min_value=0.0, value=14.0, step=0.5)
+
+    with col_p2:
+        st.markdown("**Cenário Proposto (Simulação)**")
+        pme_prop = st.number_input("Prazo Médio de Estoque - PME (Dias) [Proposto]", min_value=0.0, value=7.0, step=0.5)
+        pmr_prop = st.number_input("Prazo Médio de Recebimento - PMR (Dias) [Proposto]", min_value=0.0, value=7.0, step=0.5)
+        pmp_prop = st.number_input("Prazo Médio de Pagamento - PMP (Dias) [Proposto]", min_value=0.0, value=18.0, step=0.5)
+
+    # 3. CÁLCULOS AUTOMÁTICOS
+    margem_bruta_rs = fat - cmv
+    margem_bruta_pct = (fat - cmv) / fat if fat > 0 else 0.0
+    cmv_diario = cmv / 30.0
+    fat_diario = fat / 30.0
+
+    ciclo_atual = pme_atual + pmr_atual - pmp_atual
+    ciclo_prop = pme_prop + pmr_prop - pmp_prop
+
+    ncg_atual = cmv_diario * ciclo_atual
+    ncg_prop = cmv_diario * ciclo_prop
+
+    # 4. ANÁLISE DE LIQUIDEZ E RISCO
+    deficit_imed = receber - pagar + caixa
+
+    entradas_atual = fat_diario * max(0.0, pmp_atual - pmr_atual) if pmr_atual <= pmp_atual else 0.0
+    entradas_prop = fat_diario * max(0.0, pmp_prop - pmr_prop) if pmr_prop <= pmp_prop else 0.0
+
+    saldo_ciclo_atual = entradas_atual + receber - pagar + caixa
+    saldo_ciclo_prop = entradas_prop + receber - pagar + caixa
+
+    economia_ncg = ncg_atual - ncg_prop
+
+    # 5. DIAGNÓSTICO AUTOMÁTICO
+    res_ciclo = f"{ciclo_atual:.1f} dias (POSITIVO)" if ciclo_atual > 0 else ("EQUILIBRADO" if ciclo_atual == 0 else f"{ciclo_atual:.1f} dias (NEGATIVO)")
+    interp_ciclo = "Empresa financia o cliente - NCG necessária" if ciclo_atual > 0 else ("Ciclo neutro" if ciclo_atual == 0 else "Fornecedor financia a empresa")
+
+    res_liq = f"DÉFICIT DE R$ {abs(deficit_imed):,.2f}" if deficit_imed < 0 else f"SUPERÁVIT DE R$ {deficit_imed:,.2f}"
+    interp_liq = "ALERTA: Risco de inadimplência" if deficit_imed < 0 else "Situação confortável"
+
+    res_rec = f"Reduzir PMR para {pmr_prop:.0f} dias" if ciclo_prop < ciclo_atual else "Manter política atual"
+    interp_rec = f"Economia de R$ {economia_ncg:,.2f} na NCG" if economia_ncg > 0 else "-"
+
+    st.markdown("---")
+    st.subheader("3. Cálculos Automáticos & Ciclo Financeiro")
+    df_calcs = pd.DataFrame([
+        {"Indicador": "Margem Bruta (R$)", "Cenário Atual": f"R$ {margem_bruta_rs:,.2f}", "Cenário Proposto": f"R$ {margem_bruta_rs:,.2f}", "Fórmula / Observação": "Faturamento - CMV"},
+        {"Indicador": "Margem Bruta (%)", "Cenário Atual": f"{margem_bruta_pct*100:.2f}%", "Cenário Proposto": f"{margem_bruta_pct*100:.2f}%", "(Margem / Faturamento) × 100"},
+        {"Indicador": "CMV Diário (R$)", "Cenário Atual": f"R$ {cmv_diario:,.2f}", "Cenário Proposto": f"R$ {cmv_diario:,.2f}", "CMV / 30 dias"},
+        {"Indicador": "Faturamento Diário (R$)", "Cenário Atual": f"R$ {fat_diario:,.2f}", "Cenário Proposto": f"R$ {fat_diario:,.2f}", "Faturamento / 30 dias"},
+        {"Indicador": "CICLO FINANCEIRO (dias)", "Cenário Atual": f"{ciclo_atual:.1f} dias", "Cenário Proposto": f"{ciclo_prop:.1f} dias", "PME + PMR - PMP"},
+        {"Indicador": "NCG - Necessidade de Capital de Giro (R$)", "Cenário Atual": f"R$ {ncg_atual:,.2f}", "Cenário Proposto": f"R$ {ncg_prop:,.2f}", "CMV Diário × Ciclo Financeiro"}
+    ])
+    st.dataframe(df_calcs, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.subheader("4. Análise de Liquidez e Risco")
+    df_liq = pd.DataFrame([
+        {"Indicador": "Déficit/Superávit Imediato (R$)", "Cenário Atual": f"R$ {deficit_imed:,.2f}", "Cenário Proposto": f"R$ {deficit_imed:,.2f}", "Fórmula / Observação": "Contas a Receber - Contas a Pagar + Caixa"},
+        {"Indicador": "Entradas previstas conforme o PMP", "Cenário Atual": f"R$ {entradas_atual:,.2f}", "Cenário Proposto": f"R$ {entradas_prop:,.2f}", "Faturamento Diário × dias úteis"},
+        {"Indicador": "Novo Saldo após o Ciclo Financeiro", "Cenário Atual": f"R$ {saldo_ciclo_atual:,.2f}", "Cenário Proposto": f"R$ {saldo_ciclo_prop:,.2f}", "Entradas + Receber - Pagar"},
+        {"Indicador": "Economia de NCG com mudança (R$)", "Cenário Atual": "-", "Cenário Proposto": f"R$ {economia_ncg:,.2f}", "NCG Atual - NCG Proposto"}
+    ])
+    st.dataframe(df_liq, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.subheader("5. Diagnóstico Automático")
+    df_diag = pd.DataFrame([
+        {"Indicador": "Ciclo Financeiro Atual", "Resultado": res_ciclo, "Interpretação": interp_ciclo},
+        {"Indicador": "Situação de Liquidez", "Resultado": res_liq, "Interpretação": interp_liq},
+        {"Indicador": "Recomendação Principal", "Resultado": res_rec, "Interpretação": interp_rec}
+    ])
+    st.dataframe(df_diag, use_container_width=True, hide_index=True)
+
+    # IMPRESSÃO DO RELATÓRIO PDF
+    st.markdown("---")
+    dados_fin_dict = {'fat': fat, 'cmv': cmv, 'receber': receber, 'estoque': estoque, 'pagar': pagar, 'caixa': caixa}
+    prazos_dict = {'pme_atual': pme_atual, 'pme_prop': pme_prop, 'pmr_atual': pmr_atual, 'pmr_prop': pmr_prop, 'pmp_atual': pmp_atual, 'pmp_prop': pmp_prop}
+    calcs_dict = {'margem_bruta_rs': margem_bruta_rs, 'margem_bruta_pct': margem_bruta_pct, 'cmv_diario': cmv_diario, 'fat_diario': fat_diario, 'ciclo_atual': ciclo_atual, 'ciclo_prop': ciclo_prop, 'ncg_atual': ncg_atual, 'ncg_prop': ncg_prop}
+    liquidez_dict = {'deficit_imed': deficit_imed, 'entradas_atual': entradas_atual, 'entradas_prop': entradas_prop, 'saldo_ciclo_atual': saldo_ciclo_atual, 'saldo_ciclo_prop': saldo_ciclo_prop, 'economia_ncg': economia_ncg}
+    diag_dict = {'res_ciclo': res_ciclo, 'interp_ciclo': interp_ciclo, 'res_liq': res_liq, 'interp_liq': interp_liq, 'res_rec': res_rec, 'interp_rec': interp_rec}
+
+    pdf_bytes_ncg = gerar_pdf_relatorio_ncg(
+        st.session_state.empresa_nome if 'empresa_nome' in st.session_state else "Açougue",
+        dados_fin_dict, prazos_dict, calcs_dict, liquidez_dict, diag_dict
+    )
+
+    st.download_button(
+        label="📥 Baixar Relatório Completo de Capital de Giro (NCG) em PDF",
+        data=pdf_bytes_ncg,
+        file_name=f"relatorio_ncg_{datetime.date.today()}.pdf",
+        mime="application/pdf",
+        key="btn_pdf_ncg"
+    )
 
 # =========================================================================
-# 9. GERENCIAMENTO DE SESSÃO E LOGIN
+# 10. GERENCIAMENTO DE SESSÃO E LOGIN
 # =========================================================================
 if "logado" not in st.session_state:
     st.session_state.logado = False
@@ -1711,7 +1937,7 @@ else:
     exibir_cabecalho(nome_empresa_usuaria=st.session_state.empresa_nome)
 
     # =========================================================================
-    # 10. EXECUÇÃO DOS MÓDULOS DE TELA
+    # 11. EXECUÇÃO DOS MÓDULOS DE TELA
     # =========================================================================
     if menu == "Cadastrar Empresa":
         st.header("🏢 Cadastrar Nova Empresa / Açougue")
