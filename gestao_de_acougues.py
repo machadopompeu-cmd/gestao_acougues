@@ -1096,11 +1096,12 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
     pdf.cell(65, 4.5, "Resultado", 1, 0, 'C', True)
     pdf.cell(65, 4.5, "Interpretação", 1, 1, 'L', True)
 
-    # CORREÇÃO APLICADA AQUI: pdf.set_font("Arial", size=7.5) em vez de style="7.5"
     pdf.set_font("Arial", size=7.5)
     diag_rows = [
         ("Ciclo Financeiro Atual", diag['res_ciclo'], diag['interp_ciclo']),
         ("Situação de Liquidez", diag['res_liq'], diag['interp_liq']),
+        ("Giro do Estoque (Rotatividade)", diag.get('res_giro', '-'), diag.get('interp_giro', '-')),
+        ("Cobertura de Caixa/Liquidez", diag.get('res_cob', '-'), diag.get('interp_cob', '-')),
         ("Recomendação Principal", diag['res_rec'], diag['interp_rec'])
     ]
     for desc, res, interp in diag_rows:
@@ -1784,17 +1785,25 @@ def render_modulo_ncg():
 
     economia_ncg = ncg_atual - ncg_prop
 
-    # 5. DIAGNÓSTICO AUTOMÁTICO
+    # 5. DIAGNÓSTICO AUTOMÁTICO EXTENDIDO
+    giro_estoque = 30.0 / pme_atual if pme_atual > 0 else 0.0
+    cobertura_caixa_dias = (caixa + receber) / cmv_diario if cmv_diario > 0 else 0.0
+
     res_ciclo = f"{ciclo_atual:.1f} dias (POSITIVO)" if ciclo_atual > 0 else ("EQUILIBRADO" if ciclo_atual == 0 else f"{ciclo_atual:.1f} dias (NEGATIVO)")
     interp_ciclo = "Empresa financia o cliente - NCG necessária" if ciclo_atual > 0 else ("Ciclo neutro" if ciclo_atual == 0 else "Fornecedor financia a empresa")
 
     res_liq = f"DÉFICIT DE R$ {abs(deficit_imed):,.2f}" if deficit_imed < 0 else f"SUPERÁVIT DE R$ {deficit_imed:,.2f}"
     interp_liq = "ALERTA: Risco de inadimplência" if deficit_imed < 0 else "Situação confortável"
 
+    res_giro = f"{giro_estoque:.1f}x / mês"
+    interp_giro = "Giro rápido de estoque" if giro_estoque >= 3 else "Estoque com giro lento"
+
+    res_cob = f"{cobertura_caixa_dias:.1f} dias"
+    interp_cob = "Reserva de caixa adequada" if cobertura_caixa_dias >= 15 else "Atenção: Pouco fôlego de caixa"
+
     res_rec = f"Reduzir PMR para {pmr_prop:.0f} dias" if ciclo_prop < ciclo_atual else "Manter política atual"
     interp_rec = f"Economia de R$ {economia_ncg:,.2f} na NCG" if economia_ncg > 0 else "-"
 
-    # Formatação prévia dos textos para evitar erros de sintaxe em dicionários
     str_mb_pct = f"{margem_bruta_pct * 100:.2f}%"
 
     st.markdown("---")
@@ -1824,6 +1833,8 @@ def render_modulo_ncg():
     df_diag = pd.DataFrame([
         {"Indicador": "Ciclo Financeiro Atual", "Resultado": res_ciclo, "Interpretação": interp_ciclo},
         {"Indicador": "Situação de Liquidez", "Resultado": res_liq, "Interpretação": interp_liq},
+        {"Indicador": "Giro do Estoque (Rotatividade)", "Resultado": res_giro, "Interpretação": interp_giro},
+        {"Indicador": "Cobertura de Caixa/Liquidez", "Resultado": res_cob, "Interpretação": interp_cob},
         {"Indicador": "Recomendação Principal", "Resultado": res_rec, "Interpretação": interp_rec}
     ])
     st.dataframe(df_diag, use_container_width=True, hide_index=True)
@@ -1834,7 +1845,13 @@ def render_modulo_ncg():
     prazos_dict = {'pme_atual': pme_atual, 'pme_prop': pme_prop, 'pmr_atual': pmr_atual, 'pmr_prop': pmr_prop, 'pmp_atual': pmp_atual, 'pmp_prop': pmp_prop}
     calcs_dict = {'margem_bruta_rs': margem_bruta_rs, 'margem_bruta_pct': margem_bruta_pct, 'cmv_diario': cmv_diario, 'fat_diario': fat_diario, 'ciclo_atual': ciclo_atual, 'ciclo_prop': ciclo_prop, 'ncg_atual': ncg_atual, 'ncg_prop': ncg_prop}
     liquidez_dict = {'deficit_imed': deficit_imed, 'entradas_atual': entradas_atual, 'entradas_prop': entradas_prop, 'saldo_ciclo_atual': saldo_ciclo_atual, 'saldo_ciclo_prop': saldo_ciclo_prop, 'economia_ncg': economia_ncg}
-    diag_dict = {'res_ciclo': res_ciclo, 'interp_ciclo': interp_ciclo, 'res_liq': res_liq, 'interp_liq': interp_liq, 'res_rec': res_rec, 'interp_rec': interp_rec}
+    diag_dict = {
+        'res_ciclo': res_ciclo, 'interp_ciclo': interp_ciclo, 
+        'res_liq': res_liq, 'interp_liq': interp_liq, 
+        'res_giro': res_giro, 'interp_giro': interp_giro,
+        'res_cob': res_cob, 'interp_cob': interp_cob,
+        'res_rec': res_rec, 'interp_rec': interp_rec
+    }
 
     pdf_bytes_ncg = gerar_pdf_relatorio_ncg(
         st.session_state.empresa_nome if 'empresa_nome' in st.session_state else "Açougue",
