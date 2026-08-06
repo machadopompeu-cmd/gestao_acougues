@@ -288,7 +288,6 @@ def init_db():
 
     conn.commit()
 
-    # Migração segura de colunas na tabela fichas_tecnicas
     cols_check = [
         ("referencia", "TEXT DEFAULT 'Produto Processado'"),
         ("insumos_ali_json", "TEXT"),
@@ -302,7 +301,6 @@ def init_db():
         except Exception:
             conn.rollback()
 
-    # Inicialização de Tipos de Desossa
     cursor.execute("SELECT COUNT(*) FROM tipos_desossa")
     if cursor.fetchone()[0] == 0:
         tipos_iniciais = [
@@ -315,7 +313,6 @@ def init_db():
             else:
                 cursor.execute("INSERT OR IGNORE INTO tipos_desossa (nome, empresa_id) VALUES (?, ?)", (nome_t, emp_t))
 
-    # Inicialização da Ficha Técnica padrão COSTELA ASSADA
     cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas")
     if cursor.fetchone()[0] == 0:
         ins_ali_default = json.dumps([
@@ -649,7 +646,7 @@ def gerar_pdf_relatorio_desossa(acao, df_res, ind, nome_empresa):
     pdf.cell(5, 5, "", 0, 0)
     pdf.cell(182, 5, "INDICADORES DA SIMULAÇÃO (OURO / PRATA / TOTAL)", 1, 1, 'C', True)
 
-    pdf.set_font("Arial", size=7.5)
+    pdf.set_font("Arial", style="B", size=7.5)
     ap_linhas = [
         ("PESO BRUTO/KG", f"{ind['peso_bruto']:.3f}"),
         ("OSSOS/MUXIBA", f"{ind['ossos']:.3f}"),
@@ -979,7 +976,6 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=10)
 
-    # 1. Cabeçalho Principal
     pdf.set_fill_color(30, 58, 138)
     pdf.rect(10, 8, 190, 12, "F")
     pdf.set_text_color(255, 255, 255)
@@ -994,7 +990,6 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
     pdf.cell(190, 5, f"Empresa: {nome_empresa.upper()} | Data de Emissão: {data_str}", ln=1, align="C")
     pdf.ln(3)
 
-    # 2. Seção 1: Dados Financeiros
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(190, 5, "1. DADOS FINANCEIROS DA EMPRESA (ENTRADA)", 1, 1, 'C', True)
@@ -1020,7 +1015,6 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
 
     pdf.ln(3)
 
-    # 3. Seção 2: Prazos Médios Operacionais
     pdf.set_font("Arial", style="B", size=8)
     pdf.cell(190, 5, "2. PRAZOS MÉDIOS OPERACIONAIS (EM DIAS)", 1, 1, 'C', True)
 
@@ -1044,7 +1038,6 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
 
     pdf.ln(3)
 
-    # 4. Seção 3: Cálculos Automáticos
     pdf.set_font("Arial", style="B", size=8)
     pdf.cell(190, 5, "3. CÁLCULOS AUTOMÁTICOS & CICLO FINANCEIRO", 1, 1, 'C', True)
 
@@ -1071,7 +1064,6 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
 
     pdf.ln(3)
 
-    # 5. Seção 4: Análise de Liquidez e Risco
     pdf.set_font("Arial", style="B", size=8)
     pdf.cell(190, 5, "4. ANÁLISE DE LIQUIDEZ E RISCO", 1, 1, 'C', True)
 
@@ -1096,7 +1088,6 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
 
     pdf.ln(3)
 
-    # 6. Seção 5: Diagnóstico Automático
     pdf.set_font("Arial", style="B", size=8)
     pdf.cell(190, 5, "5. DIAGNÓSTICO AUTOMÁTICO", 1, 1, 'C', True)
 
@@ -1105,7 +1096,7 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
     pdf.cell(65, 4.5, "Resultado", 1, 0, 'C', True)
     pdf.cell(65, 4.5, "Interpretação", 1, 1, 'L', True)
 
-    pdf.set_font("Arial", size=7.5)
+    pdf.set_font("Arial", style="7.5")
     diag_rows = [
         ("Ciclo Financeiro Atual", diag['res_ciclo'], diag['interp_ciclo']),
         ("Situação de Liquidez", diag['res_liq'], diag['interp_liq']),
@@ -1802,15 +1793,18 @@ def render_modulo_ncg():
     res_rec = f"Reduzir PMR para {pmr_prop:.0f} dias" if ciclo_prop < ciclo_atual else "Manter política atual"
     interp_rec = f"Economia de R$ {economia_ncg:,.2f} na NCG" if economia_ncg > 0 else "-"
 
+    # Formatação prévia dos textos para evitar erros de sintaxe em dicionários
+    str_mb_pct = f"{margem_bruta_pct * 100:.2f}%"
+
     st.markdown("---")
     st.subheader("3. Cálculos Automáticos & Ciclo Financeiro")
     df_calcs = pd.DataFrame([
         {"Indicador": "Margem Bruta (R$)", "Cenário Atual": f"R$ {margem_bruta_rs:,.2f}", "Cenário Proposto": f"R$ {margem_bruta_rs:,.2f}", "Fórmula / Observação": "Faturamento - CMV"},
-        {"Indicador": "Margem Bruta (%)", "Cenário Atual": f"{margem_bruta_pct*100:.2f}%", "Cenário Proposto": f"{margem_bruta_pct*100:.2f}%", "(Margem / Faturamento) × 100"},
-        {"Indicador": "CMV Diário (R$)", "Cenário Atual": f"R$ {cmv_diario:,.2f}", "Cenário Proposto": f"R$ {cmv_diario:,.2f}", "CMV / 30 dias"},
-        {"Indicador": "Faturamento Diário (R$)", "Cenário Atual": f"R$ {fat_diario:,.2f}", "Cenário Proposto": f"R$ {fat_diario:,.2f}", "Faturamento / 30 dias"},
-        {"Indicador": "CICLO FINANCEIRO (dias)", "Cenário Atual": f"{ciclo_atual:.1f} dias", "Cenário Proposto": f"{ciclo_prop:.1f} dias", "PME + PMR - PMP"},
-        {"Indicador": "NCG - Necessidade de Capital de Giro (R$)", "Cenário Atual": f"R$ {ncg_atual:,.2f}", "Cenário Proposto": f"R$ {ncg_prop:,.2f}", "CMV Diário × Ciclo Financeiro"}
+        {"Indicador": "Margem Bruta (%)", "Cenário Atual": str_mb_pct, "Cenário Proposto": str_mb_pct, "Fórmula / Observação": "(Margem / Faturamento) * 100"},
+        {"Indicador": "CMV Diário (R$)", "Cenário Atual": f"R$ {cmv_diario:,.2f}", "Cenário Proposto": f"R$ {cmv_diario:,.2f}", "Fórmula / Observação": "CMV / 30 dias"},
+        {"Indicador": "Faturamento Diário (R$)", "Cenário Atual": f"R$ {fat_diario:,.2f}", "Cenário Proposto": f"R$ {fat_diario:,.2f}", "Fórmula / Observação": "Faturamento / 30 dias"},
+        {"Indicador": "CICLO FINANCEIRO (dias)", "Cenário Atual": f"{ciclo_atual:.1f} dias", "Cenário Proposto": f"{ciclo_prop:.1f} dias", "Fórmula / Observação": "PME + PMR - PMP"},
+        {"Indicador": "NCG - Necessidade de Capital de Giro (R$)", "Cenário Atual": f"R$ {ncg_atual:,.2f}", "Cenário Proposto": f"R$ {ncg_prop:,.2f}", "Fórmula / Observação": "CMV Diário * Ciclo Financeiro"}
     ])
     st.dataframe(df_calcs, use_container_width=True, hide_index=True)
 
@@ -1818,9 +1812,9 @@ def render_modulo_ncg():
     st.subheader("4. Análise de Liquidez e Risco")
     df_liq = pd.DataFrame([
         {"Indicador": "Déficit/Superávit Imediato (R$)", "Cenário Atual": f"R$ {deficit_imed:,.2f}", "Cenário Proposto": f"R$ {deficit_imed:,.2f}", "Fórmula / Observação": "Contas a Receber - Contas a Pagar + Caixa"},
-        {"Indicador": "Entradas previstas conforme o PMP", "Cenário Atual": f"R$ {entradas_atual:,.2f}", "Cenário Proposto": f"R$ {entradas_prop:,.2f}", "Faturamento Diário × dias úteis"},
-        {"Indicador": "Novo Saldo após o Ciclo Financeiro", "Cenário Atual": f"R$ {saldo_ciclo_atual:,.2f}", "Cenário Proposto": f"R$ {saldo_ciclo_prop:,.2f}", "Entradas + Receber - Pagar"},
-        {"Indicador": "Economia de NCG com mudança (R$)", "Cenário Atual": "-", "Cenário Proposto": f"R$ {economia_ncg:,.2f}", "NCG Atual - NCG Proposto"}
+        {"Indicador": "Entradas previstas conforme o PMP", "Cenário Atual": f"R$ {entradas_atual:,.2f}", "Cenário Proposto": f"R$ {entradas_prop:,.2f}", "Fórmula / Observação": "Faturamento Diário * dias úteis"},
+        {"Indicador": "Novo Saldo após o Ciclo Financeiro", "Cenário Atual": f"R$ {saldo_ciclo_atual:,.2f}", "Cenário Proposto": f"R$ {saldo_ciclo_prop:,.2f}", "Fórmula / Observação": "Entradas + Receber - Pagar"},
+        {"Indicador": "Economia de NCG com mudança (R$)", "Cenário Atual": "-", "Cenário Proposto": f"R$ {economia_ncg:,.2f}", "Fórmula / Observação": "NCG Atual - NCG Proposto"}
     ])
     st.dataframe(df_liq, use_container_width=True, hide_index=True)
 
