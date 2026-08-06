@@ -1096,7 +1096,8 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
     pdf.cell(65, 4.5, "Resultado", 1, 0, 'C', True)
     pdf.cell(65, 4.5, "Interpretação", 1, 1, 'L', True)
 
-    pdf.set_font("Arial", style="7.5")
+    # CORREÇÃO APLICADA AQUI: pdf.set_font("Arial", size=7.5) em vez de style="7.5"
+    pdf.set_font("Arial", size=7.5)
     diag_rows = [
         ("Ciclo Financeiro Atual", diag['res_ciclo'], diag['interp_ciclo']),
         ("Situação de Liquidez", diag['res_liq'], diag['interp_liq']),
