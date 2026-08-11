@@ -398,6 +398,30 @@ def init_db():
 
 init_db()
 
+# OTIMIZAÇÃO: Cache da leitura de fichas técnicas para prevenir requisições lentas a cada digitação
+@st.cache_data(ttl=60)
+def carregar_fichas_tecnicas_db(emp_id_ativo, termo_busca=""):
+    conn = get_connection()
+    is_postgres = "psycopg2" in str(type(conn))
+    termo = termo_busca.lower().strip()
+    
+    if emp_id_ativo == 0:
+        if termo:
+            query_ft = "SELECT * FROM fichas_tecnicas WHERE LOWER(produto) LIKE %s ORDER BY produto ASC" if is_postgres else f"SELECT * FROM fichas_tecnicas WHERE LOWER(produto) LIKE '%{termo}%' ORDER BY produto ASC"
+            df = pd.read_sql_query(query_ft, conn, params=(f"%{termo}%",) if is_postgres else None)
+        else:
+            df = pd.read_sql_query("SELECT * FROM fichas_tecnicas ORDER BY produto ASC", conn)
+    else:
+        if termo:
+            query_ft = "SELECT * FROM fichas_tecnicas WHERE (empresa_id IS NULL OR empresa_id = %s) AND LOWER(produto) LIKE %s ORDER BY produto ASC" if is_postgres else f"SELECT * FROM fichas_tecnicas WHERE (empresa_id IS NULL OR empresa_id = {emp_id_ativo}) AND LOWER(produto) LIKE '%{termo}%' ORDER BY produto ASC"
+            df = pd.read_sql_query(query_ft, conn, params=(emp_id_ativo, f"%{termo}%") if is_postgres else None)
+        else:
+            query_ft = "SELECT * FROM fichas_tecnicas WHERE (empresa_id IS NULL OR empresa_id = %s) ORDER BY produto ASC" if is_postgres else f"SELECT * FROM fichas_tecnicas WHERE (empresa_id IS NULL OR empresa_id = {emp_id_ativo}) ORDER BY produto ASC"
+            df = pd.read_sql_query(query_ft, conn, params=(emp_id_ativo,) if is_postgres else None)
+            
+    conn.close()
+    return df
+
 def get_tipos_desossa(empresa_id):
     conn = get_connection()
     cursor = conn.cursor()
@@ -1187,27 +1211,13 @@ def render_modulo_ficha_tecnica():
     st.header("📋 Módulo de Ficha Técnica & Precificação")
     emp_id_ativo = st.session_state.empresa_id
 
-    conn = get_connection()
-    is_postgres = "psycopg2" in str(type(conn))
-
     st.subheader("🔍 Buscar ou Selecionar Ficha Técnica Armazenada")
     col_search1, col_search2, col_search3 = st.columns([3, 1, 1])
     
-    termo_busca = col_search1.text_input("Buscar por Nome do Produto / Ficha Técnica", value="")
+    termo_busca = col_search1.text_input("Buscar por Nome do Produto / Ficha Técnica", value="", key="input_termo_busca_ft")
 
-    if emp_id_ativo == 0:
-        if termo_busca.strip():
-            query_ft = "SELECT * FROM fichas_tecnicas WHERE LOWER(produto) LIKE %s ORDER BY produto ASC" if is_postgres else f"SELECT * FROM fichas_tecnicas WHERE LOWER(produto) LIKE '%{termo_busca.lower().strip()}%' ORDER BY produto ASC"
-            df_ft_db = pd.read_sql_query(query_ft, conn, params=(f"%{termo_busca.lower().strip()}%",) if is_postgres else None)
-        else:
-            df_ft_db = pd.read_sql_query("SELECT * FROM fichas_tecnicas ORDER BY produto ASC", conn)
-    else:
-        if termo_busca.strip():
-            query_ft = "SELECT * FROM fichas_tecnicas WHERE (empresa_id IS NULL OR empresa_id = %s) AND LOWER(produto) LIKE %s ORDER BY produto ASC" if is_postgres else f"SELECT * FROM fichas_tecnicas WHERE (empresa_id IS NULL OR empresa_id = {emp_id_ativo}) AND LOWER(produto) LIKE '%{termo_busca.lower().strip()}%' ORDER BY produto ASC"
-            df_ft_db = pd.read_sql_query(query_ft, conn, params=(emp_id_ativo, f"%{termo_busca.lower().strip()}%") if is_postgres else None)
-        else:
-            query_ft = "SELECT * FROM fichas_tecnicas WHERE (empresa_id IS NULL OR empresa_id = %s) ORDER BY produto ASC" if is_postgres else f"SELECT * FROM fichas_tecnicas WHERE (empresa_id IS NULL OR empresa_id = {emp_id_ativo}) ORDER BY produto ASC"
-            df_ft_db = pd.read_sql_query(query_ft, conn, params=(emp_id_ativo,) if is_postgres else None)
+    # OTIMIZAÇÃO: Consulta com Cache rápido
+    df_ft_db = carregar_fichas_tecnicas_db(emp_id_ativo, termo_busca)
 
     opcoes_fichas = ["➕ Criar Nova Ficha Técnica"]
     if not df_ft_db.empty:
@@ -1263,20 +1273,23 @@ def render_modulo_ficha_tecnica():
             st.success(f"Ficha Técnica #{ft_id} ({row_ft['produto']}) carregada com sucesso!")
             st.rerun()
 
-    # CORREÇÃO AQUI: Botão de exclusão direta pela lista suspensa superior
     if col_search3.button("🗑️ Excluir Ficha"):
         if ficha_selecionada == "➕ Criar Nova Ficha Técnica":
             st.warning("Selecione uma ficha válida para excluir!")
         else:
             ft_id_del = int(ficha_selecionada.split(" - ")[0].replace("#", ""))
+            conn = get_connection()
             cursor = conn.cursor()
+            is_postgres = "psycopg2" in str(type(conn))
             if is_postgres:
                 cursor.execute("DELETE FROM fichas_tecnicas WHERE id = %s", (ft_id_del,))
             else:
                 cursor.execute("DELETE FROM fichas_tecnicas WHERE id = ?", (ft_id_del,))
             conn.commit()
+            conn.close()
+            st.cache_data.clear() # Limpa o cache após excluir
             reset_ft_session()
-            st.success(f"Ficha Técnica #{ft_id_del} excluída com sucesso do banco de dados!")
+            st.success(f"Ficha Técnica #{ft_id_del} excluída com sucesso!")
             st.rerun()
 
     if "ft_produto" not in st.session_state:
@@ -1306,21 +1319,32 @@ def render_modulo_ficha_tecnica():
     tab_ft, tab_prec = st.tabs(["🍖 Ficha Técnica / Ordem de Produção", "💲 Precificação do Produto (Por KG)"])
 
     with tab_ft:
-        st.subheader("📌 Parâmetros de Produção & Rendimentos (Conforme Tabela Excel)")
+        st.subheader("📌 Parâmetros de Produção & Rendimentos")
         
-        col_f1, col_f2 = st.columns(2)
-        ft_produto = col_f1.text_input("Produto:", value=st.session_state.ft_produto)
-        ft_ref = col_f2.text_input("Referência:", value=st.session_state.ft_ref)
+        # OTIMIZAÇÃO: Formulário agrupado para evitar travamentos ao digitar números
+        with st.form("form_parametros_producao"):
+            col_f1, col_f2 = st.columns(2)
+            ft_produto = col_f1.text_input("Produto:", value=st.session_state.ft_produto)
+            ft_ref = col_f2.text_input("Referência:", value=st.session_state.ft_ref)
 
-        col_p1, col_p2, col_p3 = st.columns(3)
-        ft_rend_crua = col_p1.number_input("Rendimento kg (Crua)", min_value=0.001, value=safe_float(st.session_state.get('ft_rend_crua'), 21.900), step=0.1, format="%.3f")
-        ft_rend_assada = col_p2.number_input("Rendimento Depois de Assada kg", min_value=0.001, value=safe_float(st.session_state.ft_rend_assada, 14.226), step=0.1, format="%.3f")
-        ft_peso_unid = col_p3.number_input("Peso da Unidade KG", min_value=0.001, value=safe_float(st.session_state.ft_peso_unid, 0.118), step=0.005, format="%.3f")
+            col_p1, col_p2, col_p3 = st.columns(3)
+            ft_rend_crua = col_p1.number_input("Rendimento kg (Crua)", min_value=0.001, value=safe_float(st.session_state.get('ft_rend_crua'), 21.900), step=0.1, format="%.3f")
+            ft_rend_assada = col_p2.number_input("Rendimento Depois de Assada kg", min_value=0.001, value=safe_float(st.session_state.ft_rend_assada, 14.226), step=0.1, format="%.3f")
+            ft_peso_unid = col_p3.number_input("Peso da Unidade KG", min_value=0.001, value=safe_float(st.session_state.ft_peso_unid, 0.118), step=0.005, format="%.3f")
 
-        col_p4, col_p5 = st.columns(2)
-        ft_qtd_pacote = col_p4.number_input("Quantidade no Pacote", min_value=1.0, value=safe_float(st.session_state.ft_qtd_pacote, 4.0), step=1.0)
+            col_p4, _ = st.columns(2)
+            ft_qtd_pacote = col_p4.number_input("Quantidade no Pacote", min_value=1.0, value=safe_float(st.session_state.ft_qtd_pacote, 4.0), step=1.0)
 
-        # CÁLCULOS IDÊNTICOS À PLANILHA EXCEL
+            btn_atualizar_param = st.form_submit_button("⚡ Aplicar Alterações nos Parâmetros")
+            if btn_atualizar_param:
+                st.session_state.ft_produto = ft_produto
+                st.session_state.ft_ref = ft_ref
+                st.session_state.ft_rend_crua = ft_rend_crua
+                st.session_state.ft_rend_assada = ft_rend_assada
+                st.session_state.ft_peso_unid = ft_peso_unid
+                st.session_state.ft_qtd_pacote = ft_qtd_pacote
+                st.rerun()
+
         ft_unid_prod = math.floor(ft_rend_assada / ft_peso_unid) if ft_peso_unid > 0 else 0.0
         perda_pct = (1.0 - (ft_rend_assada / ft_rend_crua)) * 100.0 if ft_rend_crua > 0 else 0.0
 
@@ -1523,33 +1547,38 @@ def render_modulo_ficha_tecnica():
         keys_lista = list(opcoes_cer_dict.keys())
         index_def = keys_lista.index(opcao_salva_cer) if opcao_salva_cer in keys_lista else 0
 
-        selecao_cer_chave = st.selectbox("📌 Selecione o Custo Base Selecionado para Precificação (CER):", options=keys_lista, index=index_def, format_func=lambda k: opcoes_cer_dict[k][1])
+        # OTIMIZAÇÃO: Isolamento dos campos de precificação em um formulário
+        with st.form("form_precificacao_ficha"):
+            selecao_cer_chave = st.selectbox("📌 Selecione o Custo Base Selecionado para Precificação (CER):", options=keys_lista, index=index_def, format_func=lambda k: opcoes_cer_dict[k][1])
 
-        if selecao_cer_chave == "Outro Valor Manual":
-            cer_efetivo = st.number_input("Digite o Custo de Aquisição / Produção por KG (R$)", min_value=0.0, value=custo_kg_assada, step=0.1)
-        else:
-            cer_efetivo = opcoes_cer_dict[selecao_cer_chave][0]
+            if selecao_cer_chave == "Outro Valor Manual":
+                cer_efetivo = st.number_input("Digite o Custo de Aquisição / Produção por KG (R$)", min_value=0.0, value=custo_kg_assada, step=0.1)
+            else:
+                cer_efetivo = opcoes_cer_dict[selecao_cer_chave][0]
+
+            c_p1, c_p2, c_p3 = st.columns(3)
+            p_imp = c_p1.number_input("Imposto (%)", min_value=0.0, value=safe_float(precif_dict.get("imposto_pct"), 5.0), step=0.1)
+            p_cart = c_p2.number_input("Tx. Cartão e Antecipação (%)", min_value=0.0, value=safe_float(precif_dict.get("tx_cartao_pct"), 5.0), step=0.1)
+            p_com = c_p3.number_input("Comissão (%)", min_value=0.0, value=safe_float(precif_dict.get("comissao_pct"), 3.51), step=0.01)
+
+            c_p4, c_p5, c_p6 = st.columns(3)
+            p_outros = c_p4.number_input("Outros Custos Variáveis (%)", min_value=0.0, value=safe_float(precif_dict.get("outros_custos_var_pct"), 1.0), step=0.1)
+            p_fixas = c_p5.number_input("Partic. Despesas Fixas (%)", min_value=0.0, value=safe_float(precif_dict.get("desp_fixas_pct"), 2.0), step=0.1)
+            p_lucro = c_p6.number_input("Margem de Lucro (%)", min_value=0.0, value=safe_float(precif_dict.get("margem_lucro_pct"), 31.6724), step=0.5)
+
+            p_desconto_simulado = st.number_input("Simulação de Desconto para Venda (%)", min_value=0.0, max_value=100.0, value=safe_float(precif_dict.get("desconto_simulado_pct"), 0.0), step=0.5)
+
+            btn_calc_precif = st.form_submit_button("⚡ Calcular Precificação")
+            if btn_calc_precif:
+                st.session_state.ft_precif = {
+                    "imposto_pct": p_imp, "tx_cartao_pct": p_cart, "comissao_pct": p_com,
+                    "outros_custos_var_pct": p_outros, "desp_fixas_pct": p_fixas,
+                    "margem_lucro_pct": p_lucro, "desconto_simulado_pct": p_desconto_simulado,
+                    "opcao_cer": selecao_cer_chave
+                }
+                st.rerun()
 
         st.info(f"💡 **Custo Base Selecionado para Precificação (CER):** `R$ {cer_efetivo:,.4f}`")
-        
-        c_p1, c_p2, c_p3 = st.columns(3)
-        p_imp = c_p1.number_input("Imposto (%)", min_value=0.0, value=safe_float(precif_dict.get("imposto_pct"), 5.0), step=0.1)
-        p_cart = c_p2.number_input("Tx. Cartão e Antecipação (%)", min_value=0.0, value=safe_float(precif_dict.get("tx_cartao_pct"), 5.0), step=0.1)
-        p_com = c_p3.number_input("Comissão (%)", min_value=0.0, value=safe_float(precif_dict.get("comissao_pct"), 3.51), step=0.01)
-
-        c_p4, c_p5, c_p6 = st.columns(3)
-        p_outros = c_p4.number_input("Outros Custos Variáveis (%)", min_value=0.0, value=safe_float(precif_dict.get("outros_custos_var_pct"), 1.0), step=0.1)
-        p_fixas = c_p5.number_input("Partic. Despesas Fixas (%)", min_value=0.0, value=safe_float(precif_dict.get("desp_fixas_pct"), 2.0), step=0.1)
-        p_lucro = c_p6.number_input("Margem de Lucro (%)", min_value=0.0, value=safe_float(precif_dict.get("margem_lucro_pct"), 31.6724), step=0.5)
-
-        p_desconto_simulado = st.number_input("Simulação de Desconto para Venda (%)", min_value=0.0, max_value=100.0, value=safe_float(precif_dict.get("desconto_simulado_pct"), 0.0), step=0.5)
-
-        st.session_state.ft_precif = {
-            "imposto_pct": p_imp, "tx_cartao_pct": p_cart, "comissao_pct": p_com,
-            "outros_custos_var_pct": p_outros, "desp_fixas_pct": p_fixas,
-            "margem_lucro_pct": p_lucro, "desconto_simulado_pct": p_desconto_simulado,
-            "opcao_cer": selecao_cer_chave
-        }
 
         soma_aliquotas = (p_imp + p_cart + p_com + p_outros + p_fixas + p_lucro) / 100.0
         pv = cer_efetivo / (1.0 - soma_aliquotas) if (1.0 - soma_aliquotas) > 0 else 0.0
@@ -1614,7 +1643,9 @@ def render_modulo_ficha_tecnica():
     }
 
     if col_btn1.button("💾 Salvar / Atualizar Ficha Técnica Completa"):
+        conn = get_connection()
         cursor = conn.cursor()
+        is_postgres = "psycopg2" in str(type(conn))
         ins_ali_json_str = json.dumps(st.session_state.ft_items_ali)
         ins_nao_ali_json_str = json.dumps(st.session_state.ft_items_nao_ali)
         precif_json_str = json.dumps(st.session_state.ft_precif)
@@ -1659,22 +1690,28 @@ def render_modulo_ficha_tecnica():
                 """, (emp_v, ft_produto.upper().strip(), ft_ref, ft_rend_crua, ft_rend_assada, ft_peso_unid, ft_qtd_pacote, ft_unid_prod, perda_pct/100.0, ins_ali_json_str, ins_nao_ali_json_str, precif_json_str, data_hoje))
             conn.commit()
             st.success(f"Ficha Técnica '{ft_produto.upper()}' cadastrada no banco de dados com sucesso!")
+            
+        conn.close()
+        st.cache_data.clear() # Limpa o cache para que a nova ficha apareça nas buscas instantaneamente
         st.rerun()
 
-    # CORREÇÃO AQUI: Exclusão com limpeza do session_state
     if col_btn2.button("🗑️ Excluir Ficha Técnica Completa"):
         if st.session_state.ft_id_carregada is not None:
+            conn = get_connection()
             cursor = conn.cursor()
+            is_postgres = "psycopg2" in str(type(conn))
             if is_postgres:
                 cursor.execute("DELETE FROM fichas_tecnicas WHERE id = %s", (st.session_state.ft_id_carregada,))
             else:
                 cursor.execute("DELETE FROM fichas_tecnicas WHERE id = ?", (st.session_state.ft_id_carregada,))
             conn.commit()
+            conn.close()
+            st.cache_data.clear()
             reset_ft_session()
             st.success("Ficha Técnica excluída do banco de dados!")
             st.rerun()
         else:
-            st.warning("Nenhuma ficha foi carregada para ser excluída. Selecione e carregue uma ficha primeiro ou utilize o botão no topo.")
+            st.warning("Nenhuma ficha foi carregada para ser excluída.")
 
     pdf_bytes_ft = gerar_pdf_relatorio_ficha_tecnica(
         st.session_state.empresa_nome if 'empresa_nome' in st.session_state else "Açougue",
@@ -1689,8 +1726,6 @@ def render_modulo_ficha_tecnica():
         mime="application/pdf",
         key="btn_pdf_ficha_tecnica"
     )
-
-    conn.close()
 
 def render_modulo_ncg():
     st.header("📈 Análise de Necessidade de Capital de Giro (NCG)")
