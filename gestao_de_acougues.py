@@ -10,15 +10,15 @@ import numpy as np
 from fpdf import FPDF
 
 # =========================================================================
-# FUNÇÃO AUXILIAR PARA CONVERSÃO SEGURA DE NÚMEROS (PREVINE TYPEERROR)
+# FUNÇÃO AUXILIAR PARA CONVERSÃO SEGURA DE NÚMEROS (PREVINE TYPEERROR E SUPORTA %)
 # =========================================================================
 def safe_float(val, default=0.0):
-    """Converte valores com segurança para float, tratando None, NaN e strings vazias."""
+    """Converte valores com segurança para float, tratando None, NaN, strings com R$ e %."""
     if val is None or pd.isna(val):
         return default
     try:
         if isinstance(val, str):
-            val = val.replace('R$', '').replace(' ', '').replace(',', '.').strip()
+            val = val.replace('R$', '').replace('%', '').replace(' ', '').replace(',', '.').strip()
             if val == "":
                 return default
         return float(val)
@@ -354,15 +354,15 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM fichas_tecnicas")
     if cursor.fetchone()[0] == 0:
         ins_ali_default = json.dumps([
-            {"cod": "001", "produto": "COSTELA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
-            {"cod": "002", "produto": "PAPRICA DEFUMADA", "qtd_bruta": 0.2, "unidade": "KG", "preco_bruto": 29.00, "rendimento": 1.0},
-            {"cod": "003", "produto": "SAL GROSSO", "qtd_bruta": 0.3, "unidade": "KG", "preco_bruto": 6.00, "rendimento": 1.0},
-            {"cod": "004", "produto": "AMACIANTE DE CARNES", "qtd_bruta": 0.4, "unidade": "KG", "preco_bruto": 19.00, "rendimento": 1.0}
+            {"cod": "001", "produto": "COSTELA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento_pct": 100.0},
+            {"cod": "002", "produto": "PAPRICA DEFUMADA", "qtd_bruta": 0.2, "unidade": "KG", "preco_bruto": 29.00, "rendimento_pct": 100.0},
+            {"cod": "003", "produto": "SAL GROSSO", "qtd_bruta": 0.3, "unidade": "KG", "preco_bruto": 6.00, "rendimento_pct": 100.0},
+            {"cod": "004", "produto": "AMACIANTE DE CARNES", "qtd_bruta": 0.4, "unidade": "KG", "preco_bruto": 19.00, "rendimento_pct": 100.0}
         ])
         
         ins_nao_ali_default = json.dumps([
-            {"cod": "101", "produto": "GAS", "qtd_bruta": 0.25, "unidade": "UNID", "preco_bruto": 130.00, "rendimento": 1.0},
-            {"cod": "102", "produto": "EMBALAGEM", "qtd_bruta": 1.0, "unidade": "UNID", "preco_bruto": 70.00, "rendimento": 1.0}
+            {"cod": "101", "produto": "GAS", "qtd_bruta": 0.25, "unidade": "UNID", "preco_bruto": 130.00, "rendimento_pct": 100.0},
+            {"cod": "102", "produto": "EMBALAGEM", "qtd_bruta": 1.0, "unidade": "UNID", "preco_bruto": 70.00, "rendimento_pct": 100.0}
         ])
         
         precif_default = json.dumps({
@@ -1212,6 +1212,7 @@ def render_modulo_ficha_tecnica():
             st.session_state.ft_items_nao_ali = []
             st.session_state.ft_produto = "NOVO PRODUTO"
             st.session_state.ft_ref = "Produto Processado"
+            st.session_state.ft_rend_crua = 21.900
             st.session_state.ft_rend_assada = 14.226
             st.session_state.ft_peso_unid = 0.118
             st.session_state.ft_qtd_pacote = 4.0
@@ -1228,17 +1229,26 @@ def render_modulo_ficha_tecnica():
             st.session_state.ft_id_carregada = ft_id
             st.session_state.ft_produto = str(row_ft['produto'])
             st.session_state.ft_ref = str(row_ft.get('referencia', 'Produto Processado'))
+            st.session_state.ft_rend_crua = safe_float(row_ft.get('rendimento_kg'), 21.900)
             st.session_state.ft_rend_assada = safe_float(row_ft['rendimento_assada_kg'], 14.226)
             st.session_state.ft_peso_unid = safe_float(row_ft['peso_unidade_kg'], 0.118)
             st.session_state.ft_qtd_pacote = safe_float(row_ft['qtd_por_pacote'], 4.0)
 
             try:
-                st.session_state.ft_items_ali = json.loads(row_ft['insumos_ali_json']) if row_ft['insumos_ali_json'] else []
+                raw_ali = json.loads(row_ft['insumos_ali_json']) if row_ft['insumos_ali_json'] else []
+                for item in raw_ali:
+                    if "rendimento_pct" not in item:
+                        item["rendimento_pct"] = safe_float(item.get("rendimento", 1.0)) * 100.0
+                st.session_state.ft_items_ali = raw_ali
             except Exception:
                 st.session_state.ft_items_ali = []
 
             try:
-                st.session_state.ft_items_nao_ali = json.loads(row_ft['insumos_nao_ali_json']) if row_ft['insumos_nao_ali_json'] else []
+                raw_nao_ali = json.loads(row_ft['insumos_nao_ali_json']) if row_ft['insumos_nao_ali_json'] else []
+                for item in raw_nao_ali:
+                    if "rendimento_pct" not in item:
+                        item["rendimento_pct"] = safe_float(item.get("rendimento", 1.0)) * 100.0
+                st.session_state.ft_items_nao_ali = raw_nao_ali
             except Exception:
                 st.session_state.ft_items_nao_ali = []
 
@@ -1252,18 +1262,19 @@ def render_modulo_ficha_tecnica():
     if "ft_produto" not in st.session_state:
         st.session_state.ft_produto = "COSTELA ASSADA"
         st.session_state.ft_ref = "Produto Processado"
+        st.session_state.ft_rend_crua = 21.900
         st.session_state.ft_rend_assada = 14.226
         st.session_state.ft_peso_unid = 0.118
         st.session_state.ft_qtd_pacote = 4.0
         st.session_state.ft_items_ali = [
-            {"cod": "001", "produto": "COSTELA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento": 1.0},
-            {"cod": "002", "produto": "PAPRICA DEFUMADA", "qtd_bruta": 0.2, "unidade": "KG", "preco_bruto": 29.00, "rendimento": 1.0},
-            {"cod": "003", "produto": "SAL GROSSO", "qtd_bruta": 0.3, "unidade": "KG", "preco_bruto": 6.00, "rendimento": 1.0},
-            {"cod": "004", "produto": "AMACIANTE DE CARNES", "qtd_bruta": 0.4, "unidade": "KG", "preco_bruto": 19.00, "rendimento": 1.0}
+            {"cod": "001", "produto": "COSTELA", "qtd_bruta": 21.0, "unidade": "KG", "preco_bruto": 24.90, "rendimento_pct": 100.0},
+            {"cod": "002", "produto": "PAPRICA DEFUMADA", "qtd_bruta": 0.2, "unidade": "KG", "preco_bruto": 29.00, "rendimento_pct": 100.0},
+            {"cod": "003", "produto": "SAL GROSSO", "qtd_bruta": 0.3, "unidade": "KG", "preco_bruto": 6.00, "rendimento_pct": 100.0},
+            {"cod": "004", "produto": "AMACIANTE DE CARNES", "qtd_bruta": 0.4, "unidade": "KG", "preco_bruto": 19.00, "rendimento_pct": 100.0}
         ]
         st.session_state.ft_items_nao_ali = [
-            {"cod": "101", "produto": "GAS", "qtd_bruta": 0.25, "unidade": "UNID", "preco_bruto": 130.00, "rendimento": 1.0},
-            {"cod": "102", "produto": "EMBALAGEM", "qtd_bruta": 1.0, "unidade": "UNID", "preco_bruto": 70.00, "rendimento": 1.0}
+            {"cod": "101", "produto": "GAS", "qtd_bruta": 0.25, "unidade": "UNID", "preco_bruto": 130.00, "rendimento_pct": 100.0},
+            {"cod": "102", "produto": "EMBALAGEM", "qtd_bruta": 1.0, "unidade": "UNID", "preco_bruto": 70.00, "rendimento_pct": 100.0}
         ]
         st.session_state.ft_precif = {
             "imposto_pct": 5.0, "tx_cartao_pct": 5.0, "comissao_pct": 3.51,
@@ -1275,36 +1286,55 @@ def render_modulo_ficha_tecnica():
     tab_ft, tab_prec = st.tabs(["🍖 Ficha Técnica / Ordem de Produção", "💲 Precificação do Produto (Por KG)"])
 
     with tab_ft:
-        st.subheader("📌 Parâmetros de Produção & Rendimentos")
-        col_f1, col_f2, col_f3 = st.columns(3)
+        st.subheader("📌 Parâmetros de Produção & Rendimentos (Conforme Tabela Excel)")
         
-        ft_produto = col_f1.text_input("Nome do Produto Processado", value=st.session_state.ft_produto)
-        ft_ref = col_f2.text_input("Referência", value=st.session_state.ft_ref)
-        ft_rend_assada = col_f3.number_input("Rendimento Depois de Assada kg", min_value=0.001, value=safe_float(st.session_state.ft_rend_assada, 14.226), step=0.1, format="%.3f")
+        col_f1, col_f2 = st.columns(2)
+        ft_produto = col_f1.text_input("Produto:", value=st.session_state.ft_produto)
+        ft_ref = col_f2.text_input("Referência:", value=st.session_state.ft_ref)
 
-        col_f4, col_f5 = st.columns(2)
-        ft_peso_unid = col_f4.number_input("Peso da Unidade KG", min_value=0.001, value=safe_float(st.session_state.ft_peso_unid, 0.118), step=0.005, format="%.3f")
-        ft_qtd_pacote = col_f5.number_input("Quantidade no Pacote", min_value=1.0, value=safe_float(st.session_state.ft_qtd_pacote, 4.0), step=1.0)
+        col_p1, col_p2, col_p3 = st.columns(3)
+        ft_rend_crua = col_p1.number_input("Rendimento kg (Crua)", min_value=0.001, value=safe_float(st.session_state.get('ft_rend_crua'), 21.900), step=0.1, format="%.3f")
+        ft_rend_assada = col_p2.number_input("Rendimento Depois de Assada kg", min_value=0.001, value=safe_float(st.session_state.ft_rend_assada, 14.226), step=0.1, format="%.3f")
+        ft_peso_unid = col_p3.number_input("Peso da Unidade KG", min_value=0.001, value=safe_float(st.session_state.ft_peso_unid, 0.118), step=0.005, format="%.3f")
 
-        # CÁLCULO DE UNIDADES PRODUZIDAS IDÊNTICO À PLANILHA EXCEL
+        col_p4, col_p5 = st.columns(2)
+        ft_qtd_pacote = col_p4.number_input("Quantidade no Pacote", min_value=1.0, value=safe_float(st.session_state.ft_qtd_pacote, 4.0), step=1.0)
+
+        # CÁLCULOS IDÊNTICOS À PLANILHA EXCEL
         ft_unid_prod = math.floor(ft_rend_assada / ft_peso_unid) if ft_peso_unid > 0 else 0.0
+        perda_pct = (1.0 - (ft_rend_assada / ft_rend_crua)) * 100.0 if ft_rend_crua > 0 else 0.0
+
+        st.markdown("##### 📊 Tabela Resumo de Rendimentos Calculados:")
+        df_rend_tabela = pd.DataFrame([
+            {"Campo da Tabela Rendimentos": "Referência", "Valor Calculado / Entrada": ft_ref},
+            {"Campo da Tabela Rendimentos": "Produto", "Valor Calculado / Entrada": ft_produto.upper()},
+            {"Campo da Tabela Rendimentos": "Rendimento kg (Crua)", "Valor Calculado / Entrada": f"{ft_rend_crua:.3f} kg"},
+            {"Campo da Tabela Rendimentos": "Rendimento Depois de Assada kg", "Valor Calculado / Entrada": f"{ft_rend_assada:.3f} kg"},
+            {"Campo da Tabela Rendimentos": "Peso da Unidade KG", "Valor Calculado / Entrada": f"{ft_peso_unid:.3f} kg"},
+            {"Campo da Tabela Rendimentos": "Unidades Produzidas [Fórmula: Piso(Assada/Unidade)]", "Valor Calculado / Entrada": f"{int(ft_unid_prod)} un"},
+            {"Campo da Tabela Rendimentos": "Quantidade no Pacote", "Valor Calculado / Entrada": f"{int(ft_qtd_pacote)} un/pacote"},
+            {"Campo da Tabela Rendimentos": "Perda % [Fórmula: 1 - (Assada/Crua)]", "Valor Calculado / Entrada": f"{perda_pct:.4f}%"}
+        ])
+        st.dataframe(df_rend_tabela, use_container_width=True, hide_index=True)
 
         st.markdown("---")
         st.subheader("1. Insumos Alimentícios (Edição Interativa)")
-        st.caption("✏️ Você pode editar qualquer célula diretamente na tabela abaixo. Altere quantidades, preços ou rendimentos em tempo real.")
+        st.caption("✏️ Edite os insumos diretamente na tabela. A coluna de Rendimento deve ser informada em % (Ex: 100.00 = 100%).")
 
-        # MONTAGEM DA DATAFRAME INTERATIVA DE INSUMOS ALIMENTÍCIOS
         df_ali_raw = pd.DataFrame(st.session_state.ft_items_ali)
-        if df_ali_raw.empty:
-            df_ali_raw = pd.DataFrame(columns=["cod", "produto", "qtd_bruta", "unidade", "preco_bruto", "rendimento"])
+        if df_ali_raw.empty or "rendimento_pct" not in df_ali_raw.columns:
+            if not df_ali_raw.empty and "rendimento" in df_ali_raw.columns:
+                df_ali_raw["rendimento_pct"] = df_ali_raw["rendimento"].apply(lambda x: safe_float(x) * 100.0 if safe_float(x) <= 1.0 else safe_float(x))
+            else:
+                df_ali_raw = pd.DataFrame(columns=["cod", "produto", "qtd_bruta", "unidade", "preco_bruto", "rendimento_pct"])
 
-        df_ali_edit_input = df_ali_raw.rename(columns={
+        df_ali_edit_input = df_ali_raw[["cod", "produto", "qtd_bruta", "unidade", "preco_bruto", "rendimento_pct"]].rename(columns={
             "cod": "Cód",
             "produto": "Produto",
             "qtd_bruta": "Quantidade Bruta",
             "unidade": "Unidade",
             "preco_bruto": "Preço Bruto",
-            "rendimento": "Rendimento (Fator)"
+            "rendimento_pct": "Rendimento (%)"
         })
 
         edited_ali_df = st.data_editor(
@@ -1315,32 +1345,33 @@ def render_modulo_ficha_tecnica():
             column_config={
                 "Quantidade Bruta": st.column_config.NumberColumn(format="%.3f"),
                 "Preço Bruto": st.column_config.NumberColumn(format="R$ %.2f"),
-                "Rendimento (Fator)": st.column_config.NumberColumn(format="%.2f")
+                "Rendimento (%)": st.column_config.NumberColumn(format="%.2f %%", min_value=0.0, max_value=500.0)
             }
         )
 
-        # ATUALIZAÇÃO DO SESSION STATE COM CONVERSÃO SEGURA (TRATANDO NULOS/NONE)
         updated_ali_items = []
         for _, r_ali in edited_ali_df.iterrows():
             prod_nome = str(r_ali.get("Produto", "") or "").strip()
             if prod_nome != "":
                 qb = safe_float(r_ali.get("Quantidade Bruta"), 0.0)
                 pb = safe_float(r_ali.get("Preço Bruto"), 0.0)
-                rf = safe_float(r_ali.get("Rendimento (Fator)"), 1.0)
+                rp = safe_float(r_ali.get("Rendimento (%)"), 100.0)
                 updated_ali_items.append({
                     "cod": str(r_ali.get("Cód", "") or ""),
                     "produto": prod_nome.upper(),
                     "qtd_bruta": qb,
                     "unidade": str(r_ali.get("Unidade", "KG") or "KG").upper().strip(),
                     "preco_bruto": pb,
-                    "rendimento": rf
+                    "rendimento_pct": rp,
+                    "rendimento": rp / 100.0
                 })
         st.session_state.ft_items_ali = updated_ali_items
 
-        # EXIBIÇÃO DOS RESULTADOS CALCULADOS DOS INSUMOS ALIMENTÍCIOS
         rows_ali_calc = []
         for idx, item in enumerate(st.session_state.ft_items_ali):
-            ql = item['qtd_bruta'] * item['rendimento']
+            rp = item.get('rendimento_pct', 100.0)
+            fator_rend = rp / 100.0
+            ql = item['qtd_bruta'] * fator_rend
             pl = item['preco_bruto'] * ql
             rows_ali_calc.append({
                 "Cód": item.get('cod', f"{idx+1:03d}"),
@@ -1348,7 +1379,7 @@ def render_modulo_ficha_tecnica():
                 "Qtd Bruta": item['qtd_bruta'],
                 "Unid": item['unidade'],
                 "Preço Bruto (R$)": item['preco_bruto'],
-                "Rendimento": item['rendimento'],
+                "Rendimento (%)": f"{rp:.2f}%",
                 "Qtd Líquida": ql,
                 "Preço Líquido (R$)": pl
             })
@@ -1357,29 +1388,28 @@ def render_modulo_ficha_tecnica():
             df_ali_view = pd.DataFrame(rows_ali_calc)
             st.markdown("**Cálculos Apurados dos Insumos Alimentícios:**")
             st.dataframe(df_ali_view.style.format({
-                "Qtd Bruta": "{:.3f}", "Preço Bruto (R$)": "R$ {:.2f}", "Rendimento": "{:.2f}",
+                "Qtd Bruta": "{:.3f}", "Preço Bruto (R$)": "R$ {:.2f}",
                 "Qtd Líquida": "{:.3f}", "Preço Líquido (R$)": "R$ {:.2f}"
             }), use_container_width=True)
 
-        # CÁLCULO DO RENDIMENTO CRUA (KG) COMO SOMA DAS QUANTIDADES LÍQUIDAS
-        ft_rend_crua = sum(item['qtd_bruta'] * item['rendimento'] for item in st.session_state.ft_items_ali)
-        perda_pct = (1.0 - (ft_rend_assada / ft_rend_crua)) * 100.0 if ft_rend_crua > 0 else 0.0
-
         st.markdown("---")
         st.subheader("2. Insumos Não Alimentícios (Gás, Embalagens, etc. - Edição Interativa)")
-        st.caption("✏️ Edite os insumos não alimentícios diretamente na tabela abaixo.")
+        st.caption("✏️ Edite os insumos não alimentícios. A coluna Rendimento é expressa em %.")
 
         df_nao_ali_raw = pd.DataFrame(st.session_state.ft_items_nao_ali)
-        if df_nao_ali_raw.empty:
-            df_nao_ali_raw = pd.DataFrame(columns=["cod", "produto", "qtd_bruta", "unidade", "preco_bruto", "rendimento"])
+        if df_nao_ali_raw.empty or "rendimento_pct" not in df_nao_ali_raw.columns:
+            if not df_nao_ali_raw.empty and "rendimento" in df_nao_ali_raw.columns:
+                df_nao_ali_raw["rendimento_pct"] = df_nao_ali_raw["rendimento"].apply(lambda x: safe_float(x) * 100.0 if safe_float(x) <= 1.0 else safe_float(x))
+            else:
+                df_nao_ali_raw = pd.DataFrame(columns=["cod", "produto", "qtd_bruta", "unidade", "preco_bruto", "rendimento_pct"])
 
-        df_nao_ali_edit_input = df_nao_ali_raw.rename(columns={
+        df_nao_ali_edit_input = df_nao_ali_raw[["cod", "produto", "qtd_bruta", "unidade", "preco_bruto", "rendimento_pct"]].rename(columns={
             "cod": "Cód",
             "produto": "Produto",
             "qtd_bruta": "Quantidade Bruta",
             "unidade": "Unidade",
             "preco_bruto": "Preço Bruto",
-            "rendimento": "Rendimento (Fator)"
+            "rendimento_pct": "Rendimento (%)"
         })
 
         edited_nao_ali_df = st.data_editor(
@@ -1390,31 +1420,33 @@ def render_modulo_ficha_tecnica():
             column_config={
                 "Quantidade Bruta": st.column_config.NumberColumn(format="%.3f"),
                 "Preço Bruto": st.column_config.NumberColumn(format="R$ %.2f"),
-                "Rendimento (Fator)": st.column_config.NumberColumn(format="%.2f")
+                "Rendimento (%)": st.column_config.NumberColumn(format="%.2f %%", min_value=0.0, max_value=500.0)
             }
         )
 
-        # ATUALIZAÇÃO DO SESSION STATE COM CONVERSÃO SEGURA (TRATANDO NULOS/NONE)
         updated_nao_ali_items = []
         for _, r_nao in edited_nao_ali_df.iterrows():
             prod_nome = str(r_nao.get("Produto", "") or "").strip()
             if prod_nome != "":
                 qb = safe_float(r_nao.get("Quantidade Bruta"), 0.0)
                 pb = safe_float(r_nao.get("Preço Bruto"), 0.0)
-                rf = safe_float(r_nao.get("Rendimento (Fator)"), 1.0)
+                rp = safe_float(r_nao.get("Rendimento (%)"), 100.0)
                 updated_nao_ali_items.append({
                     "cod": str(r_nao.get("Cód", "") or ""),
                     "produto": prod_nome.upper(),
                     "qtd_bruta": qb,
                     "unidade": str(r_nao.get("Unidade", "UNID") or "UNID").upper().strip(),
                     "preco_bruto": pb,
-                    "rendimento": rf
+                    "rendimento_pct": rp,
+                    "rendimento": rp / 100.0
                 })
         st.session_state.ft_items_nao_ali = updated_nao_ali_items
 
         rows_nao_ali_calc = []
         for idx, item in enumerate(st.session_state.ft_items_nao_ali):
-            ql = item['qtd_bruta'] * item['rendimento']
+            rp = item.get('rendimento_pct', 100.0)
+            fator_rend = rp / 100.0
+            ql = item['qtd_bruta'] * fator_rend
             pl = item['preco_bruto'] * ql
             rows_nao_ali_calc.append({
                 "Cód": item.get('cod', f"{idx+101:03d}"),
@@ -1422,7 +1454,7 @@ def render_modulo_ficha_tecnica():
                 "Qtd Bruta": item['qtd_bruta'],
                 "Unid": item['unidade'],
                 "Preço Bruto (R$)": item['preco_bruto'],
-                "Rendimento": item['rendimento'],
+                "Rendimento (%)": f"{rp:.2f}%",
                 "Qtd Líquida": ql,
                 "Preço Líquido (R$)": pl
             })
@@ -1431,14 +1463,12 @@ def render_modulo_ficha_tecnica():
             df_nao_ali_view = pd.DataFrame(rows_nao_ali_calc)
             st.markdown("**Cálculos Apurados dos Insumos Não Alimentícios:**")
             st.dataframe(df_nao_ali_view.style.format({
-                "Qtd Bruta": "{:.3f}", "Preço Bruto (R$)": "R$ {:.2f}", "Rendimento": "{:.2f}",
+                "Qtd Bruta": "{:.3f}", "Preço Bruto (R$)": "R$ {:.2f}",
                 "Qtd Líquida": "{:.3f}", "Preço Líquido (R$)": "R$ {:.2f}"
             }), use_container_width=True)
 
-        # CÁLCULOS DA PLANILHA EXCEL "COSTELA ASSADA"
-        tot_ali_custo = sum(item['preco_bruto'] * (item['qtd_bruta'] * item['rendimento']) for item in st.session_state.ft_items_ali)
-        tot_ali_qtd = ft_rend_crua
-        tot_nao_ali_custo = sum(item['preco_bruto'] * (item['qtd_bruta'] * item['rendimento']) for item in st.session_state.ft_items_nao_ali)
+        tot_ali_custo = sum(item['preco_bruto'] * (item['qtd_bruta'] * (item.get('rendimento_pct', 100.0) / 100.0)) for item in st.session_state.ft_items_ali)
+        tot_nao_ali_custo = sum(item['preco_bruto'] * (item['qtd_bruta'] * (item.get('rendimento_pct', 100.0) / 100.0)) for item in st.session_state.ft_items_nao_ali)
 
         custo_total = tot_ali_custo + tot_nao_ali_custo
         custo_kg_crua = custo_total / ft_rend_crua if ft_rend_crua > 0 else 0.0
@@ -1447,12 +1477,8 @@ def render_modulo_ficha_tecnica():
         custo_pacote = custo_unidade * ft_qtd_pacote
 
         st.markdown("---")
-        st.subheader("📊 Tabela de Custos")
+        st.subheader("📊 Resumo dos Custos Totais")
         
-        info_perda_col, info_unid_col = st.columns(2)
-        info_perda_col.info(f"📊 **Rendimento Crua:** `{ft_rend_crua:.3f} kg` | **Rendimento Assada:** `{ft_rend_assada:.3f} kg` | **Perda %:** `{perda_pct:.4f}%`")
-        info_unid_col.info(f"📦 **Unidades Produzidas:** `{int(ft_unid_prod)}` (calculado de {ft_rend_assada:.3f}/{ft_peso_unid:.3f}) | **Qtd por Pacote:** `{int(ft_qtd_pacote)}`")
-
         m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("Custo Total", f"R$ {custo_total:,.2f}")
         m2.metric("Custo/Kg Crua", f"R$ {custo_kg_crua:,.2f}")
@@ -1557,7 +1583,7 @@ def render_modulo_ficha_tecnica():
     col_btn1, col_btn2, col_btn3 = st.columns(3)
 
     calc_res_pdf = {
-        'tot_ali_custo': tot_ali_custo, 'tot_ali_qtd': tot_ali_qtd, 'tot_nao_ali_custo': tot_nao_ali_custo,
+        'tot_ali_custo': tot_ali_custo, 'tot_nao_ali_custo': tot_nao_ali_custo,
         'custo_total': custo_total, 'custo_kg_crua': custo_kg_crua, 'custo_kg_assada': custo_kg_assada,
         'custo_unidade': custo_unidade, 'custo_pacote': custo_pacote, 'cer': cer_efetivo, 'cer_pct': cer_pct,
         'val_imp': val_imp, 'f_imp': f_imp, 'val_cart': val_cart, 'f_cart': f_cart,
@@ -1689,12 +1715,7 @@ def render_modulo_ncg():
     ncg_atual = cmv_diario * ciclo_atual
     ncg_prop = cmv_diario * ciclo_prop
 
-    deficit_imed = receber - pagar + caixa
-    entradas_atual = fat_diario * max(0.0, pmp_atual - pmr_atual) if pmr_atual <= pmp_atual else 0.0
-    entradas_prop = fat_diario * max(0.0, pmp_prop - pmr_prop) if pmr_prop <= pmp_prop else 0.0
-
-    saldo_ciclo_atual = entradas_atual + receber - pagar + caixa
-    saldo_ciclo_prop = entradas_prop + receber - pagar + caixa
+    saldo_ciclo_atual = receber - pagar + caixa
     economia_ncg = ncg_atual - ncg_prop
 
     st.markdown("---")
