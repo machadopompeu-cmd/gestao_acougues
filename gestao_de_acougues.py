@@ -956,7 +956,7 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(190, 5, "1. DADOS FINANCEIROS DA EMPRESA", 1, 1, 'C', True)
 
-    pdf.set_font("Arial", size=7.5)
+    pdf.set_font("Arial", style="7.5")
     dfin_rows = [
         ("Faturamento Bruto Mensal", f"R$ {dados_fin['fat']:,.2f}"),
         ("Custo da Mercadoria Vendida (CMV)", f"R$ {dados_fin['cmv']:,.2f}"),
@@ -1285,7 +1285,6 @@ def render_modulo_ficha_tecnica():
         if df_ali_raw.empty:
             df_ali_raw = pd.DataFrame(columns=["cod", "produto", "qtd_bruta", "unidade", "preco_bruto", "rendimento"])
 
-        # RENOMEAR COLUNAS PARA APRESENTAÇÃO AMIGÁVEL
         df_ali_edit_input = df_ali_raw.rename(columns={
             "cod": "Cód",
             "produto": "Produto",
@@ -1307,7 +1306,7 @@ def render_modulo_ficha_tecnica():
             }
         )
 
-        # ATUALIZAÇÃO DO SESSION STATE DE INSUMOS ALIMENTÍCIOS COM BASE NA TABELA EDITADA
+        # ATUALIZAÇÃO DO SESSION STATE COM BASE NA EDICAO NA TABELA
         updated_ali_items = []
         for _, r_ali in edited_ali_df.iterrows():
             if str(r_ali.get("Produto", "")).strip() != "":
@@ -1324,7 +1323,7 @@ def render_modulo_ficha_tecnica():
                 })
         st.session_state.ft_items_ali = updated_ali_items
 
-        # EXIBIÇÃO DOS RESULTADOS CALCULADOS DOS INSUMOS ALIMENTÍCIOS (EXCEL IDÊNTICO)
+        # EXIBIÇÃO DOS RESULTADOS CALCULADOS DOS INSUMOS ALIMENTÍCIOS
         rows_ali_calc = []
         for idx, item in enumerate(st.session_state.ft_items_ali):
             ql = item['qtd_bruta'] * item['rendimento']
@@ -1348,7 +1347,7 @@ def render_modulo_ficha_tecnica():
                 "Qtd Líquida": "{:.3f}", "Preço Líquido (R$)": "R$ {:.2f}"
             }), use_container_width=True)
 
-        # CÁLCULO DO RENDIMENTO CRUA (KG) COMO SOMA DAS QUANTIDADES LÍQUIDAS DOS INSUMOS ALIMENTÍCIOS (=SUM(H24:H47) NO EXCEL)
+        # CÁLCULO DO RENDIMENTO CRUA (KG) COMO SOMA DAS QUANTIDADES LÍQUIDAS DOS INSUMOS ALIMENTÍCIOS
         ft_rend_crua = sum(item['qtd_bruta'] * item['rendimento'] for item in st.session_state.ft_items_ali)
         perda_pct = (1.0 - (ft_rend_assada / ft_rend_crua)) * 100.0 if ft_rend_crua > 0 else 0.0
 
