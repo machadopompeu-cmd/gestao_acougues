@@ -1166,6 +1166,23 @@ def render_modulo_financeiro():
     except Exception as err:
         st.error(f"Erro ao calcular parâmetros do empréstimo: {err}")
 
+def reset_ft_session():
+    """Função auxiliar para resetar totalmente as variáveis da ficha técnica da sessão."""
+    st.session_state.ft_id_carregada = None
+    st.session_state.ft_items_ali = []
+    st.session_state.ft_items_nao_ali = []
+    st.session_state.ft_produto = "NOVO PRODUTO"
+    st.session_state.ft_ref = "Produto Processado"
+    st.session_state.ft_rend_crua = 21.900
+    st.session_state.ft_rend_assada = 14.226
+    st.session_state.ft_peso_unid = 0.118
+    st.session_state.ft_qtd_pacote = 4.0
+    st.session_state.ft_precif = {
+        "imposto_pct": 5.0, "tx_cartao_pct": 5.0, "comissao_pct": 3.51,
+        "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 31.6724,
+        "desconto_simulado_pct": 0.0, "opcao_cer": "Custo/kg Total Depois de Assada"
+    }
+
 def render_modulo_ficha_tecnica():
     st.header("📋 Módulo de Ficha Técnica & Precificação")
     emp_id_ativo = st.session_state.empresa_id
@@ -1174,7 +1191,7 @@ def render_modulo_ficha_tecnica():
     is_postgres = "psycopg2" in str(type(conn))
 
     st.subheader("🔍 Buscar ou Selecionar Ficha Técnica Armazenada")
-    col_search1, col_search2 = st.columns([3, 1])
+    col_search1, col_search2, col_search3 = st.columns([3, 1, 1])
     
     termo_busca = col_search1.text_input("Buscar por Nome do Produto / Ficha Técnica", value="")
 
@@ -1207,20 +1224,7 @@ def render_modulo_ficha_tecnica():
 
     if col_search2.button("📥 Carregar Ficha"):
         if ficha_selecionada == "➕ Criar Nova Ficha Técnica":
-            st.session_state.ft_id_carregada = None
-            st.session_state.ft_items_ali = []
-            st.session_state.ft_items_nao_ali = []
-            st.session_state.ft_produto = "NOVO PRODUTO"
-            st.session_state.ft_ref = "Produto Processado"
-            st.session_state.ft_rend_crua = 21.900
-            st.session_state.ft_rend_assada = 14.226
-            st.session_state.ft_peso_unid = 0.118
-            st.session_state.ft_qtd_pacote = 4.0
-            st.session_state.ft_precif = {
-                "imposto_pct": 5.0, "tx_cartao_pct": 5.0, "comissao_pct": 3.51,
-                "outros_custos_var_pct": 1.0, "desp_fixas_pct": 2.0, "margem_lucro_pct": 31.6724,
-                "desconto_simulado_pct": 0.0, "opcao_cer": "Custo/kg Total Depois de Assada"
-            }
+            reset_ft_session()
             st.success("Nova Ficha Técnica iniciada!")
             st.rerun()
         else:
@@ -1257,6 +1261,22 @@ def render_modulo_ficha_tecnica():
             except Exception:
                 st.session_state.ft_precif = {}
             st.success(f"Ficha Técnica #{ft_id} ({row_ft['produto']}) carregada com sucesso!")
+            st.rerun()
+
+    # CORREÇÃO AQUI: Botão de exclusão direta pela lista suspensa superior
+    if col_search3.button("🗑️ Excluir Ficha"):
+        if ficha_selecionada == "➕ Criar Nova Ficha Técnica":
+            st.warning("Selecione uma ficha válida para excluir!")
+        else:
+            ft_id_del = int(ficha_selecionada.split(" - ")[0].replace("#", ""))
+            cursor = conn.cursor()
+            if is_postgres:
+                cursor.execute("DELETE FROM fichas_tecnicas WHERE id = %s", (ft_id_del,))
+            else:
+                cursor.execute("DELETE FROM fichas_tecnicas WHERE id = ?", (ft_id_del,))
+            conn.commit()
+            reset_ft_session()
+            st.success(f"Ficha Técnica #{ft_id_del} excluída com sucesso do banco de dados!")
             st.rerun()
 
     if "ft_produto" not in st.session_state:
@@ -1641,6 +1661,7 @@ def render_modulo_ficha_tecnica():
             st.success(f"Ficha Técnica '{ft_produto.upper()}' cadastrada no banco de dados com sucesso!")
         st.rerun()
 
+    # CORREÇÃO AQUI: Exclusão com limpeza do session_state
     if col_btn2.button("🗑️ Excluir Ficha Técnica Completa"):
         if st.session_state.ft_id_carregada is not None:
             cursor = conn.cursor()
@@ -1649,9 +1670,11 @@ def render_modulo_ficha_tecnica():
             else:
                 cursor.execute("DELETE FROM fichas_tecnicas WHERE id = ?", (st.session_state.ft_id_carregada,))
             conn.commit()
-            st.session_state.ft_id_carregada = None
+            reset_ft_session()
             st.success("Ficha Técnica excluída do banco de dados!")
             st.rerun()
+        else:
+            st.warning("Nenhuma ficha foi carregada para ser excluída. Selecione e carregue uma ficha primeiro ou utilize o botão no topo.")
 
     pdf_bytes_ft = gerar_pdf_relatorio_ficha_tecnica(
         st.session_state.empresa_nome if 'empresa_nome' in st.session_state else "Açougue",
