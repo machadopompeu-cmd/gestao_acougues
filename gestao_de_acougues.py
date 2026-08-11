@@ -10,22 +10,6 @@ import numpy as np
 from fpdf import FPDF
 
 # =========================================================================
-# FUNÇÃO AUXILIAR PARA CONVERSÃO SEGURA DE NÚMEROS (PREVINE TYPEERROR)
-# =========================================================================
-def safe_float(val, default=0.0):
-    """Converte valores com segurança para float, tratando None, NaN e strings vazias."""
-    if val is None or pd.isna(val):
-        return default
-    try:
-        if isinstance(val, str):
-            val = val.replace('R$', '').replace(' ', '').replace(',', '.').strip()
-            if val == "":
-                return default
-        return float(val)
-    except (ValueError, TypeError):
-        return default
-
-# =========================================================================
 # 1. CONFIGURAÇÃO VISUAL E ESTILIZAÇÃO DA INTERFACE (UI/UX)
 # =========================================================================
 st.set_page_config(page_title="Gestão de Açougues - Renato Frigotudo & Associados", layout="wide")
@@ -469,20 +453,20 @@ def exibir_cabecalho(nome_empresa_usuaria=None):
 # 5. MOTOR DE CÁLCULO DA DESOSSA & RELATÓRIO PDF DESOSSA
 # =========================================================================
 def processar_calculos_desossa(acao, df_cortes):
-    peso_bruto = safe_float(acao['peso_bruto'])
-    preco_animal_kg = safe_float(acao['preco_animal_kg'])
+    peso_bruto = float(acao['peso_bruto'])
+    preco_animal_kg = float(acao['preco_animal_kg'])
     custo_total_animal = peso_bruto * preco_animal_kg
     
-    ossos = safe_float(acao['ossos_muxiba'])
-    quebra = safe_float(acao['quebra_nao_identificada'])
-    exsudato = safe_float(acao['exsudato_escorrimento'])
+    ossos = float(acao['ossos_muxiba'])
+    quebra = float(acao['quebra_nao_identificada'])
+    exsudato = float(acao['exsudato_escorrimento'])
     total_quebra = ossos + quebra + exsudato
     peso_final = max(0.0, peso_bruto - total_quebra)
     
-    p_cartao = safe_float(acao.get('p_cartao', 0.0)) / 100.0
-    p_impostos = safe_float(acao.get('p_impostos', 0.0)) / 100.0
-    p_embalagens = safe_float(acao.get('p_embalagens', 0.0)) / 100.0
-    p_comissao = safe_float(acao.get('p_comissao', 0.0)) / 100.0
+    p_cartao = float(acao.get('p_cartao', 0.0)) / 100.0
+    p_impostos = float(acao.get('p_impostos', 0.0)) / 100.0
+    p_embalagens = float(acao.get('p_embalagens', 0.0)) / 100.0
+    p_comissao = float(acao.get('p_comissao', 0.0)) / 100.0
     soma_percentuais_var = p_cartao + p_impostos + p_embalagens + p_comissao
     
     coef_global = peso_final / peso_bruto if peso_bruto > 0 else 0.0
@@ -493,7 +477,8 @@ def processar_calculos_desossa(acao, df_cortes):
     df = df_cortes.copy()
     
     if 'peso' in df.columns:
-        df['peso'] = df['peso'].apply(safe_float)
+        df['peso'] = df['peso'].astype(str).str.replace(',', '.', regex=True)
+        df['peso'] = pd.to_numeric(df['peso'], errors='coerce').fillna(0.0)
     else:
         df['peso'] = 0.0
         
@@ -504,7 +489,8 @@ def processar_calculos_desossa(acao, df_cortes):
             break
             
     if col_preco_encontrada:
-        df['preco_venda'] = df[col_preco_encontrada].apply(safe_float)
+        df['preco_venda'] = df[col_preco_encontrada].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace(',', '.', regex=True)
+        df['preco_venda'] = pd.to_numeric(df['preco_venda'], errors='coerce').fillna(0.0)
     else:
         df['preco_venda'] = 0.0
         
@@ -596,6 +582,7 @@ def processar_calculos_desossa(acao, df_cortes):
     markup = (total_vendas_geral / custo_total_efetivo - 1.0) if custo_total_efetivo > 0 else 0.0
     
     preco_medio_compra_sem = custo_total_animal / total_peso_cortes if total_peso_cortes > 0 else 0.0
+    preco_medio_compra_com = custo_total_efetivo / total_peso_cortes if total_peso_cortes > 0 else 0.0
     preco_medio_venda = total_vendas_geral / total_peso_cortes if total_peso_cortes > 0 else 0.0
 
     margem_contrib_ouro_rs = val_venda_ouro - custo_ouro
@@ -969,7 +956,7 @@ def gerar_pdf_relatorio_ncg(nome_empresa, dados_fin, prazos, calcs, liquidez, di
     pdf.set_fill_color(226, 232, 240)
     pdf.cell(190, 5, "1. DADOS FINANCEIROS DA EMPRESA", 1, 1, 'C', True)
 
-    pdf.set_font("Arial", size=7.5)
+    pdf.set_font("Arial", style="7.5")
     dfin_rows = [
         ("Faturamento Bruto Mensal", f"R$ {dados_fin['fat']:,.2f}"),
         ("Custo da Mercadoria Vendida (CMV)", f"R$ {dados_fin['cmv']:,.2f}"),
@@ -1228,9 +1215,9 @@ def render_modulo_ficha_tecnica():
             st.session_state.ft_id_carregada = ft_id
             st.session_state.ft_produto = str(row_ft['produto'])
             st.session_state.ft_ref = str(row_ft.get('referencia', 'Produto Processado'))
-            st.session_state.ft_rend_assada = safe_float(row_ft['rendimento_assada_kg'], 14.226)
-            st.session_state.ft_peso_unid = safe_float(row_ft['peso_unidade_kg'], 0.118)
-            st.session_state.ft_qtd_pacote = safe_float(row_ft['qtd_por_pacote'], 4.0)
+            st.session_state.ft_rend_assada = float(row_ft['rendimento_assada_kg'])
+            st.session_state.ft_peso_unid = float(row_ft['peso_unidade_kg'])
+            st.session_state.ft_qtd_pacote = float(row_ft['qtd_por_pacote'])
 
             try:
                 st.session_state.ft_items_ali = json.loads(row_ft['insumos_ali_json']) if row_ft['insumos_ali_json'] else []
@@ -1280,13 +1267,13 @@ def render_modulo_ficha_tecnica():
         
         ft_produto = col_f1.text_input("Nome do Produto Processado", value=st.session_state.ft_produto)
         ft_ref = col_f2.text_input("Referência", value=st.session_state.ft_ref)
-        ft_rend_assada = col_f3.number_input("Rendimento Depois de Assada kg", min_value=0.001, value=safe_float(st.session_state.ft_rend_assada, 14.226), step=0.1, format="%.3f")
+        ft_rend_assada = col_f3.number_input("Rendimento Depois de Assada kg", min_value=0.001, value=st.session_state.ft_rend_assada, step=0.1, format="%.3f")
 
         col_f4, col_f5 = st.columns(2)
-        ft_peso_unid = col_f4.number_input("Peso da Unidade KG", min_value=0.001, value=safe_float(st.session_state.ft_peso_unid, 0.118), step=0.005, format="%.3f")
-        ft_qtd_pacote = col_f5.number_input("Quantidade no Pacote", min_value=1.0, value=safe_float(st.session_state.ft_qtd_pacote, 4.0), step=1.0)
+        ft_peso_unid = col_f4.number_input("Peso da Unidade KG", min_value=0.001, value=st.session_state.ft_peso_unid, step=0.005, format="%.3f")
+        ft_qtd_pacote = col_f5.number_input("Quantidade no Pacote", min_value=1.0, value=st.session_state.ft_qtd_pacote, step=1.0)
 
-        # CÁLCULO DE UNIDADES PRODUZIDAS IDÊNTICO À PLANILHA EXCEL
+        # CÁLCULO DE UNIDADES PRODUZIDAS IDÊNTICO À PLANILHA EXCEL (=ROUNDDOWN(Rendimento_Assada / Peso_Unidade, 0))
         ft_unid_prod = math.floor(ft_rend_assada / ft_peso_unid) if ft_peso_unid > 0 else 0.0
 
         st.markdown("---")
@@ -1319,19 +1306,18 @@ def render_modulo_ficha_tecnica():
             }
         )
 
-        # ATUALIZAÇÃO DO SESSION STATE COM CONVERSÃO SEGURA (TRATANDO NULOS/NONE)
+        # ATUALIZAÇÃO DO SESSION STATE COM BASE NA EDICAO NA TABELA
         updated_ali_items = []
         for _, r_ali in edited_ali_df.iterrows():
-            prod_nome = str(r_ali.get("Produto", "") or "").strip()
-            if prod_nome != "":
-                qb = safe_float(r_ali.get("Quantidade Bruta"), 0.0)
-                pb = safe_float(r_ali.get("Preço Bruto"), 0.0)
-                rf = safe_float(r_ali.get("Rendimento (Fator)"), 1.0)
+            if str(r_ali.get("Produto", "")).strip() != "":
+                qb = float(r_ali.get("Quantidade Bruta", 0.0))
+                pb = float(r_ali.get("Preço Bruto", 0.0))
+                rf = float(r_ali.get("Rendimento (Fator)", 1.0))
                 updated_ali_items.append({
-                    "cod": str(r_ali.get("Cód", "") or ""),
-                    "produto": prod_nome.upper(),
+                    "cod": str(r_ali.get("Cód", "")),
+                    "produto": str(r_ali.get("Produto", "")).upper().strip(),
                     "qtd_bruta": qb,
-                    "unidade": str(r_ali.get("Unidade", "KG") or "KG").upper().strip(),
+                    "unidade": str(r_ali.get("Unidade", "KG")).upper().strip(),
                     "preco_bruto": pb,
                     "rendimento": rf
                 })
@@ -1361,7 +1347,7 @@ def render_modulo_ficha_tecnica():
                 "Qtd Líquida": "{:.3f}", "Preço Líquido (R$)": "R$ {:.2f}"
             }), use_container_width=True)
 
-        # CÁLCULO DO RENDIMENTO CRUA (KG) COMO SOMA DAS QUANTIDADES LÍQUIDAS
+        # CÁLCULO DO RENDIMENTO CRUA (KG) COMO SOMA DAS QUANTIDADES LÍQUIDAS DOS INSUMOS ALIMENTÍCIOS
         ft_rend_crua = sum(item['qtd_bruta'] * item['rendimento'] for item in st.session_state.ft_items_ali)
         perda_pct = (1.0 - (ft_rend_assada / ft_rend_crua)) * 100.0 if ft_rend_crua > 0 else 0.0
 
@@ -1394,19 +1380,17 @@ def render_modulo_ficha_tecnica():
             }
         )
 
-        # ATUALIZAÇÃO DO SESSION STATE COM CONVERSÃO SEGURA (TRATANDO NULOS/NONE)
         updated_nao_ali_items = []
         for _, r_nao in edited_nao_ali_df.iterrows():
-            prod_nome = str(r_nao.get("Produto", "") or "").strip()
-            if prod_nome != "":
-                qb = safe_float(r_nao.get("Quantidade Bruta"), 0.0)
-                pb = safe_float(r_nao.get("Preço Bruto"), 0.0)
-                rf = safe_float(r_nao.get("Rendimento (Fator)"), 1.0)
+            if str(r_nao.get("Produto", "")).strip() != "":
+                qb = float(r_nao.get("Quantidade Bruta", 0.0))
+                pb = float(r_nao.get("Preço Bruto", 0.0))
+                rf = float(r_nao.get("Rendimento (Fator)", 1.0))
                 updated_nao_ali_items.append({
-                    "cod": str(r_nao.get("Cód", "") or ""),
-                    "produto": prod_nome.upper(),
+                    "cod": str(r_nao.get("Cód", "")),
+                    "produto": str(r_nao.get("Produto", "")).upper().strip(),
                     "qtd_bruta": qb,
-                    "unidade": str(r_nao.get("Unidade", "UNID") or "UNID").upper().strip(),
+                    "unidade": str(r_nao.get("Unidade", "UNID")).upper().strip(),
                     "preco_bruto": pb,
                     "rendimento": rf
                 })
@@ -1435,7 +1419,7 @@ def render_modulo_ficha_tecnica():
                 "Qtd Líquida": "{:.3f}", "Preço Líquido (R$)": "R$ {:.2f}"
             }), use_container_width=True)
 
-        # CÁLCULOS DA PLANILHA EXCEL "COSTELA ASSADA"
+        # CÁLCULOS IDÊNTICOS À PLANILHA EXCEL "COSTELA ASSADA"
         tot_ali_custo = sum(item['preco_bruto'] * (item['qtd_bruta'] * item['rendimento']) for item in st.session_state.ft_items_ali)
         tot_ali_qtd = ft_rend_crua
         tot_nao_ali_custo = sum(item['preco_bruto'] * (item['qtd_bruta'] * item['rendimento']) for item in st.session_state.ft_items_nao_ali)
@@ -1487,16 +1471,16 @@ def render_modulo_ficha_tecnica():
         st.info(f"💡 **Custo Base Selecionado para Precificação (CER):** `R$ {cer_efetivo:,.4f}`")
         
         c_p1, c_p2, c_p3 = st.columns(3)
-        p_imp = c_p1.number_input("Imposto (%)", min_value=0.0, value=safe_float(precif_dict.get("imposto_pct"), 5.0), step=0.1)
-        p_cart = c_p2.number_input("Tx. Cartão e Antecipação (%)", min_value=0.0, value=safe_float(precif_dict.get("tx_cartao_pct"), 5.0), step=0.1)
-        p_com = c_p3.number_input("Comissão (%)", min_value=0.0, value=safe_float(precif_dict.get("comissao_pct"), 3.51), step=0.01)
+        p_imp = c_p1.number_input("Imposto (%)", min_value=0.0, value=float(precif_dict.get("imposto_pct", 5.0)), step=0.1)
+        p_cart = c_p2.number_input("Tx. Cartão e Antecipação (%)", min_value=0.0, value=float(precif_dict.get("tx_cartao_pct", 5.0)), step=0.1)
+        p_com = c_p3.number_input("Comissão (%)", min_value=0.0, value=float(precif_dict.get("comissao_pct", 3.51)), step=0.01)
 
         c_p4, c_p5, c_p6 = st.columns(3)
-        p_outros = c_p4.number_input("Outros Custos Variáveis (%)", min_value=0.0, value=safe_float(precif_dict.get("outros_custos_var_pct"), 1.0), step=0.1)
-        p_fixas = c_p5.number_input("Partic. Despesas Fixas (%)", min_value=0.0, value=safe_float(precif_dict.get("desp_fixas_pct"), 2.0), step=0.1)
-        p_lucro = c_p6.number_input("Margem de Lucro (%)", min_value=0.0, value=safe_float(precif_dict.get("margem_lucro_pct"), 31.6724), step=0.5)
+        p_outros = c_p4.number_input("Outros Custos Variáveis (%)", min_value=0.0, value=float(precif_dict.get("outros_custos_var_pct", 1.0)), step=0.1)
+        p_fixas = c_p5.number_input("Partic. Despesas Fixas (%)", min_value=0.0, value=float(precif_dict.get("desp_fixas_pct", 2.0)), step=0.1)
+        p_lucro = c_p6.number_input("Margem de Lucro (%)", min_value=0.0, value=float(precif_dict.get("margem_lucro_pct", 31.6724)), step=0.5)
 
-        p_desconto_simulado = st.number_input("Simulação de Desconto para Venda (%)", min_value=0.0, max_value=100.0, value=safe_float(precif_dict.get("desconto_simulado_pct"), 0.0), step=0.5)
+        p_desconto_simulado = st.number_input("Simulação de Desconto para Venda (%)", min_value=0.0, max_value=100.0, value=float(precif_dict.get("desconto_simulado_pct", 0.0)), step=0.5)
 
         st.session_state.ft_precif = {
             "imposto_pct": p_imp, "tx_cartao_pct": p_cart, "comissao_pct": p_com,
@@ -2192,8 +2176,18 @@ else:
                             if st.button("⚡ Importar Cortes do Ficheiro para o Lote", key=f"btn_import_file_{v_form}"):
                                 st.session_state.cortes_temp = []
                                 for _, r in df_up.iterrows():
-                                    p_val = safe_float(r['peso'])
-                                    pv_val = safe_float(r['preco_venda'])
+                                    p_str = str(r['peso']).replace(',', '.')
+                                    pv_str = str(r['preco_venda']).replace('R$', '').replace(' ', '').replace(',', '.')
+                                    
+                                    try:
+                                        p_val = float(p_str)
+                                    except:
+                                        p_val = 0.0
+                                        
+                                    try:
+                                        pv_val = float(pv_str)
+                                    except:
+                                        pv_val = 0.0
                                         
                                     st.session_state.cortes_temp.append({
                                         "nome_corte": str(r['nome_corte']).upper().strip(),
